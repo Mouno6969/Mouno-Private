@@ -61,6 +61,7 @@ from db import (
     get_network_rate,
     get_pending_order,
     get_pending_orders,
+    get_user_pending_orders,
     get_recent_transactions,
     get_sms,
     get_star_order,
@@ -72,6 +73,7 @@ from db import (
     get_transaction_stats,
     get_today_transaction_stats,
     get_user_language,
+    get_user_star_orders,
     get_user_transactions,
     get_wallet,
     list_recent_escrow_records,
@@ -334,22 +336,117 @@ def terms_text(lang="bn"):
     )
 
 
-def ai_support_prompt(lang="bn"):
+def ai_stuck_question(question):
+    text = str(question or "").lower()
+    return any(term in text for term in ["stuck", "pending", "delay", "not received", "not sent", "order", "payment", "trx", "reference", "প্রমাণ", "পেমেন্ট", "অর্ডার", "আটকে", "হয়নি"])
+
+
+def ai_payment_methods_context():
+    b_kash_status = "enabled" if BKASH_NUMBER else "not configured"
+    if nigeria_configured():
+        nigeria_status = "enabled/configured"
+    elif is_nigeria_enabled():
+        nigeria_status = "enabled/needs setup"
+    else:
+        nigeria_status = "off"
+    stars_status = "enabled" if STAR_RATE and STAR_RATE > 0 else "not configured"
+    return f"bKash={b_kash_status}; Nigeria={nigeria_status}; Telegram Stars={stars_status}"
+
+
+def build_ai_support_context(user_id=None, username=None, lang="bn", question=""):
+    lines = [
+        "Safe read-only user context:",
+        f"- language: {LANGUAGES.get(lang, lang)} ({lang})",
+        f"- support: @{SUPPORT_USERNAME.lstrip('@')}",
+        f"- username: @{username}" if username else "- username: not available",
+        f"- payment methods: {ai_payment_methods_context()}",
+    ]
+    pending_rows = []
+    pending_any = False
+    if user_id is not None:
+        try:
+            pending_rows = get_user_pending_orders(user_id, 3)
+        except Exception as exc:
+            logger.warning("AI context pending lookup failed: %s", exc)
+            pending_rows = []
+        lines.append(f"- pending local orders: {'yes' if pending_rows else 'no'}")
+        if pending_rows:
+            pending_parts = []
+            for trx_id, _uid, amount_bdt, amount_usdc, _wallet, network, created_at, order_id in pending_rows[:3]:
+                source = payment_source_label(trx_id)
+                net_info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": ""})
+                pending_parts.append(f"{order_id or display_reference(trx_id)} pending via {source}, {amount_bdt} fiat, {amount_usdc} {net_info.get('symbol', '')}, {net_info.get('name', network)}, {str(created_at)[:16]}")
+            lines.append("- recent pending: " + " | ".join(pending_parts))
+        try:
+            tx_rows = get_user_transactions(user_id, 3)
+        except Exception as exc:
+            logger.warning("AI context transaction lookup failed: %s", exc)
+            tx_rows = []
+        if tx_rows:
+            tx_parts = []
+            for trx_id, amount_bdt, amount_usdc, network, _wallet, status, created_at, order_id, _sig in tx_rows[:3]:
+                source = payment_source_label(trx_id)
+                net_info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": ""})
+                tx_parts.append(f"{order_id or display_reference(trx_id)} {status} via {source}, {amount_bdt} fiat, {amount_usdc} {net_info.get('symbol', '')}, {net_info.get('name', network)}, {str(created_at)[:16]}")
+            lines.append("- recent transactions: " + " | ".join(tx_parts))
+        else:
+            lines.append("- recent transactions: none")
+        try:
+            star_rows = get_user_star_orders(user_id, 3)
+        except Exception as exc:
+            logger.warning("AI context Stars lookup failed: %s", exc)
+            star_rows = []
+        if star_rows:
+            star_parts = []
+            for order_id, _uid, _star_username, network, _wallet, amount_crypto, stars_amount, status, _tg_charge, _provider_charge, _tx_sig, _error, created_at, _updated_at in star_rows[:3]:
+                net_info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": ""})
+                star_parts.append(f"{order_id} {status} via Telegram Stars, {stars_amount} Stars, {amount_crypto} {net_info.get('symbol', '')}, {net_info.get('name', network)}, {str(created_at)[:16]}")
+            lines.append("- recent Stars orders: " + " | ".join(star_parts))
+        pending_any = bool(pending_rows) or any(str(row[7]).lower() == "pending" for row in star_rows)
+        lines.append(f"- pending orders: {'yes' if pending_any else 'no'}")
+        try:
+            wallet_row = get_user_wallet(user_id)
+        except Exception as exc:
+            logger.warning("AI context wallet lookup failed: %s", exc)
+            wallet_row = None
+        if wallet_row:
+            _encrypted_key, _salt, wallet_network, wallet_address = wallet_row
+            net_info = NETWORKS.get(wallet_network or "", {"name": wallet_network or "N/A"})
+            lines.append(f"- connected wallet: {net_info.get('name')} {short_wallet(wallet_address)}")
+        else:
+            lines.append("- connected wallet: none")
+    if pending_any and ai_stuck_question(question):
+        lines.append("- workflow hint: user has pending order(s); mention My Orders → Upload Proof/Dispute and Support contact. AI cannot verify payment.")
+    context_block = "\n".join(lines)
+    return context_block[:1600]
+
+
+def ai_support_prompt(lang="bn", context_block=""):
     if lang == "bn":
         reply_language = "Reply in Bengali."
     elif lang == "pcm":
         reply_language = "Reply in Nigerian Pidgin."
     else:
         reply_language = "Reply in English."
-    return (
+    prompt = (
         "You are the read-only AI support assistant for a Telegram crypto seller bot. "
         f"{reply_language} "
         "Keep replies short, practical, and beginner-friendly. "
         "You can explain bKash payment verification, Nigerian local payment/reference issues, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, gift codes, connected wallets, and contacting admin. "
-        "Never approve payments, never claim a transaction is paid unless the bot/admin verified it, never send crypto, never ask for private keys, never reveal secrets, and never tell users to share seed phrases/private keys. "
-        "If user reports stuck payment, ask them for TrxID/order ID and tell them admin may verify through /pending. "
+        "Safety policy: you are read-only. You cannot approve payments, verify payments yourself, send crypto, refund, reverse transfers, modify orders, change settings, or access private data. "
+        "Never ask for or accept private key, seed phrase, wallet password, bot token, API key, OTP, or admin password. Never reveal secrets. "
+        "Direct users to the correct bot buttons when useful: My Orders, Upload Proof, Dispute / Report Issue, and Support contact. "
+        "For Nigeria payment forwarder/local payment questions, explain reference/session ID usage and provider/bank notification delays, but say only bot/admin verification can confirm payment. "
+        "If the user reports a stuck payment/order and context shows pending orders, mention: My Orders → Upload Proof/Dispute, then contact support with the order/reference ID. "
         "Support contact is @" + SUPPORT_USERNAME.lstrip("@") + "."
     )
+    if context_block:
+        prompt += "\n\n" + context_block
+    return prompt
+
+
+def build_ai_user_message(question):
+    return "User question:\n" + str(question or "")[:3000]
 
 
 OPENAI_COMPATIBLE_DEFAULT_URLS = {
@@ -425,7 +522,7 @@ def parse_openai_compatible_response(data):
     return text
 
 
-def call_openai_compatible(config, question, lang="bn"):
+def call_openai_compatible(config, question, lang="bn", context_block=""):
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
         "Content-Type": "application/json",
@@ -438,8 +535,8 @@ def call_openai_compatible(config, question, lang="bn"):
     payload = {
         "model": config["model"],
         "messages": [
-            {"role": "system", "content": ai_support_prompt(lang)},
-            {"role": "user", "content": str(question)[:3000]},
+            {"role": "system", "content": ai_support_prompt(lang, context_block)},
+            {"role": "user", "content": build_ai_user_message(question)},
         ],
         "temperature": 0.3,
         "max_tokens": 500,
@@ -454,11 +551,11 @@ def call_openai_compatible(config, question, lang="bn"):
     return parse_openai_compatible_response(response.json())
 
 
-def call_gemini(config, question, lang="bn"):
+def call_gemini(config, question, lang="bn", context_block=""):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{config['model']}:generateContent"
     payload = {
-        "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
-        "contents": [{"role": "user", "parts": [{"text": str(question)[:3000]}]}],
+        "systemInstruction": {"parts": [{"text": ai_support_prompt(lang, context_block)}]},
+        "contents": [{"role": "user", "parts": [{"text": build_ai_user_message(question)}]}],
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
     }
     response = requests.post(url, params={"key": config["api_key"]}, json=payload, timeout=30)
@@ -479,13 +576,14 @@ def call_gemini(config, question, lang="bn"):
     return text
 
 
-def ask_ai_support(question, lang="bn"):
+def ask_ai_support(question, lang="bn", user_id=None, username=None):
     config = get_ai_config()
     validate_ai_config(config)
+    context_block = build_ai_support_context(user_id=user_id, username=username, lang=lang, question=question)
     if config["provider"] in {"openrouter", "openai"}:
-        return call_openai_compatible(config, question, lang)
+        return call_openai_compatible(config, question, lang, context_block)
     if config["provider"] == "gemini":
-        return call_gemini(config, question, lang)
+        return call_gemini(config, question, lang, context_block)
     raise RuntimeError(f"Unsupported AI provider: {config['provider']}")
 
 
@@ -518,6 +616,15 @@ def language_keyboard():
 
 def back_keyboard(lang):
     return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+
+
+def ai_unavailable_keyboard(lang):
+    support_url = f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(tr("my_orders", lang), callback_data="my_orders")],
+        [InlineKeyboardButton("📤 Upload Proof", callback_data="my_orders"), InlineKeyboardButton("⚠️ Dispute / Report Issue", url=support_url)],
+        [InlineKeyboardButton(tr("support", lang), url=support_url)],
+    ])
 
 
 def get_rate(network="solana"):
@@ -560,6 +667,34 @@ def mask_secret(value):
     return value[:4] + "***" + value[-4:]
 
 
+def sanitize_ai_error(error):
+    text = str(error or "").replace("\n", " ")[:1000]
+    patterns = [
+        r"sk-[A-Za-z0-9_\-]{8,}",
+        r"AIza[0-9A-Za-z_\-]{8,}",
+        r"Bearer\s+[A-Za-z0-9._\-]{8,}",
+        r"(api[_-]?key=)[^\s&]+",
+        r"(key=)[^\s&]+",
+        r"(token=)[^\s&]+",
+        r"(password=)[^\s&]+",
+    ]
+    for pattern in patterns:
+        text = re.sub(pattern, lambda match: match.group(1) + "***" if match.groups() else "***", text, flags=re.IGNORECASE)
+    return text[:500]
+
+
+def record_ai_error(error):
+    safe_error = sanitize_ai_error(error)
+    set_setting("ai_last_error", safe_error)
+    set_setting("ai_last_error_at", datetime.utcnow().isoformat(timespec="seconds") + "Z")
+    return safe_error
+
+
+def clear_ai_error():
+    set_setting("ai_last_error", "")
+    set_setting("ai_last_error_at", "")
+
+
 def ai_config_text(lang="bn"):
     try:
         config = get_ai_config()
@@ -574,6 +709,8 @@ def ai_config_text(lang="bn"):
     status = "OFF" if provider == "off" else ("READY" if config.get("enabled") else "NEEDS SETUP")
     source_key = get_setting("ai_api_key", "")
     key_source = "bot setting" if source_key else ("environment" if api_key else "not set")
+    last_error = get_setting("ai_last_error", "")
+    last_error_at = get_setting("ai_last_error_at", "")
     lines = [
         "🤖 AI Setup",
         DIVIDER,
@@ -587,7 +724,11 @@ def ai_config_text(lang="bn"):
         "Use Test AI after changing provider/key/model.",
     ]
     if error:
-        lines.append(f"Error: {error}")
+        lines.append(f"Error: {sanitize_ai_error(error)}")
+    if last_error:
+        lines.append(f"Last error: {last_error}")
+        if last_error_at:
+            lines.append(f"Last error at: {last_error_at}")
     return "\n".join(lines)
 
 
@@ -1057,11 +1198,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         await query.edit_message_text(tr("ai_test_running", lang), reply_markup=ai_setup_keyboard(lang))
         try:
-            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support("Reply with a short successful AI setup test confirmation.", lang))
+            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support("Reply with a short successful AI setup test confirmation.", lang, user_id=user_id, username=username))
+            clear_ai_error()
             preview = answer[:500]
             await query.edit_message_text(f"{tr('ai_test_ok', lang)}\n\n{preview}", reply_markup=ai_setup_keyboard(lang))
         except Exception as exc:
-            await query.edit_message_text(tr("ai_test_failed", lang, error=str(exc)[:500]), reply_markup=ai_setup_keyboard(lang))
+            safe_error = record_ai_error(exc)
+            await query.edit_message_text(tr("ai_test_failed", lang, error=safe_error), reply_markup=ai_setup_keyboard(lang))
 
     elif query.data == "ng_setup":
         if not is_admin(user_id):
@@ -1581,7 +1724,7 @@ def admin_dashboard_text():
         f"Active gift codes: {active_codes}\n"
         f"Funded escrow records: {funded_escrow}\n"
         f"Nigeria Pay: {ng_status}\n"
-        f"AI: {ai_line}\n"
+        f"AI Status: {ai_line}\n"
         f"Maintenance: {maintenance}"
     )
 
@@ -2520,10 +2663,14 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await update.message.reply_text(tr("ai_thinking", lang))
         try:
-            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang))
+            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang, user_id=user_id, username=username))
+            clear_ai_error()
         except Exception as exc:
             logger.error("AI support failed: %s", exc)
+            record_ai_error(exc)
             answer = tr("ai_unavailable", lang)
+            await update.message.reply_text(answer, reply_markup=ai_unavailable_keyboard(lang))
+            return AI_SUPPORT
         await update.message.reply_text(answer)
         return AI_SUPPORT
 

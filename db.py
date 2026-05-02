@@ -492,6 +492,20 @@ def get_pending_orders(limit=20):
         ).fetchall()
 
 
+def get_user_pending_orders(user_id, limit=5):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at, order_id
+            FROM pending_orders
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
+
+
 def delete_pending_order(trx_id):
     with closing(connect()) as con:
         con.execute("DELETE FROM pending_orders WHERE trx_id=?", (trx_id,))
@@ -563,6 +577,21 @@ def get_star_order(order_id):
             """,
             (order_id,),
         ).fetchone()
+
+
+def get_user_star_orders(user_id, limit=3):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status,
+                   telegram_payment_charge_id, provider_payment_charge_id, tx_sig, error, created_at, updated_at
+            FROM star_orders
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
 
 
 def update_star_order_status(order_id, status, telegram_payment_charge_id=None, provider_payment_charge_id=None, tx_sig=None, error=None):
