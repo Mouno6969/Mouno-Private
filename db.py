@@ -119,9 +119,18 @@ def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, stat
     with closing(connect()) as con:
         con.execute(
             """
-            INSERT OR IGNORE INTO transactions
+            INSERT INTO transactions
             (trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(trx_id) DO UPDATE SET
+                user_id=excluded.user_id,
+                amount_bdt=excluded.amount_bdt,
+                amount_usdc=excluded.amount_usdc,
+                wallet=excluded.wallet,
+                sig=excluded.sig,
+                status=excluded.status,
+                network=excluded.network,
+                created_at=CURRENT_TIMESTAMP
             """,
             (trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network),
         )
@@ -132,6 +141,19 @@ def trx_exists(trx_id):
     with closing(connect()) as con:
         row = con.execute("SELECT 1 FROM transactions WHERE trx_id=?", (trx_id,)).fetchone()
         return row is not None
+
+
+def get_recent_transactions(limit=10):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at
+            FROM transactions
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
 
 
 def create_code(code, amount_usdc, expires_at, network="solana"):
@@ -206,6 +228,12 @@ def save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network
 def get_pending_order(trx_id):
     with closing(connect()) as con:
         return con.execute("SELECT * FROM pending_orders WHERE trx_id=?", (trx_id,)).fetchone()
+
+
+def delete_pending_order(trx_id):
+    with closing(connect()) as con:
+        con.execute("DELETE FROM pending_orders WHERE trx_id=?", (trx_id,))
+        con.commit()
 
 
 init_db()

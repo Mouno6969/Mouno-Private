@@ -4,8 +4,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import base58
 import requests
 from solders.keypair import Keypair
-from tronpy import Tron
-from tronpy.keys import PrivateKey
 from web3 import Web3
 
 from config import (
@@ -19,6 +17,7 @@ from config import (
     TRON_PRIVATE_KEY,
 )
 from token_abi import ERC20_ABI
+from tron_utils import tron_client, tron_private_key
 
 CONTRACTS = {
     "polygon": {"token": "usdc", "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", "decimals": 6},
@@ -99,8 +98,8 @@ def get_tron_balance(private_key=None):
         key_hex = private_key or TRON_PRIVATE_KEY
         if not key_hex:
             return None
-        client = Tron()
-        key = PrivateKey(bytes.fromhex(key_hex))
+        client = tron_client()
+        key = tron_private_key(key_hex)
         addr = key.public_key.to_base58check_address()
         contract = client.get_contract("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
         balance = contract.functions.balanceOf(addr)

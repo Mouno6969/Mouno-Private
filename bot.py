@@ -33,11 +33,13 @@ from crypto_manager import (
 )
 from db import (
     create_code,
+    delete_pending_order,
     disable_code,
     get_all_active_codes,
     get_code,
     get_network_rate,
     get_pending_order,
+    get_recent_transactions,
     get_sms,
     get_wallet,
     mark_sms_used,
@@ -141,13 +143,19 @@ def main_menu(user_id):
 
 
 def network_menu(prefix):
+    cancel_callback = {
+        "network": "cancel",
+        "uw": "uw_cancel",
+        "setrate": "back",
+        "gencode": "back",
+    }.get(prefix, "back")
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("⬡ Solana USDC", callback_data=f"{prefix}_solana"), InlineKeyboardButton("⬡ Polygon USDC", callback_data=f"{prefix}_polygon")],
             [InlineKeyboardButton("⬡ BSC USDT", callback_data=f"{prefix}_bsc"), InlineKeyboardButton("⬡ Avax USDT", callback_data=f"{prefix}_avalanche")],
             [InlineKeyboardButton("⬡ ETH USDT", callback_data=f"{prefix}_ethereum"), InlineKeyboardButton("⬡ ETH USDC", callback_data=f"{prefix}_ethereum_usdc")],
             [InlineKeyboardButton("⬡ Base USDC", callback_data=f"{prefix}_base"), InlineKeyboardButton("⬡ TRC20 USDT", callback_data=f"{prefix}_trc20")],
-            [InlineKeyboardButton("❌ বাতিল", callback_data="cancel" if prefix == "network" else "uw_cancel")],
+            [InlineKeyboardButton("❌ বাতিল", callback_data=cancel_callback)],
         ]
     )
 
@@ -382,14 +390,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_txlog(query):
     try:
-        import sqlite3
-
-        con = sqlite3.connect("mouno.db")
-        rows = con.execute("""
-            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at
-            FROM transactions ORDER BY created_at DESC LIMIT 10
-        """).fetchall()
-        con.close()
+        rows = get_recent_transactions(10)
         if not rows:
             msg = "📜 কোনো ট্রানজেকশন নেই।"
         else:
@@ -487,6 +488,7 @@ async def approve_order(query, user_id):
         sig = await send_crypto(network, target_wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
         save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network)
+        delete_pending_order(trx_id)
         await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}")
         try:
             await query.get_bot().send_message(int(target_uid), f"🎉 পেমেন্ট confirm হয়েছে!\n\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
@@ -501,6 +503,7 @@ async def reject_order(query, user_id):
     if not is_admin(user_id):
         return
     _prefix, target_uid, trx_id = query.data.split("_", 2)
+    delete_pending_order(trx_id)
     await query.edit_message_text(f"❌ Rejected!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}")
     try:
         await query.get_bot().send_message(int(target_uid), f"❌ আপনার পেমেন্ট verify করা যায়নি!\n\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @MdMouno")

@@ -81,9 +81,9 @@ def get_wallet_address(network, private_key):
             keypair = Keypair.from_bytes(base58.b58decode(private_key))
             return str(keypair.pubkey())
         if network == "trc20":
-            from tronpy.keys import PrivateKey
+            from tron_utils import tron_private_key
 
-            key = PrivateKey(bytes.fromhex(private_key))
+            key = tron_private_key(private_key)
             return key.public_key.to_base58check_address()
 
         from web3 import Web3
@@ -208,11 +208,10 @@ def _send_solana_usdc(private_key, dest_wallet, amount):
 
 
 def _send_trc20_usdt(private_key, dest_wallet, amount):
-    from tronpy import Tron
-    from tronpy.keys import PrivateKey
+    from tron_utils import tron_client, tron_private_key
 
-    client = Tron()
-    key = PrivateKey(bytes.fromhex(private_key))
+    client = tron_client()
+    key = tron_private_key(private_key)
     addr = key.public_key.to_base58check_address()
     contract = client.get_contract("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
     txn = (
