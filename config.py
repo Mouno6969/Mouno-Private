@@ -10,6 +10,7 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 BKASH_NUMBER = os.getenv("BKASH_NUMBER")
 SOLANA_KEY = os.getenv("SOLANA_KEY")
 RATE = float(os.getenv("RATE", "137"))
+STAR_RATE = float(os.getenv("STAR_RATE", "100"))
 
 POLYGON_RPC = os.getenv("POLYGON_RPC")
 POLYGON_PRIVATE_KEY = os.getenv("POLYGON_PRIVATE_KEY")

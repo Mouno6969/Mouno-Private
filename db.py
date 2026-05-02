@@ -84,6 +84,24 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS star_orders (
+                order_id TEXT PRIMARY KEY,
+                user_id TEXT,
+                username TEXT,
+                network TEXT,
+                wallet TEXT,
+                amount_crypto REAL,
+                stars_amount INTEGER,
+                status TEXT DEFAULT 'pending',
+                telegram_payment_charge_id TEXT,
+                provider_payment_charge_id TEXT,
+                tx_sig TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
@@ -282,6 +300,49 @@ def set_user_language(user_id, language):
                 updated_at=CURRENT_TIMESTAMP
             """,
             (str(user_id), language),
+        )
+        con.commit()
+
+
+def save_star_order(order_id, user_id, username, network, wallet, amount_crypto, stars_amount):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO star_orders
+            (order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+            """,
+            (order_id, str(user_id), username or "", network, wallet, amount_crypto, int(stars_amount)),
+        )
+        con.commit()
+
+
+def get_star_order(order_id):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status,
+                   telegram_payment_charge_id, provider_payment_charge_id, tx_sig, error, created_at, updated_at
+            FROM star_orders WHERE order_id=?
+            """,
+            (order_id,),
+        ).fetchone()
+
+
+def update_star_order_status(order_id, status, telegram_payment_charge_id=None, provider_payment_charge_id=None, tx_sig=None, error=None):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            UPDATE star_orders
+            SET status=?,
+                telegram_payment_charge_id=COALESCE(?, telegram_payment_charge_id),
+                provider_payment_charge_id=COALESCE(?, provider_payment_charge_id),
+                tx_sig=COALESCE(?, tx_sig),
+                error=COALESCE(?, error),
+                updated_at=CURRENT_TIMESTAMP
+            WHERE order_id=?
+            """,
+            (status, telegram_payment_charge_id, provider_payment_charge_id, tx_sig, error, order_id),
         )
         con.commit()
 

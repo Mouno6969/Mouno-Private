@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
+import math
 import os
 import secrets
 import string
 import threading
 from datetime import datetime, timedelta
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -15,13 +16,14 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
     MessageHandler,
+    PreCheckoutQueryHandler,
     filters,
 )
 from telegram.request import HTTPXRequest
 
 from balance import check_sufficient, get_all_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -42,6 +44,7 @@ from db import (
     get_pending_orders,
     get_recent_transactions,
     get_sms,
+    get_star_order,
     get_user_language,
     get_wallet,
     mark_sms_used,
@@ -53,6 +56,8 @@ from db import (
     set_network_rate,
     sms_exists,
     trx_exists,
+    save_star_order,
+    update_star_order_status,
     use_code,
 )
 from evm_sender import send_evm_token
@@ -81,6 +86,8 @@ SEND_W_PASSWORD = 15
 DEL_PASSWORD = 17
 GEN_CUSTOM_AMOUNT = 20
 GEN_CUSTOM_DURATION = 21
+WAITING_STAR_WALLET = 30
+WAITING_STAR_AMOUNT = 31
 
 RATE_FILE = "rate.json"
 
@@ -108,6 +115,7 @@ TEXT = {
     "language_saved": {"bn": "✅ ভাষা সেট করা হয়েছে।", "en": "✅ Language saved."},
     "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
     "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
+    "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
     "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
     "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
     "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
@@ -144,6 +152,13 @@ TEXT = {
     "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
     "enter_custom_duration": {"bn": "মিনিট লিখুন। যেমন: 60", "en": "Send minutes. Example: 60"},
     "code_created": {"bn": "✅ গিফট কোড তৈরি হয়েছে!", "en": "✅ Gift code generated!"},
+    "stars_intro": {"bn": "⭐ Telegram Stars দিয়ে কিনুন\n\nনেটওয়ার্ক বেছে নিন।", "en": "⭐ Pay with Telegram Stars\n\nSelect a network."},
+    "stars_enter_amount": {"bn": "কত {symbol} কিনতে চান?\n\nRate: 1 {symbol} = {rate} Stars", "en": "How many {symbol} do you want to buy?\n\nRate: 1 {symbol} = {rate} Stars"},
+    "stars_invoice_title": {"bn": "Crypto Order", "en": "Crypto Order"},
+    "stars_invoice_description": {"bn": "{amount} {symbol} on {network}", "en": "{amount} {symbol} on {network}"},
+    "stars_pay_prompt": {"bn": "Invoice পাঠানো হয়েছে। Telegram Stars দিয়ে payment complete করুন।", "en": "Invoice sent. Complete payment with Telegram Stars."},
+    "stars_paid_sending": {"bn": "✅ Stars payment received. Crypto পাঠানো হচ্ছে...", "en": "✅ Stars payment received. Sending crypto..."},
+    "stars_completed": {"bn": "🎉 Stars payment verified এবং crypto পাঠানো হয়েছে!", "en": "🎉 Stars payment verified and crypto sent!"},
 }
 
 
@@ -182,6 +197,11 @@ def get_rate(network="solana"):
     return float(RATE)
 
 
+def get_star_rate(network="solana"):
+    env_key = f"STAR_RATE_{network.upper()}"
+    return float(os.getenv(env_key, STAR_RATE))
+
+
 def get_all_rates():
     return {net: get_rate(net) for net in NETWORKS}
 
@@ -189,6 +209,10 @@ def get_all_rates():
 def gen_code(length=8):
     chars = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
+
+
+def gen_order_id(prefix="STAR"):
+    return f"{prefix}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{gen_code(6)}"
 
 
 def wallet_hint(network):
@@ -210,10 +234,11 @@ def valid_wallet(network, wallet):
 def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
-        [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu")],
-        [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("balance", lang), callback_data="balance")],
-        [InlineKeyboardButton(tr("txlog", lang), callback_data="txlog"), InlineKeyboardButton(tr("help", lang), callback_data="help")],
-        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
+        [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
+        [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("rate", lang), callback_data="rate")],
+        [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
+        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("help", lang), callback_data="help")],
+        [InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
     ]
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
@@ -227,6 +252,7 @@ def network_menu(prefix, lang="bn"):
         "uw": "uw_cancel",
         "setrate": "back",
         "gencode": "back",
+        "star_network": "back",
     }.get(prefix, "back")
     return InlineKeyboardMarkup(
         [
@@ -399,6 +425,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "buy":
         await query.edit_message_text(f"{tr('select_network', lang)}:\n\n{rates_text('', lang)}", reply_markup=network_menu("network", lang))
+
+    elif query.data == "star_buy":
+        context.user_data.clear()
+        context.user_data["star_step"] = "network"
+        await query.edit_message_text(tr("stars_intro", lang), reply_markup=network_menu("star_network", lang))
+
+    elif query.data.startswith("star_network_"):
+        network = query.data.replace("star_network_", "")
+        context.user_data["star_network"] = network
+        context.user_data["star_username"] = username
+        net_info = NETWORKS[network]
+        await query.edit_message_text(
+            f"⭐ {net_info['name']}\n\n{tr('enter_wallet', lang, network=net_info['name'])}:\n\n📋 {tr('example', lang)}: {wallet_hint(network)}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
+        )
+        return WAITING_STAR_WALLET
 
     elif query.data.startswith("network_"):
         network = query.data.replace("network_", "")
@@ -791,6 +833,76 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def waiting_star_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    wallet = update.message.text.strip()
+    user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
+    network = context.user_data.get("star_network", "solana")
+    net_info = NETWORKS[network]
+    if not valid_wallet(network, wallet):
+        await update.message.reply_text(f"{tr('invalid_wallet', lang)}\n\n{tr('enter_wallet', lang, network=net_info['name'])}.")
+        return WAITING_STAR_WALLET
+    context.user_data["star_wallet"] = wallet
+    await update.message.reply_text(
+        tr("stars_enter_amount", lang, symbol=net_info["symbol"], rate=get_star_rate(network))
+        + f"\n\n{tr('numbers_only', lang).replace('500', '1.5')}"
+    )
+    return WAITING_STAR_AMOUNT
+
+
+async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    lang = user_lang(user.id)
+    try:
+        amount_crypto = float(update.message.text.strip())
+        if amount_crypto <= 0:
+            raise ValueError
+    except Exception:
+        await update.message.reply_text(f"{tr('invalid_amount', lang)}\nExample: 1.5")
+        return WAITING_STAR_AMOUNT
+
+    network = context.user_data.get("star_network", "solana")
+    wallet = context.user_data.get("star_wallet")
+    net_info = NETWORKS[network]
+    star_rate = get_star_rate(network)
+    stars_amount = max(1, math.ceil(amount_crypto * star_rate))
+
+    sufficient, current_bal = check_sufficient(network, amount_crypto)
+    if not sufficient and current_bal is not None:
+        await update.message.reply_text(
+            f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {amount_crypto}\nAvailable: {current_bal}"
+            if lang == "en"
+            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\nআছে: {current_bal}"
+        )
+        return ConversationHandler.END
+
+    order_id = gen_order_id("STAR")
+    username = user.username or user.first_name or ""
+    save_star_order(order_id, user.id, username, network, wallet, amount_crypto, stars_amount)
+    title = tr("stars_invoice_title", lang)
+    description = tr("stars_invoice_description", lang, amount=amount_crypto, symbol=net_info["symbol"], network=net_info["name"])
+    prices = [LabeledPrice(label=f"{amount_crypto} {net_info['symbol']}", amount=stars_amount)]
+
+    await update.message.reply_invoice(
+        title=title,
+        description=description,
+        payload=order_id,
+        provider_token="",
+        currency="XTR",
+        prices=prices,
+    )
+    await update.message.reply_text(
+        f"{tr('stars_pay_prompt', lang)}\n\n"
+        f"🌐 {net_info['name']}\n"
+        f"💵 {amount_crypto} {net_info['symbol']}\n"
+        f"⭐ {stars_amount} Stars\n"
+        f"👤 @{username}\n"
+        f"👛 {wallet}"
+    )
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
 async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -1135,6 +1247,101 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
     return ConversationHandler.END
 
 
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    order = get_star_order(query.invoice_payload)
+    if not order:
+        await query.answer(ok=False, error_message="Order expired. Please create a new order.")
+        return
+    order_id, user_id, _username, _network, _wallet, _amount_crypto, stars_amount, status, *_rest = order
+    if status != "pending":
+        await query.answer(ok=False, error_message="This order was already processed.")
+        return
+    if str(query.from_user.id) != str(user_id):
+        await query.answer(ok=False, error_message="This invoice belongs to another user.")
+        return
+    if query.currency != "XTR" or int(query.total_amount) != int(stars_amount):
+        await query.answer(ok=False, error_message="Payment amount mismatch.")
+        return
+    await query.answer(ok=True)
+
+
+async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payment = update.message.successful_payment
+    if payment.currency != "XTR":
+        return
+    order = get_star_order(payment.invoice_payload)
+    if not order:
+        await update.message.reply_text("❌ Order not found. Contact admin with your payment receipt.")
+        try:
+            await update.get_bot().send_message(ADMIN_ID, f"🚨 Stars payment received but order was not found.\nPayload: {payment.invoice_payload}\nCharge: {payment.telegram_payment_charge_id}")
+        except Exception:
+            pass
+        return
+
+    order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status, *_rest = order
+    lang = user_lang(user_id)
+    net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+
+    if status == "completed":
+        await update.message.reply_text("✅ This Stars order is already completed.")
+        return
+    if str(update.effective_user.id) != str(user_id) or int(payment.total_amount) != int(stars_amount):
+        update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error="payment verification mismatch")
+        await update.message.reply_text("❌ Payment verification mismatch. Contact admin.")
+        return
+
+    update_star_order_status(order_id, "paid", payment.telegram_payment_charge_id, payment.provider_payment_charge_id)
+    await update.message.reply_text(tr("stars_paid_sending", lang))
+
+    try:
+        sig = await send_crypto(network, wallet, amount_crypto)
+        explorer = f"{net_info['explorer']}{sig}"
+        update_star_order_status(order_id, "completed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, sig)
+        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
+        await update.message.reply_text(
+            f"{tr('stars_completed', lang)}\n\n"
+            f"🌐 {net_info['name']}\n"
+            f"💵 {amount_crypto} {net_info['symbol']}\n"
+            f"⭐ {stars_amount} Stars\n"
+            f"👛 {wallet}\n"
+            f"🔗 {explorer}"
+        )
+        try:
+            await update.get_bot().send_message(
+                ADMIN_ID,
+                f"✅ Telegram Stars order completed.\n\n"
+                f"👤 @{username} ({user_id})\n"
+                f"🧾 Order: {order_id}\n"
+                f"🌐 {net_info['name']}\n"
+                f"💵 {amount_crypto} {net_info['symbol']}\n"
+                f"⭐ {stars_amount} Stars\n"
+                f"👛 {wallet}\n"
+                f"🔗 {explorer}",
+            )
+        except Exception:
+            pass
+    except Exception as exc:
+        update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error=str(exc))
+        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, "", "failed", network)
+        await update.message.reply_text("✅ Stars payment received, but crypto sending failed. Admin has been notified.")
+        try:
+            await update.get_bot().send_message(
+                ADMIN_ID,
+                f"🚨 Stars payment received but crypto send failed.\n\n"
+                f"👤 @{username} ({user_id})\n"
+                f"🧾 Order: {order_id}\n"
+                f"⭐ Charge: {payment.telegram_payment_charge_id}\n"
+                f"🌐 {net_info['name']}\n"
+                f"💵 {amount_crypto} {net_info['symbol']}\n"
+                f"👛 {wallet}\n"
+                f"❌ {exc}",
+            )
+        except Exception:
+            pass
+        logger.error("Stars order send failed: %s", exc)
+
+
 async def deletekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     if not get_user_wallet(user_id):
@@ -1287,6 +1494,14 @@ async def main():
         states={WAITING_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_wallet)], WAITING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_amount)]},
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
+    star_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^star_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        states={
+            WAITING_STAR_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_wallet)],
+            WAITING_STAR_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_amount)],
+        },
+        fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
+    )
     rate_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
         states={WAITING_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_rate)]},
@@ -1315,10 +1530,13 @@ async def main():
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(buy_conv)
+    app.add_handler(star_conv)
     app.add_handler(rate_conv)
     app.add_handler(setup_conv)
     app.add_handler(send_wallet_conv)
     app.add_handler(delete_conv)
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_star_payment))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid))
 

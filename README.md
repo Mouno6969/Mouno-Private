@@ -6,6 +6,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 
 - Telegram bot menu and order flow in `bot.py`
 - Bengali/English language selection with stored user preferences
+- Telegram Stars payment flow with automatic crypto delivery after successful payment
 - Button-driven admin gift-code generation flow
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
@@ -36,5 +37,6 @@ The bot starts Telegram polling and a Flask webhook on port `5000` for `/sms`.
 ## Notes
 
 - No private keys or bot tokens are committed. Use environment variables only.
+- `STAR_RATE` controls how many Telegram Stars equal 1 USDC/USDT. Use `STAR_RATE_SOLANA`, `STAR_RATE_TRC20`, etc. for per-network overrides.
 - Runtime files such as `mouno.db`, `bot.log`, `rate.json`, and `.env` are ignored.
 - Obvious Termux copy/paste formatting issues were corrected while preserving the project structure and behavior.
