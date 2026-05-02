@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import secrets
+import string
 from contextlib import closing
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "mouno.db")
@@ -7,6 +9,12 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "mouno.db")
 
 def connect():
     return sqlite3.connect(DB_PATH)
+
+
+def gen_order_id(prefix="ORD"):
+    chars = string.ascii_uppercase + string.digits
+    suffix = "".join(secrets.choice(chars) for _ in range(6))
+    return f"{prefix}-{suffix}"
 
 
 def ensure_column(con, table, column, definition):
@@ -38,6 +46,7 @@ def init_db():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 trx_id TEXT PRIMARY KEY,
+                order_id TEXT,
                 user_id TEXT,
                 amount_bdt REAL,
                 amount_usdc REAL,
@@ -74,7 +83,15 @@ def init_db():
                 amount_usdc REAL,
                 wallet TEXT,
                 network TEXT,
+                order_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("""
@@ -103,8 +120,10 @@ def init_db():
             )
         """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
+        ensure_column(con, "transactions", "order_id", "TEXT")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
+        ensure_column(con, "pending_orders", "order_id", "TEXT")
         con.commit()
 
 
@@ -147,14 +166,16 @@ def mark_sms_used(trx_id):
         con.commit()
 
 
-def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network="solana"):
+def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network="solana", order_id=None):
+    order_id = order_id or gen_order_id()
     with closing(connect()) as con:
         con.execute(
             """
             INSERT INTO transactions
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(trx_id) DO UPDATE SET
+                order_id=COALESCE(transactions.order_id, excluded.order_id),
                 user_id=excluded.user_id,
                 amount_bdt=excluded.amount_bdt,
                 amount_usdc=excluded.amount_usdc,
@@ -164,8 +185,20 @@ def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, stat
                 network=excluded.network,
                 created_at=CURRENT_TIMESTAMP
             """,
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network),
+            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network),
         )
+        con.commit()
+        return order_id
+
+
+def update_transaction(trx_id, sig=None, status=None):
+    with closing(connect()) as con:
+        if sig is not None and status is not None:
+            con.execute("UPDATE transactions SET sig=?, status=?, created_at=CURRENT_TIMESTAMP WHERE trx_id=?", (sig, status, trx_id))
+        elif sig is not None:
+            con.execute("UPDATE transactions SET sig=?, created_at=CURRENT_TIMESTAMP WHERE trx_id=?", (sig, trx_id))
+        elif status is not None:
+            con.execute("UPDATE transactions SET status=?, created_at=CURRENT_TIMESTAMP WHERE trx_id=?", (status, trx_id))
         con.commit()
 
 
@@ -179,13 +212,53 @@ def get_recent_transactions(limit=10):
     with closing(connect()) as con:
         return con.execute(
             """
-            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id
             FROM transactions
             ORDER BY datetime(created_at) DESC, rowid DESC
             LIMIT ?
             """,
             (limit,),
         ).fetchall()
+
+
+def get_transaction(trx_id):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig
+            FROM transactions WHERE trx_id=?
+            """,
+            (trx_id,),
+        ).fetchone()
+
+
+def get_failed_transactions(limit=10):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig
+            FROM transactions
+            WHERE status='failed'
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+
+def get_transaction_stats():
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed,
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0) as total_bdt,
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0) as total_crypto
+            FROM transactions
+            """
+        ).fetchone()
 
 
 def create_code(code, amount_usdc, expires_at, network="solana"):
@@ -244,17 +317,19 @@ def set_network_rate(network, rate):
         con.commit()
 
 
-def save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network):
+def save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id=None):
+    order_id = order_id or gen_order_id()
     with closing(connect()) as con:
         con.execute(
             """
             INSERT OR REPLACE INTO pending_orders
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network),
+            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id),
         )
         con.commit()
+        return order_id
 
 
 def get_pending_order(trx_id):
@@ -266,7 +341,7 @@ def get_pending_orders(limit=20):
     with closing(connect()) as con:
         return con.execute(
             """
-            SELECT trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at
+            SELECT trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at, order_id
             FROM pending_orders
             ORDER BY datetime(created_at) DESC
             LIMIT ?
@@ -300,6 +375,25 @@ def set_user_language(user_id, language):
                 updated_at=CURRENT_TIMESTAMP
             """,
             (str(user_id), language),
+        )
+        con.commit()
+
+
+def get_setting(key, default=None):
+    with closing(connect()) as con:
+        row = con.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+
+def set_setting(key, value):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP
+            """,
+            (key, str(value)),
         )
         con.commit()
 

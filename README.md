@@ -9,6 +9,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 - Telegram Stars payment flow with automatic crypto delivery after successful payment
 - Button-driven admin gift-code generation flow
 - Button-driven admin asset send flow across supported networks
+- Admin dashboard commands, backup, maintenance mode, failed-send retry, order IDs, terms/support, and gas warnings
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
 - Delayed-SMS pending order recovery and `/pending` admin fallback
