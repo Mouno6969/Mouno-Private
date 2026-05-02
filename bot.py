@@ -288,6 +288,18 @@ def ask_ai_support(question, lang="bn", order_context=""):
     return text
 
 
+def safe_ai_exception_summary(exc):
+    exc_type = type(exc).__name__
+    response = getattr(exc, "response", None)
+    if isinstance(exc, requests.HTTPError) and response is not None:
+        status = getattr(response, "status_code", None)
+        reason = getattr(response, "reason", "") or ""
+        return f"{exc_type} status={status or 'unknown'} reason={reason[:80] or 'N/A'}"
+    if isinstance(exc, requests.RequestException):
+        return exc_type
+    return exc_type
+
+
 def user_lang(user_id) -> str:
     return get_user_language(user_id) or "bn"
 
@@ -1463,7 +1475,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             order_context = build_ai_order_context(user_id)
             answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang, order_context))
         except Exception as exc:
-            logger.exception("AI support failed: %s", exc)
+            logger.warning("AI support failed: %s", safe_ai_exception_summary(exc))
             answer = tr("ai_unavailable", lang)
         await update.message.reply_text(answer)
         return AI_SUPPORT
