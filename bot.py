@@ -42,6 +42,7 @@ from db import (
     get_code,
     get_network_rate,
     get_pending_order,
+    get_pending_order_count,
     get_pending_orders,
     get_recent_transactions,
     get_sms,
@@ -50,6 +51,9 @@ from db import (
     get_setting,
     get_transaction,
     get_transaction_stats,
+    get_user_pending_orders,
+    get_user_recent_transactions,
+    get_user_star_orders,
     get_user_language,
     get_wallet,
     mark_sms_used,
@@ -183,7 +187,7 @@ TEXT = {
     "admin_send_done": {"bn": "✅ Admin transfer complete!", "en": "✅ Admin transfer complete!"},
     "maintenance_on": {"bn": "🛑 Maintenance mode ON", "en": "🛑 Maintenance mode ON"},
     "maintenance_off": {"bn": "✅ Maintenance mode OFF", "en": "✅ Maintenance mode OFF"},
-    "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nSend /cancel to close."},
+    "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Recent order status read-only mode-এ দেখে payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nPassword/private key/API key/OTP কখনো পাঠাবেন না। বন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can see recent order status in read-only mode and help with payment, wallet, network, bKash, Stars, or order issues.\n\nNever send password/private key/API key/OTP. Send /cancel to close."},
     "ai_unavailable": {"bn": "❌ AI Support এখন unavailable. Admin-কে জানান।", "en": "❌ AI Support is unavailable. Please contact admin."},
     "ai_thinking": {"bn": "🤖 উত্তর তৈরি করছি...", "en": "🤖 Thinking..."},
 }
@@ -243,23 +247,33 @@ def terms_text(lang="bn"):
 def ai_support_prompt(lang="bn"):
     return (
         "You are the read-only AI support assistant for a Telegram crypto seller bot. "
-        "Reply in Bengali if the user writes Bengali, otherwise reply in English. "
+        "Use the user's obvious language/style: Bengali, English, or Nigerian Pidgin/Pidgin English. "
         "Keep replies short, practical, and beginner-friendly. "
         "You can explain bKash payment verification, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, and contacting admin. "
-        "Never approve payments, never claim a transaction is paid unless the bot/admin verified it, never send crypto, never ask for private keys, never reveal secrets, and never tell users to share seed phrases/private keys. "
-        "If user reports stuck payment, ask them for TrxID/order ID and tell them admin may verify through /pending. "
+        "READ-ONLY ORDER CONTEXT may be provided. Treat it as sanitized, read-only, and possibly stale; never perform write/admin actions and never invent order status beyond that context. "
+        "Never approve payments, never say a payment/order is completed unless context says completed, never send crypto, and never reveal secrets. "
+        "Never ask for or accept private key, seed phrase, wallet password, bot token, API key, OTP, or admin credentials. If exposed, tell the user to delete it and rotate/change it immediately. "
+        "You may ask only for safe identifiers: order ID, TrxID, Telegram Stars order ID, public wallet address preferably partial, and screenshots/proof/receipt for admin verification. "
+        "If a pending order exists or the user mentions stuck/pending/proof/dispute/status, guide them to wait for admin/manual verification, keep proof/screenshot/receipt, and send TrxID/order ID to support. "
+        "If context shows completed, say the bot shows completed and mention tx signature/link if present. If failed, explain support/admin retry may be needed. "
         "Support contact is @" + SUPPORT_USERNAME.lstrip("@") + "."
     )
 
 
-def ask_ai_support(question, lang="bn"):
+def ask_ai_support(question, lang="bn", order_context=""):
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not configured")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    user_text = (
+        "READ-ONLY ORDER CONTEXT\n"
+        f"{(order_context or 'No recent order context is available.')[:4000]}\n\n"
+        "USER QUESTION\n"
+        f"{question[:3000]}"
+    )
     payload = {
         "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
-        "contents": [{"role": "user", "parts": [{"text": question[:3000]}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
+        "contents": [{"role": "user", "parts": [{"text": user_text}]}],
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 650},
     }
     response = requests.post(url, params={"key": GEMINI_API_KEY}, json=payload, timeout=30)
     response.raise_for_status()
@@ -272,6 +286,18 @@ def ask_ai_support(question, lang="bn"):
     if not text:
         raise RuntimeError("Empty AI response returned")
     return text
+
+
+def safe_ai_exception_summary(exc):
+    exc_type = type(exc).__name__
+    response = getattr(exc, "response", None)
+    if isinstance(exc, requests.HTTPError) and response is not None:
+        status = getattr(response, "status_code", None)
+        reason = getattr(response, "reason", "") or ""
+        return f"{exc_type} status={status or 'unknown'} reason={reason[:80] or 'N/A'}"
+    if isinstance(exc, requests.RequestException):
+        return exc_type
+    return exc_type
 
 
 def user_lang(user_id) -> str:
@@ -290,6 +316,76 @@ def panel(title, body=""):
 
 def short_wallet(wallet):
     return f"{wallet[:8]}...{wallet[-6:]}" if wallet and len(wallet) > 18 else (wallet or "N/A")
+
+
+def short_datetime(value):
+    return str(value)[:16] if value else "N/A"
+
+
+def tx_link(network, sig):
+    if not sig:
+        return ""
+    explorer = NETWORKS.get(network or "solana", {}).get("explorer")
+    return f" tx={explorer}{sig}" if explorer else f" tx_sig={sig}"
+
+
+def safe_ai_wallet(wallet):
+    masked = short_wallet(wallet)
+    if wallet and masked == wallet and len(wallet) > 10:
+        return f"{wallet[:4]}...{wallet[-4:]}"
+    return masked
+
+
+def build_ai_order_context(user_id):
+    transactions = get_user_recent_transactions(user_id, 5)
+    pending_orders = get_user_pending_orders(user_id, 5)
+    star_orders = get_user_star_orders(user_id, 5)
+    lines = [
+        "This context is read-only, sanitized, and may be stale. It contains no private keys, passwords, API keys, OTPs, full wallets, or raw SMS.",
+        f"User has pending bKash orders: {'yes' if pending_orders else 'no'}.",
+    ]
+    if pending_orders:
+        lines.append("Pending bKash orders may need admin/manual verification. User should keep proof/screenshot/receipt and TrxID/order ID ready.")
+    if not transactions and not pending_orders and not star_orders:
+        lines.append("No recent order context is available for this user.")
+        return "\n".join(lines)
+    if pending_orders:
+        lines.append("Pending bKash orders:")
+        for trx_id, order_id, amount_bdt, amount_usdc, wallet, network, created_at in pending_orders:
+            ni = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "crypto"})
+            lines.append(
+                f"- order_id={order_id or 'N/A'} TrxID={trx_id or 'N/A'} status=pending amount={amount_bdt or 0} BDT / {amount_usdc or 0} {ni['symbol']} network={ni['name']} wallet={safe_ai_wallet(wallet)} created={short_datetime(created_at)}"
+            )
+    if transactions:
+        lines.append("Recent bot transactions:")
+        for trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, _row_user_id, sig in transactions:
+            ni = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "crypto"})
+            lines.append(
+                f"- order_id={order_id or 'N/A'} TrxID={trx_id or 'N/A'} status={status or 'unknown'} amount={amount_bdt or 0} BDT / {amount_usdc or 0} {ni['symbol']} network={ni['name']} wallet={safe_ai_wallet(wallet)} created={short_datetime(created_at)}{tx_link(network, sig)}"
+            )
+    if star_orders:
+        lines.append("Recent Telegram Stars orders:")
+        for order_id, network, wallet, amount_crypto, stars_amount, status, tx_sig, _error, created_at, updated_at in star_orders:
+            ni = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "crypto"})
+            lines.append(
+                f"- order_id={order_id or 'N/A'} status={status or 'unknown'} amount={amount_crypto or 0} {ni['symbol']} / {stars_amount or 0} Stars network={ni['name']} wallet={safe_ai_wallet(wallet)} created={short_datetime(created_at)} updated={short_datetime(updated_at)}{tx_link(network, tx_sig)}"
+            )
+    return "\n".join(lines[:24])
+
+
+def ai_setup_status():
+    api_status = "configured" if GEMINI_API_KEY else "missing"
+    pending_count = get_pending_order_count()
+    maintenance = "ON" if is_maintenance_enabled() else "OFF"
+    return (
+        "🤖 AI Support Status\n\n"
+        f"Gemini API key: {api_status}\n"
+        f"Gemini model: {GEMINI_MODEL or 'not configured'}\n"
+        f"Support username: @{SUPPORT_USERNAME.lstrip('@')}\n"
+        f"Pending bKash orders: {pending_count}\n"
+        f"Maintenance mode: {maintenance}\n"
+        "Mode: read-only AI; order context is sanitized."
+    )
 
 
 def language_keyboard():
@@ -818,7 +914,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
     total, completed, failed, total_bdt, total_crypto = get_transaction_stats()
-    pending_count = len(get_pending_orders(100))
+    pending_count = get_pending_order_count()
     failed_count = len(get_failed_transactions(100))
     maintenance = "ON" if is_maintenance_enabled() else "OFF"
     await update.message.reply_text(
@@ -830,8 +926,15 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔁 Retry queue: {failed_count}\n"
         f"💰 Completed BDT: {round(total_bdt or 0, 4)}\n"
         f"💵 Completed crypto total: {round(total_crypto or 0, 6)}\n"
-        f"🛠️ Maintenance: {maintenance}"
+        f"🛠️ Maintenance: {maintenance}\n\n"
+        f"{ai_setup_status()}"
     )
+
+
+async def aistatus_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(ai_setup_status())
 
 
 async def balances_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1369,9 +1472,10 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await update.message.reply_text(tr("ai_thinking", lang))
         try:
-            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang))
+            order_context = build_ai_order_context(user_id)
+            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang, order_context))
         except Exception as exc:
-            logger.error("AI support failed: %s", exc)
+            logger.warning("AI support failed: %s", safe_ai_exception_summary(exc))
             answer = tr("ai_unavailable", lang)
         await update.message.reply_text(answer)
         return AI_SUPPORT
@@ -1992,6 +2096,7 @@ async def main():
     app.add_handler(CommandHandler("pending", pending_cmd))
     app.add_handler(CommandHandler("failed", failed_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("aistatus", aistatus_cmd))
     app.add_handler(CommandHandler("balances", balances_cmd))
     app.add_handler(CommandHandler("maintenance", maintenance_cmd))
     app.add_handler(CommandHandler("terms", terms_cmd))

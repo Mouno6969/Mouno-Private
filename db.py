@@ -232,6 +232,20 @@ def get_transaction(trx_id):
         ).fetchone()
 
 
+def get_user_recent_transactions(user_id, limit=5):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig
+            FROM transactions
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
+
+
 def get_failed_transactions(limit=10):
     with closing(connect()) as con:
         return con.execute(
@@ -350,6 +364,26 @@ def get_pending_orders(limit=20):
         ).fetchall()
 
 
+def get_user_pending_orders(user_id, limit=5):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, order_id, amount_bdt, amount_usdc, wallet, network, created_at
+            FROM pending_orders
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
+
+
+def get_pending_order_count():
+    with closing(connect()) as con:
+        row = con.execute("SELECT COUNT(*) FROM pending_orders").fetchone()
+        return row[0] if row else 0
+
+
 def delete_pending_order(trx_id):
     with closing(connect()) as con:
         con.execute("DELETE FROM pending_orders WHERE trx_id=?", (trx_id,))
@@ -421,6 +455,20 @@ def get_star_order(order_id):
             """,
             (order_id,),
         ).fetchone()
+
+
+def get_user_star_orders(user_id, limit=5):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT order_id, network, wallet, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at
+            FROM star_orders
+            WHERE user_id=?
+            ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
 
 
 def update_star_order_status(order_id, status, telegram_payment_charge_id=None, provider_payment_charge_id=None, tx_sig=None, error=None):
