@@ -29,6 +29,10 @@ from config import (
     ADMIN_ID,
     BKASH_NUMBER,
     BOT_TOKEN,
+    AI_API_KEY,
+    AI_BASE_URL,
+    AI_MODEL,
+    AI_PROVIDER,
     RATE,
     STAR_RATE,
     SUPPORT_USERNAME,
@@ -114,6 +118,7 @@ ADMIN_SEND_WALLET = 40
 ADMIN_SEND_AMOUNT = 41
 AI_SUPPORT = 50
 NG_SETUP_TEXT = 60
+AI_SETUP_TEXT = 61
 
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
@@ -152,6 +157,7 @@ TEXT = {
     'help': {"bn": '❓ সাহায্য', "en": '❓ Help', "pcm": '❓ Help' },
     'support': {"bn": '📞 Support', "en": '📞 Support', "pcm": '📞 Support' },
     'ai_support': {"bn": '🤖 AI Support', "en": '🤖 AI Support', "pcm": '🤖 AI Support' },
+    'ai_setup': {"bn": '🤖 AI Setup', "en": '🤖 AI Setup', "pcm": '🤖 AI Setup' },
     'terms': {"bn": '📜 Terms', "en": '📜 Terms', "pcm": '📜 Terms' },
     'wallet': {"bn": '🔐 আমার Wallet', "en": '🔐 My Wallet', "pcm": '🔐 My Wallet' },
     'language': {"bn": '🌐 ভাষা', "en": '🌐 Language', "pcm": '🌐 Language' },
@@ -232,6 +238,13 @@ TEXT = {
     },
     'ai_unavailable': {"bn": '❌ AI Support এখন unavailable. Admin-কে জানান।', "en": '❌ AI Support is unavailable. Please contact admin.', "pcm": '❌ AI Support no dey available now. Please contact admin.' },
     'ai_thinking': {"bn": '🤖 উত্তর তৈরি করছি...', "en": '🤖 Thinking...', "pcm": '🤖 I dey think...' },
+    'ai_setup_saved': {"bn": '✅ AI setting saved.', "en": '✅ AI setting saved.', "pcm": '✅ AI setting don save.' },
+    'ai_setup_prompt_key': {"bn": 'Send AI API key. Message will be deleted after saving.', "en": 'Send AI API key. Message will be deleted after saving.', "pcm": 'Send AI API key. Message go delete after e save.' },
+    'ai_setup_prompt_model': {"bn": 'Send AI model name. Example: openai/gpt-4o-mini', "en": 'Send AI model name. Example: openai/gpt-4o-mini', "pcm": 'Send AI model name. Example: openai/gpt-4o-mini' },
+    'ai_setup_prompt_base_url': {"bn": 'Send OpenAI-compatible base URL. Example: https://openrouter.ai/api/v1/chat/completions', "en": 'Send OpenAI-compatible base URL. Example: https://openrouter.ai/api/v1/chat/completions', "pcm": 'Send OpenAI-compatible base URL. Example: https://openrouter.ai/api/v1/chat/completions' },
+    'ai_test_running': {"bn": '🤖 Testing AI setup...', "en": '🤖 Testing AI setup...', "pcm": '🤖 Testing AI setup...' },
+    'ai_test_ok': {"bn": '✅ AI test successful.', "en": '✅ AI test successful.', "pcm": '✅ AI test successful.' },
+    'ai_test_failed': {"bn": '❌ AI test failed: {error}', "en": '❌ AI test failed: {error}', "pcm": '❌ AI test fail: {error}' },
 }
 
 
@@ -310,29 +323,139 @@ def terms_text(lang="bn"):
 
 
 def ai_support_prompt(lang="bn"):
-    reply_language = "Reply in Nigerian Pidgin." if lang == "pcm" else "Reply in Bengali if the user writes Bengali, otherwise reply in English."
+    if lang == "bn":
+        reply_language = "Reply in Bengali."
+    elif lang == "pcm":
+        reply_language = "Reply in Nigerian Pidgin."
+    else:
+        reply_language = "Reply in English."
     return (
         "You are the read-only AI support assistant for a Telegram crypto seller bot. "
         f"{reply_language} "
         "Keep replies short, practical, and beginner-friendly. "
-        "You can explain bKash payment verification, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, and contacting admin. "
+        "You can explain bKash payment verification, Nigerian local payment/reference issues, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, gift codes, connected wallets, and contacting admin. "
         "Never approve payments, never claim a transaction is paid unless the bot/admin verified it, never send crypto, never ask for private keys, never reveal secrets, and never tell users to share seed phrases/private keys. "
         "If user reports stuck payment, ask them for TrxID/order ID and tell them admin may verify through /pending. "
         "Support contact is @" + SUPPORT_USERNAME.lstrip("@") + "."
     )
 
 
-def ask_ai_support(question, lang="bn"):
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+OPENAI_COMPATIBLE_DEFAULT_URLS = {
+    "openrouter": "https://openrouter.ai/api/v1/chat/completions",
+    "openai": "https://api.openai.com/v1/chat/completions",
+}
+DEFAULT_AI_MODELS = {
+    "openrouter": "openai/gpt-4o-mini",
+    "openai": "gpt-4o-mini",
+    "gemini": GEMINI_MODEL,
+}
+AI_PROVIDER_CHOICES = {"openrouter", "openai", "gemini", "off"}
+
+
+def _setting_or_env(setting_key, env_value=""):
+    value = get_setting(setting_key, None)
+    if value is not None and str(value).strip():
+        return str(value).strip()
+    return str(env_value or "").strip()
+
+
+def get_ai_config():
+    provider = _setting_or_env("ai_provider", AI_PROVIDER).lower()
+    if not provider:
+        provider = "gemini" if GEMINI_API_KEY else "openrouter"
+    if provider not in AI_PROVIDER_CHOICES:
+        raise RuntimeError(f"Unsupported AI provider: {provider}")
+    if provider == "off":
+        return {"provider": "off", "api_key": "", "model": "", "base_url": "", "enabled": False}
+
+    if provider == "gemini":
+        api_key = _setting_or_env("ai_api_key", AI_API_KEY or GEMINI_API_KEY)
+        model = _setting_or_env("ai_model", AI_MODEL or GEMINI_MODEL) or GEMINI_MODEL
+        base_url = ""
+    else:
+        api_key = _setting_or_env("ai_api_key", AI_API_KEY)
+        model = _setting_or_env("ai_model", AI_MODEL) or DEFAULT_AI_MODELS[provider]
+        base_url = _setting_or_env("ai_base_url", AI_BASE_URL) or OPENAI_COMPATIBLE_DEFAULT_URLS[provider]
+    return {"provider": provider, "api_key": api_key, "model": model, "base_url": base_url, "enabled": bool(api_key and model)}
+
+
+def validate_ai_config(config):
+    provider = config.get("provider")
+    if provider == "off":
+        raise RuntimeError("AI provider is off")
+    if provider not in {"openrouter", "openai", "gemini"}:
+        raise RuntimeError(f"Unsupported AI provider: {provider}")
+    if not config.get("api_key"):
+        raise RuntimeError(f"AI API key is not configured for {provider}")
+    if not config.get("model"):
+        raise RuntimeError(f"AI model is not configured for {provider}")
+    if provider in {"openrouter", "openai"} and not config.get("base_url"):
+        raise RuntimeError(f"AI base URL is not configured for {provider}")
+
+
+def parse_openai_compatible_response(data):
+    choices = data.get("choices") or []
+    if not choices:
+        raise RuntimeError("No AI response returned")
+    message = choices[0].get("message") or {}
+    content = message.get("content", "")
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                parts.append(item.get("text") or item.get("content") or "")
+            else:
+                parts.append(str(item))
+        content = "".join(parts)
+    text = str(content or "").strip()
+    if not text:
+        raise RuntimeError("Empty AI response returned")
+    return text
+
+
+def call_openai_compatible(config, question, lang="bn"):
+    headers = {
+        "Authorization": f"Bearer {config['api_key']}",
+        "Content-Type": "application/json",
+    }
+    if config["provider"] == "openrouter":
+        headers["X-Title"] = "Mouno Private Telegram Bot"
+        referer = os.getenv("OPENROUTER_HTTP_REFERER", "").strip()
+        if referer:
+            headers["HTTP-Referer"] = referer
+    payload = {
+        "model": config["model"],
+        "messages": [
+            {"role": "system", "content": ai_support_prompt(lang)},
+            {"role": "user", "content": str(question)[:3000]},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 500,
+    }
+    response = requests.post(config["base_url"], headers=headers, json=payload, timeout=30)
+    if response.status_code >= 400:
+        try:
+            message = response.json().get("error", {}).get("message") or response.text[:300]
+        except Exception:
+            message = response.text[:300]
+        raise RuntimeError(f"{config['provider']} API error {response.status_code}: {message}")
+    return parse_openai_compatible_response(response.json())
+
+
+def call_gemini(config, question, lang="bn"):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{config['model']}:generateContent"
     payload = {
         "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
-        "contents": [{"role": "user", "parts": [{"text": question[:3000]}]}],
+        "contents": [{"role": "user", "parts": [{"text": str(question)[:3000]}]}],
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
     }
-    response = requests.post(url, params={"key": GEMINI_API_KEY}, json=payload, timeout=30)
-    response.raise_for_status()
+    response = requests.post(url, params={"key": config["api_key"]}, json=payload, timeout=30)
+    if response.status_code >= 400:
+        try:
+            message = response.json().get("error", {}).get("message") or response.text[:300]
+        except Exception:
+            message = response.text[:300]
+        raise RuntimeError(f"gemini API error {response.status_code}: {message}")
     data = response.json()
     candidates = data.get("candidates", [])
     if not candidates:
@@ -342,6 +465,16 @@ def ask_ai_support(question, lang="bn"):
     if not text:
         raise RuntimeError("Empty AI response returned")
     return text
+
+
+def ask_ai_support(question, lang="bn"):
+    config = get_ai_config()
+    validate_ai_config(config)
+    if config["provider"] in {"openrouter", "openai"}:
+        return call_openai_compatible(config, question, lang)
+    if config["provider"] == "gemini":
+        return call_gemini(config, question, lang)
+    raise RuntimeError(f"Unsupported AI provider: {config['provider']}")
 
 
 def user_lang(user_id) -> str:
@@ -413,6 +546,47 @@ def mask_secret(value):
     if len(value) <= 8:
         return value[:1] + "***" + value[-1:]
     return value[:4] + "***" + value[-4:]
+
+
+def ai_config_text(lang="bn"):
+    try:
+        config = get_ai_config()
+        error = ""
+    except Exception as exc:
+        config = {"provider": _setting_or_env("ai_provider", AI_PROVIDER) or "openrouter", "api_key": "", "model": "", "base_url": "", "enabled": False}
+        error = str(exc)
+    provider = config.get("provider") or "openrouter"
+    api_key = config.get("api_key") or ""
+    model = config.get("model") or "Not set"
+    base_url = config.get("base_url") or "Default/Not used"
+    status = "OFF" if provider == "off" else ("READY" if config.get("enabled") else "NEEDS SETUP")
+    source_key = get_setting("ai_api_key", "")
+    key_source = "bot setting" if source_key else ("environment" if api_key else "not set")
+    lines = [
+        "🤖 AI Setup",
+        DIVIDER,
+        f"Status: {status}",
+        f"Provider: {provider}",
+        f"Model: {model}",
+        f"API key: {mask_secret(api_key)} ({key_source})",
+        f"Base URL: {base_url}",
+        "",
+        "Priority: bot app_settings → .env fallback.",
+        "Use Test AI after changing provider/key/model.",
+    ]
+    if error:
+        lines.append(f"Error: {error}")
+    return "\n".join(lines)
+
+
+def ai_setup_keyboard(lang="bn"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("OpenRouter", callback_data="ai_provider_openrouter"), InlineKeyboardButton("OpenAI", callback_data="ai_provider_openai")],
+        [InlineKeyboardButton("Gemini", callback_data="ai_provider_gemini"), InlineKeyboardButton("Off", callback_data="ai_provider_off")],
+        [InlineKeyboardButton("🔐 Set API key", callback_data="ai_set_key"), InlineKeyboardButton("🧠 Set model", callback_data="ai_set_model")],
+        [InlineKeyboardButton("🌐 Set base URL", callback_data="ai_set_base_url"), InlineKeyboardButton("🧹 Clear base URL", callback_data="ai_clear_base_url")],
+        [InlineKeyboardButton("🧪 Test AI", callback_data="ai_test"), InlineKeyboardButton(tr("back", lang), callback_data="back")],
+    ])
 
 
 def ng_reference_key(reference):
@@ -589,7 +763,7 @@ def main_menu(user_id, lang=None):
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
-        keyboard.append([InlineKeyboardButton(tr("ng_setup", lang), callback_data="ng_setup")])
+        keyboard.append([InlineKeyboardButton(tr("ng_setup", lang), callback_data="ng_setup"), InlineKeyboardButton(tr("ai_setup", lang), callback_data="ai_setup")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -746,6 +920,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support_cancel":
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+
+    elif query.data == "ai_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        await query.edit_message_text(ai_config_text(lang), reply_markup=ai_setup_keyboard(lang))
+
+    elif query.data.startswith("ai_provider_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider = query.data.replace("ai_provider_", "", 1)
+        if provider not in AI_PROVIDER_CHOICES:
+            await query.edit_message_text(f"Unsupported provider: {provider}", reply_markup=ai_setup_keyboard(lang))
+            return ConversationHandler.END
+        set_setting("ai_provider", provider)
+        await query.edit_message_text(ai_config_text(lang), reply_markup=ai_setup_keyboard(lang))
+
+    elif query.data in {"ai_set_key", "ai_set_model", "ai_set_base_url"}:
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        step = query.data.replace("ai_set_", "", 1)
+        context.user_data["ai_setup_step"] = step
+        prompt_key = {"key": "ai_setup_prompt_key", "model": "ai_setup_prompt_model", "base_url": "ai_setup_prompt_base_url"}[step]
+        await query.edit_message_text(tr(prompt_key, lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_setup")]]))
+        return AI_SETUP_TEXT
+
+    elif query.data == "ai_clear_base_url":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        set_setting("ai_base_url", "")
+        await query.edit_message_text(ai_config_text(lang), reply_markup=ai_setup_keyboard(lang))
+
+    elif query.data == "ai_test":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(tr("ai_test_running", lang), reply_markup=ai_setup_keyboard(lang))
+        try:
+            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support("Reply with a short successful AI setup test confirmation.", lang))
+            preview = answer[:500]
+            await query.edit_message_text(f"{tr('ai_test_ok', lang)}\n\n{preview}", reply_markup=ai_setup_keyboard(lang))
+        except Exception as exc:
+            await query.edit_message_text(tr("ai_test_failed", lang, error=str(exc)[:500]), reply_markup=ai_setup_keyboard(lang))
 
     elif query.data == "ng_setup":
         if not is_admin(user_id):
@@ -2030,6 +2246,35 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
     lang = user_lang(user_id)
+
+    if is_admin(user_id) and context.user_data.get("ai_setup_step"):
+        step = context.user_data.get("ai_setup_step")
+        value = update.message.text.strip()
+        if value.lower() in {"/cancel", "cancel"}:
+            context.user_data.pop("ai_setup_step", None)
+            await update.message.reply_text(ai_config_text(lang), reply_markup=ai_setup_keyboard(lang))
+            return ConversationHandler.END
+        if not value:
+            await update.message.reply_text("❌ Empty value. Send a value or cancel.")
+            return AI_SETUP_TEXT
+        if step == "key":
+            set_setting("ai_api_key", value)
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            saved_text = f"{tr('ai_setup_saved', lang)}\nAPI key: {mask_secret(value)}"
+        elif step == "model":
+            set_setting("ai_model", value)
+            saved_text = f"{tr('ai_setup_saved', lang)}\nModel: {value}"
+        elif step == "base_url":
+            set_setting("ai_base_url", value)
+            saved_text = f"{tr('ai_setup_saved', lang)}\nBase URL: {value}"
+        else:
+            saved_text = tr("ai_setup_saved", lang)
+        context.user_data.pop("ai_setup_step", None)
+        await update.message.reply_text(f"{saved_text}\n\n{ai_config_text(lang)}", reply_markup=ai_setup_keyboard(lang))
+        return ConversationHandler.END
 
     if context.user_data.get("ai_support"):
         text = update.message.text.strip()

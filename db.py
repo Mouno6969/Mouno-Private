@@ -363,7 +363,7 @@ def get_user_language(user_id):
 
 
 def set_user_language(user_id, language):
-    if language not in {"bn", "en"}:
+    if language not in {"bn", "en", "pcm"}:
         language = "bn"
     with closing(connect()) as con:
         con.execute(
