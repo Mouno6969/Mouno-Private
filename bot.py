@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import re
 import secrets
 import string
 import threading
@@ -73,7 +74,7 @@ from sender import send_usdc
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
-from webhook import parse_bkash_payment_notice, parse_bkash_sms, run_webhook, set_callback
+from webhook import parse_bkash_payment_notice, parse_bkash_sms, parse_nigeria_payment_notice, run_webhook, set_callback
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -99,6 +100,7 @@ WAITING_STAR_AMOUNT = 31
 ADMIN_SEND_WALLET = 40
 ADMIN_SEND_AMOUNT = 41
 AI_SUPPORT = 50
+NG_SETUP_TEXT = 60
 
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
@@ -139,6 +141,7 @@ TEXT = {
     "wallet": {"bn": "🔐 আমার Wallet", "en": "🔐 My Wallet"},
     "language": {"bn": "🌐 ভাষা", "en": "🌐 Language"},
     "set_rate": {"bn": "⚙️ রেট পরিবর্তন", "en": "⚙️ Set Rates"},
+    "ng_setup": {"bn": "🇳🇬 Nigeria Pay Setup", "en": "🇳🇬 Nigeria Pay Setup"},
     "gen_code": {"bn": "🎟️ কোড তৈরি", "en": "🎟️ Generate Code"},
     "disable_code": {"bn": "🚫 কোড বাতিল", "en": "🚫 Disable Code"},
     "admin_send": {"bn": "🚀 Admin Send", "en": "🚀 Admin Send"},
@@ -153,6 +156,7 @@ TEXT = {
     "example": {"bn": "উদাহরণ", "en": "Example"},
     "wallet_saved": {"bn": "✅ Wallet সংরক্ষিত!", "en": "✅ Wallet saved!"},
     "enter_amount_bdt": {"bn": "কত টাকার {symbol} কিনতে চান?", "en": "How many BDT of {symbol} do you want to buy?"},
+    "enter_fiat_amount": {"bn": "কত fiat amount এর {symbol} কিনতে চান?\n\nপরের ধাপে bKash (BDT) বা Nigeria (NGN) বেছে নিতে পারবেন।", "en": "How much fiat value of {symbol} do you want to buy?\n\nNext you can choose bKash (BDT) or Nigeria (NGN)."},
     "numbers_only": {"bn": "শুধু সংখ্যা লিখুন (যেমন: 500)", "en": "Send numbers only (example: 500)"},
     "invalid_wallet": {"bn": "❌ ভুল wallet address!", "en": "❌ Invalid wallet address!"},
     "invalid_amount": {"bn": "❌ ভুল পরিমাণ! সংখ্যা লিখুন।", "en": "❌ Invalid amount. Send a number."},
@@ -161,6 +165,9 @@ TEXT = {
     "send_bdt": {"bn": "পাঠাবেন", "en": "You pay"},
     "receive_crypto": {"bn": "পাবেন", "en": "You receive"},
     "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
+    "choose_payment_method": {"bn": "Payment method বেছে নিন 👇", "en": "Choose payment method 👇"},
+    "bkash_payment": {"bn": "📲 bKash", "en": "📲 bKash"},
+    "nigeria_payment": {"bn": "🇳🇬 Nigerian Local Payment", "en": "🇳🇬 Nigerian Local Payment"},
     "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
     "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
     "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
@@ -314,6 +321,103 @@ def get_rate(network="solana"):
     return float(RATE)
 
 
+def get_ngn_rate(network="solana"):
+    value = get_setting(f"ngn_rate_{network}")
+    try:
+        return float(value) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
+def is_nigeria_enabled():
+    return get_setting("ng_enabled", "off") == "on"
+
+
+def nigeria_configured(network=None):
+    required = ["ng_provider", "ng_account", "ng_holder", "ng_bank"]
+    if any(not get_setting(key, "").strip() for key in required):
+        return False
+    if network and not get_ngn_rate(network):
+        return False
+    return is_nigeria_enabled()
+
+
+def mask_secret(value):
+    if not value:
+        return "Not set"
+    value = str(value)
+    if len(value) <= 8:
+        return value[:1] + "***" + value[-1:]
+    return value[:4] + "***" + value[-4:]
+
+
+def ng_reference_key(reference):
+    ref = re.sub(r"[^A-Za-z0-9-]", "", str(reference).strip().upper())
+    if ref.startswith("NGN-"):
+        return ref
+    return f"NGN-{ref}"
+
+
+def display_reference(trx_id):
+    return trx_id[4:] if str(trx_id).startswith("NGN-") else trx_id
+
+
+def payment_meta(trx_id):
+    if str(trx_id).startswith("NGN-"):
+        return {"method": "🇳🇬 Nigerian local payment", "currency": "NGN", "id_label": "Reference/Session ID", "verify": "Verify in Nigerian provider/bank app"}
+    return {"method": "📲 bKash", "currency": "BDT", "id_label": "TrxID", "verify": "Verify in bKash app"}
+
+
+def nigeria_config_text():
+    lines = [
+        "🇳🇬 Nigeria Pay Setup",
+        DIVIDER,
+        f"Status: {'ON' if is_nigeria_enabled() else 'OFF'}",
+        f"Provider: {get_setting('ng_provider', 'Not set')}",
+        f"Bank/Wallet: {get_setting('ng_bank', 'Not set')}",
+        f"Holder: {get_setting('ng_holder', 'Not set')}",
+        f"Account/Phone: {get_setting('ng_account', 'Not set')}",
+        f"Webhook secret/token: {mask_secret(get_setting('ng_secret', ''))}",
+        "",
+        "NGN rates:",
+    ]
+    for network, info in NETWORKS.items():
+        rate = get_ngn_rate(network)
+        lines.append(f"• {info['name']}: {rate or 'not set'} NGN / 1 {info['symbol']}")
+    return "\n".join(lines)
+
+
+def nigeria_setup_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Enable", callback_data="ng_enable"), InlineKeyboardButton("⛔ Disable", callback_data="ng_disable")],
+        [InlineKeyboardButton("🏦 Provider", callback_data="ng_provider_menu"), InlineKeyboardButton("📱 Account/Phone", callback_data="ng_set_account")],
+        [InlineKeyboardButton("👤 Holder Name", callback_data="ng_set_holder"), InlineKeyboardButton("🏛️ Bank/Wallet", callback_data="ng_set_bank")],
+        [InlineKeyboardButton("🔐 Optional Secret", callback_data="ng_set_secret"), InlineKeyboardButton("💱 NGN Rates", callback_data="ng_rates_menu")],
+        [InlineKeyboardButton("👁️ View Config", callback_data="ng_view"), InlineKeyboardButton("🔙 Back", callback_data="back")],
+    ])
+
+
+def nigeria_provider_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("OPay", callback_data="ng_provider_OPay"), InlineKeyboardButton("PalmPay", callback_data="ng_provider_PalmPay")],
+        [InlineKeyboardButton("Moniepoint", callback_data="ng_provider_Moniepoint"), InlineKeyboardButton("Bank Transfer", callback_data="ng_provider_Bank Transfer")],
+        [InlineKeyboardButton("Other", callback_data="ng_provider_other")],
+        [InlineKeyboardButton("🔙 Back", callback_data="ng_setup")],
+    ])
+
+
+def nigeria_rates_keyboard():
+    rows = []
+    items = list(NETWORKS.items())
+    for idx in range(0, len(items), 2):
+        row = []
+        for network, info in items[idx:idx + 2]:
+            row.append(InlineKeyboardButton(info["name"].split()[0], callback_data=f"ng_rate_{network}"))
+        rows.append(row)
+    rows.append([InlineKeyboardButton("🔙 Back", callback_data="ng_setup")])
+    return InlineKeyboardMarkup(rows)
+
+
 def get_star_rate(network="solana"):
     env_key = f"STAR_RATE_{network.upper()}"
     return float(os.getenv(env_key, STAR_RATE))
@@ -365,6 +469,7 @@ def main_menu(user_id, lang=None):
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
+        keyboard.append([InlineKeyboardButton(tr("ng_setup", lang), callback_data="ng_setup")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -421,6 +526,7 @@ def home_text(user_name=None, lang="bn"):
         f"⚡ {subtitle}\n\n"
         f"{rates_text(lang=lang)}\n{DIVIDER}\n"
         f"📲 bKash: `{BKASH_NUMBER}`\n"
+        f"🇳🇬 Nigeria Pay: {'ON' if is_nigeria_enabled() else 'OFF'}\n"
         f"🛡️ {'Always check network and wallet before payment.' if lang == 'en' else 'Payment করার আগে network ও wallet যাচাই করুন।'}\n\n"
         f"👇 {tr('select_action', lang)}"
     )
@@ -495,6 +601,84 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support_cancel":
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+
+    elif query.data == "ng_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data == "ng_view":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data == "ng_enable":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        set_setting("ng_enabled", "on")
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data == "ng_disable":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        set_setting("ng_enabled", "off")
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data == "ng_provider_menu":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text("Choose Nigeria provider/channel:", reply_markup=nigeria_provider_keyboard())
+
+    elif query.data.startswith("ng_provider_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider = query.data.replace("ng_provider_", "", 1)
+        if provider == "other":
+            context.user_data["ng_setup_step"] = "provider"
+            await query.edit_message_text("Send provider/channel name (example: Kuda, GTBank, POS transfer).", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="ng_setup")]]))
+            return NG_SETUP_TEXT
+        set_setting("ng_provider", provider)
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data in {"ng_set_account", "ng_set_holder", "ng_set_bank", "ng_set_secret"}:
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        step = query.data.replace("ng_set_", "", 1)
+        context.user_data["ng_setup_step"] = step
+        prompts = {
+            "account": "Send receiving account number / phone number.",
+            "holder": "Send account holder / receiver name.",
+            "bank": "Send bank name or wallet name.",
+            "secret": "Send optional webhook secret/API key/token, or tap Skip.",
+        }
+        keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="ng_setup")]]
+        if step == "secret":
+            keyboard.insert(0, [InlineKeyboardButton("⏭️ Skip / Clear", callback_data="ng_secret_skip")])
+        await query.edit_message_text(prompts[step], reply_markup=InlineKeyboardMarkup(keyboard))
+        return NG_SETUP_TEXT
+
+    elif query.data == "ng_secret_skip":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        set_setting("ng_secret", "")
+        context.user_data.pop("ng_setup_step", None)
+        await query.edit_message_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+
+    elif query.data == "ng_rates_menu":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text("Select network to set NGN rate:", reply_markup=nigeria_rates_keyboard())
+
+    elif query.data.startswith("ng_rate_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        network = query.data.replace("ng_rate_", "", 1)
+        context.user_data["ng_setup_step"] = "rate"
+        context.user_data["ng_rate_network"] = network
+        ni = NETWORKS[network]
+        await query.edit_message_text(f"Send NGN rate for {ni['name']}.\n\nExample: if 1 {ni['symbol']} costs ₦1500, send 1500.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="ng_setup")]]))
+        return NG_SETUP_TEXT
 
     elif query.data == "balance":
         await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
@@ -662,7 +846,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_WALLET
 
     elif query.data == "confirm_buy":
-        await confirm_buy(query, context, user_id, username)
+        await show_payment_method_menu(query, context, user_id)
+
+    elif query.data == "pay_bkash":
+        await confirm_buy(query, context, user_id, username, "bkash")
+
+    elif query.data == "pay_nigeria":
+        await confirm_buy(query, context, user_id, username, "nigeria")
 
     elif query.data == "cancel":
         context.user_data.clear()
@@ -793,6 +983,8 @@ def txlog_text(limit=10):
             source = "🛠️ Admin Send"
         elif trx_id.startswith("WALLET-"):
             source = "🔐 User Wallet"
+        elif trx_id.startswith("NGN-"):
+            source = f"🇳🇬 Nigeria Payment: {bdt} NGN"
         else:
             source = f"💰 {bdt} BDT"
         order_line = f"🧾 {order_id}\n" if order_id else ""
@@ -826,7 +1018,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🧾 Total TX: {total or 0}\n"
         f"✅ Completed: {completed or 0}\n"
         f"❌ Failed: {failed or 0}\n"
-        f"⏳ Pending bKash: {pending_count}\n"
+        f"⏳ Pending local payments: {pending_count}\n"
         f"🔁 Retry queue: {failed_count}\n"
         f"💰 Completed BDT: {round(total_bdt or 0, 4)}\n"
         f"💵 Completed crypto total: {round(total_crypto or 0, 6)}\n"
@@ -923,19 +1115,21 @@ def pending_order_keyboard(row):
 
 def pending_orders_text(rows):
     if not rows:
-        return "✅ No pending bKash orders."
-    msg = "🧾 Pending bKash Orders\n\n"
+        return "✅ No pending local payment orders."
+    msg = "🧾 Pending Local Payment Orders\n\n"
     for row in rows:
         trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at = row[:7]
         order_id = row[7] if len(row) > 7 else None
         net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        meta = payment_meta(trx_id)
         short_wallet = f"{wallet[:8]}...{wallet[-6:]}" if wallet else "N/A"
         msg += (
-            f"🔑 {trx_id}\n"
+            f"💳 {meta['method']}\n"
+            f"🔑 {meta['id_label']}: {display_reference(trx_id)}\n"
             f"🧾 {order_id or 'N/A'}\n"
             f"👤 User: {user_id}\n"
             f"🌐 {net_info['name']}\n"
-            f"💰 {amount_bdt} BDT → {amount_usdc} {net_info['symbol']}\n"
+            f"💰 {amount_bdt} {meta['currency']} → {amount_usdc} {net_info['symbol']}\n"
             f"👛 {short_wallet}\n"
             f"🕒 {str(created_at)[:16]}\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
@@ -948,15 +1142,16 @@ async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     rows = get_pending_orders(10)
     if not rows:
-        await update.message.reply_text("✅ No pending bKash orders.")
+        await update.message.reply_text("✅ No pending local payment orders.")
         return
     await update.message.reply_text(pending_orders_text(rows))
     for row in rows:
         trx_id, user_id, amount_bdt, amount_usdc, _wallet, network, _created_at = row[:7]
         order_id = row[7] if len(row) > 7 else None
         net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        meta = payment_meta(trx_id)
         await update.message.reply_text(
-            f"Verify in bKash app:\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n👤 User: {user_id}\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT\n💵 {amount_usdc} {net_info['symbol']}",
+            f"{meta['verify']}:\n\n🧾 Order: {order_id or 'N/A'}\n💳 {meta['method']}\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n👤 User: {user_id}\n🌐 {net_info['name']}\n💰 {amount_bdt} {meta['currency']}\n💵 {amount_usdc} {net_info['symbol']}",
             reply_markup=InlineKeyboardMarkup([pending_order_keyboard(row)]),
         )
 
@@ -981,16 +1176,97 @@ async def show_my_wallet_menu(query, user_id):
         await query.edit_message_text(panel("🔐 My Wallet", "❌ No wallet connected yet.\n\nConnect a wallet to check balance and send crypto securely."), reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def confirm_buy(query, context, user_id, username):
+async def show_payment_method_menu(query, context, user_id):
     lang = user_lang(user_id)
-    amount_bdt = context.user_data.get("amount_bdt")
-    crypto_amount = context.user_data.get("usdc_amount")
+    fiat_amount = context.user_data.get("fiat_amount", context.user_data.get("amount_bdt"))
     wallet = context.user_data.get("wallet")
     network = context.user_data.get("network", "solana")
-    if not all([amount_bdt, crypto_amount, wallet]):
+    if not all([fiat_amount, wallet]):
         await query.edit_message_text("❌ Session expired. Send /start again." if lang == "en" else "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
         return
     net_info = NETWORKS[network]
+    bdt_rate = get_rate(network)
+    ngn_rate = get_ngn_rate(network)
+    keyboard = [
+        [InlineKeyboardButton(tr("bkash_payment", lang), callback_data="pay_bkash")],
+        [InlineKeyboardButton(tr("nigeria_payment", lang), callback_data="pay_nigeria")],
+        [InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")],
+    ]
+    ngn_line = f"🇳🇬 Nigeria: {fiat_amount} NGN → {round(float(fiat_amount) / ngn_rate, 6)} {net_info['symbol']}" if ngn_rate else "🇳🇬 Nigeria: not configured for this network"
+    await query.edit_message_text(
+        panel(
+            tr("choose_payment_method", lang),
+            f"🌐 Network: {net_info['name']}\n"
+            f"👛 Wallet: `{short_wallet(wallet)}`\n{DIVIDER}\n"
+            f"📲 bKash: {fiat_amount} BDT → {round(float(fiat_amount) / bdt_rate, 6)} {net_info['symbol']}\n"
+            f"{ngn_line}"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def confirm_buy(query, context, user_id, username, payment_method="bkash"):
+    lang = user_lang(user_id)
+    fiat_amount = float(context.user_data.get("fiat_amount", context.user_data.get("amount_bdt", 0)))
+    wallet = context.user_data.get("wallet")
+    network = context.user_data.get("network", "solana")
+    if not all([fiat_amount, wallet]):
+        await query.edit_message_text("❌ Session expired. Send /start again." if lang == "en" else "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
+        return
+    net_info = NETWORKS[network]
+    if payment_method == "nigeria":
+        if not nigeria_configured(network):
+            await query.edit_message_text(
+                "🇳🇬 Nigeria payment is not enabled/configured for this network. Choose bKash or contact admin."
+                if lang == "en"
+                else "🇳🇬 Nigeria payment এই network-এর জন্য চালু/সেটআপ করা নেই। bKash বেছে নিন অথবা admin-এর সাথে যোগাযোগ করুন।",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("bkash_payment", lang), callback_data="pay_bkash"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
+            )
+            return
+        rate = get_ngn_rate(network)
+        crypto_amount = round(fiat_amount / rate, 6)
+        sufficient, current_bal = check_sufficient(network, crypto_amount)
+        if not sufficient and current_bal is not None:
+            await query.edit_message_text(f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {crypto_amount}\nAvailable: {current_bal}", reply_markup=back_keyboard(lang))
+            return
+        context.user_data["payment_method"] = "nigeria"
+        context.user_data["amount_bdt"] = fiat_amount
+        context.user_data["usdc_amount"] = crypto_amount
+        context.user_data["waiting_trxid"] = True
+        context.user_data["trx_deadline"] = asyncio.get_event_loop().time() + 900
+        provider = get_setting("ng_provider", "Nigeria Payment")
+        account = get_setting("ng_account", "")
+        holder = get_setting("ng_holder", "")
+        bank = get_setting("ng_bank", "")
+        await query.edit_message_text(
+            (
+                f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n{DIVIDER}\n"
+                f"🌐 Network: {net_info['name']}\n"
+                f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {fiat_amount} NGN\n"
+                f"🇳🇬 Provider: {provider}\n"
+                f"🏛️ Bank/Wallet: {bank}\n"
+                f"👤 Name: {holder}\n"
+                f"📱 Account/Phone: `{account}`\n\n"
+                f"✅ {'After payment, send your Reference/Session/Transaction ID' if lang == 'en' else 'Payment করার পর Reference/Session/Transaction ID লিখুন'}\n"
+                f"⏰ {'Time limit: 15 minutes' if lang == 'en' else 'সময়সীমা: ১৫ মিনিট'}"
+            ),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
+        )
+        try:
+            await query.get_bot().send_message(ADMIN_ID, f"🛎️ New Nigeria payment order!\n\n👤 @{username} ({user_id})\n🌐 {net_info['name']}\n💰 {fiat_amount} NGN\n💵 {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Waiting for Reference/Session ID...")
+        except Exception as exc:
+            logger.error(exc)
+        return
+
+    amount_bdt = fiat_amount
+    crypto_amount = round(amount_bdt / get_rate(network), 6)
+    sufficient, current_bal = check_sufficient(network, crypto_amount)
+    if not sufficient and current_bal is not None:
+        await query.edit_message_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n💰 মজুত: {current_bal} {net_info['symbol']}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno", reply_markup=back_keyboard(lang))
+        return
+    context.user_data["payment_method"] = "bkash"
+    context.user_data["amount_bdt"] = amount_bdt
+    context.user_data["usdc_amount"] = crypto_amount
     context.user_data["waiting_trxid"] = True
     context.user_data["trx_deadline"] = asyncio.get_event_loop().time() + 900
     await query.edit_message_text(
@@ -1079,12 +1355,13 @@ async def approve_order(query, user_id):
     if not is_admin(user_id):
         return
     _prefix, target_uid, trx_id, network = query.data.split("_", 3)
+    meta = payment_meta(trx_id)
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
     target_wallet = get_wallet(target_uid)
     if not target_wallet:
         await query.edit_message_text(f"❌ User এর wallet পাওয়া যায়নি!\nUser ID: {target_uid}")
         return
-    await query.edit_message_text(f"✅ Approved!\n\n⏳ Crypto পাঠানো হচ্ছে...\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}")
+    await query.edit_message_text(f"✅ Approved!\n\n⏳ Crypto পাঠানো হচ্ছে...\n\n👤 User: {target_uid}\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n🌐 {net_info['name']}")
 
     sms_row = get_sms(trx_id)
     if sms_row:
@@ -1105,11 +1382,13 @@ async def approve_order(query, user_id):
     try:
         sig = await send_crypto(network, target_wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
+        if sms_row:
+            mark_sms_used(trx_id)
         save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id)
         delete_pending_order(trx_id)
-        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}")
+        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n💰 {amount_bdt} {meta['currency']}\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}")
         try:
-            await query.get_bot().send_message(int(target_uid), f"🎉 পেমেন্ট confirm হয়েছে!\n\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
+            await query.get_bot().send_message(int(target_uid), f"🎉 Payment confirmed!\n\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
         except Exception:
             pass
     except Exception as exc:
@@ -1121,10 +1400,11 @@ async def reject_order(query, user_id):
     if not is_admin(user_id):
         return
     _prefix, target_uid, trx_id = query.data.split("_", 2)
+    meta = payment_meta(trx_id)
     delete_pending_order(trx_id)
-    await query.edit_message_text(f"❌ Rejected!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}")
+    await query.edit_message_text(f"❌ Rejected!\n\n👤 User: {target_uid}\n🔑 {meta['id_label']}: {display_reference(trx_id)}")
     try:
-        await query.get_bot().send_message(int(target_uid), f"❌ আপনার পেমেন্ট verify করা যায়নি!\n\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @MdMouno")
+        await query.get_bot().send_message(int(target_uid), f"❌ Your payment could not be verified.\n\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n\nPlease check the ID or contact support:\n📞 @MdMouno")
     except Exception:
         pass
 
@@ -1140,15 +1420,17 @@ async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_WALLET
     save_wallet(user_id, wallet)
     context.user_data["wallet"] = wallet
-    await update.message.reply_text(panel("👛 Wallet Saved", f"🌐 {net_info['name']}\n👛 `{short_wallet(wallet)}`\n{DIVIDER}\n{tr('enter_amount_bdt', lang, symbol=net_info['symbol'])}\n\n💵 Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT\n✍️ {tr('numbers_only', lang)}"))
+    ngn_rate = get_ngn_rate(network)
+    ngn_line = f"\n🇳🇬 NGN Rate: 1 {net_info['symbol']} = {ngn_rate} NGN" if ngn_rate else ""
+    await update.message.reply_text(panel("👛 Wallet Saved", f"🌐 {net_info['name']}\n👛 `{short_wallet(wallet)}`\n{DIVIDER}\n{tr('enter_fiat_amount', lang, symbol=net_info['symbol'])}\n\n💵 bKash Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT{ngn_line}\n✍️ {tr('numbers_only', lang)}"))
     return WAITING_AMOUNT
 
 
 async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     try:
-        amount_bdt = float(update.message.text.strip())
-        if amount_bdt <= 0:
+        fiat_amount = float(update.message.text.strip())
+        if fiat_amount <= 0:
             raise ValueError
     except Exception:
         await update.message.reply_text(f"{tr('invalid_amount', lang)}\n{tr('numbers_only', lang)}")
@@ -1157,21 +1439,17 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     network = context.user_data.get("network", "solana")
     net_info = NETWORKS[network]
     rate = get_rate(network)
-    crypto_amount = round(amount_bdt / rate, 6)
-    sufficient, current_bal = check_sufficient(network, crypto_amount)
-    if not sufficient and current_bal is not None:
-        await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n💰 মজুত: {current_bal} {net_info['symbol']}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno")
-        return ConversationHandler.END
-
-    context.user_data["amount_bdt"] = amount_bdt
+    crypto_amount = round(fiat_amount / rate, 6)
+    context.user_data["fiat_amount"] = fiat_amount
+    context.user_data["amount_bdt"] = fiat_amount
     context.user_data["usdc_amount"] = crypto_amount
     keyboard = [[InlineKeyboardButton(tr("confirm", lang), callback_data="confirm_buy"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]
     await update.message.reply_text(
         panel(
             tr('order_summary', lang),
             f"🌐 Network: {net_info['name']}\n"
-            f"💰 {tr('send_bdt', lang)}: {amount_bdt} BDT\n"
-            f"💵 {tr('receive_crypto', lang)}: {crypto_amount} {net_info['symbol']}\n"
+            f"💰 Amount: {fiat_amount} BDT/NGN\n"
+            f"💵 bKash estimate: {crypto_amount} {net_info['symbol']}\n"
             f"📈 Rate: 1 {net_info['symbol']} = {rate} BDT\n"
             f"👛 Wallet: `{short_wallet(context.user_data['wallet'])}`\n{DIVIDER}\n"
             f"{gas_warning(network, lang)}\n\n{tr('confirm_prompt', lang)}"
@@ -1400,6 +1678,30 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await create_gift_code_from_context(update.message, context, minutes, lang)
         return
 
+    if is_admin(user_id) and context.user_data.get("ng_setup_step"):
+        step = context.user_data.get("ng_setup_step")
+        value = update.message.text.strip()
+        if step == "rate":
+            network = context.user_data.get("ng_rate_network", "solana")
+            try:
+                rate = float(value)
+                if rate <= 0:
+                    raise ValueError
+            except Exception:
+                await update.message.reply_text("❌ Invalid NGN rate. Send a number like 1500.")
+                return NG_SETUP_TEXT
+            set_setting(f"ngn_rate_{network}", rate)
+        else:
+            key_map = {"provider": "ng_provider", "account": "ng_account", "holder": "ng_holder", "bank": "ng_bank", "secret": "ng_secret"}
+            if not value:
+                await update.message.reply_text("❌ Empty value. Send a value or cancel.")
+                return NG_SETUP_TEXT
+            set_setting(key_map[step], value)
+        context.user_data.pop("ng_setup_step", None)
+        context.user_data.pop("ng_rate_network", None)
+        await update.message.reply_text(nigeria_config_text(), reply_markup=nigeria_setup_keyboard())
+        return ConversationHandler.END
+
     if context.user_data.get("redeem_step"):
         return await handle_redeem(update, context, user_id, username)
     if context.user_data.get("uw_waiting_bal_password"):
@@ -1413,12 +1715,15 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏰ সময়সীমা শেষ!\n\nআবার অর্ডার করুন /start দিয়ে\n\n❓ @MdMouno")
         return
 
-    trx_id = update.message.text.strip().upper()
-    if len(trx_id) < 4:
-        await update.message.reply_text("❌ ভুল TrxID! আবার চেষ্টা করুন।")
+    payment_method = context.user_data.get("payment_method", "bkash")
+    raw_trx_id = update.message.text.strip().upper()
+    trx_id = ng_reference_key(raw_trx_id) if payment_method == "nigeria" else raw_trx_id
+    meta = payment_meta(trx_id)
+    if len(display_reference(trx_id)) < 4:
+        await update.message.reply_text("❌ Invalid Reference/Session ID. Try again." if payment_method == "nigeria" else "❌ ভুল TrxID! আবার চেষ্টা করুন।")
         return
     if trx_exists(trx_id):
-        await update.message.reply_text("⚠️ এই TrxID আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno")
+        await update.message.reply_text(f"⚠️ This {meta['id_label']} was already used!\n\n❓ @MdMouno" if lang == "en" else f"⚠️ এই {meta['id_label']} আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno")
         return
 
     wallet = get_wallet(user_id)
@@ -1435,20 +1740,31 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         order_id = save_pending_order(trx_id, user_id, amount_bdt, crypto_amount, wallet, network)
         keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"), InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}")]]
         try:
-            await update.get_bot().send_message(ADMIN_ID, f"⚠️ SMS পাওয়া যায়নি! Manual Verify দরকার।\n\n🧾 Order: {order_id}\n👤 User: @{username} ({user_id})\n🔑 TrxID: {trx_id}\n💰 Amount: {amount_bdt} BDT\n💵 Est: {crypto_amount} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n👛 Wallet: {wallet}\n\nbKash এ TrxID যাচাই করে Approve বা Reject করুন:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.get_bot().send_message(ADMIN_ID, f"⚠️ Payment notice not found. Manual verify needed.\n\n🧾 Order: {order_id}\n💳 Method: {meta['method']}\n👤 User: @{username} ({user_id})\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n💰 Amount: {amount_bdt} {meta['currency']}\n💵 Est: {crypto_amount} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n👛 Wallet: {wallet}\n\n{meta['verify']} and tap Approve or Reject:", reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as exc:
             logger.error(exc)
-        await update.message.reply_text(f"⏳ TrxID যাচাই করা হচ্ছে।\n\n🔑 TrxID: {trx_id}\n\nAdmin যাচাই করছেন, একটু অপেক্ষা করুন...")
+        await update.message.reply_text(f"⏳ {meta['id_label']} is being verified.\n\n🔑 {display_reference(trx_id)}\n\nAdmin is checking, please wait...")
         return
 
     amount_bdt = sms_row[1]
-    crypto_amount = round(amount_bdt / get_rate(network), 6)
+    crypto_amount = context.user_data.get("usdc_amount") or round(amount_bdt / (get_ngn_rate(network) if payment_method == "nigeria" else get_rate(network)), 6)
+    expected_amount = float(context.user_data.get("amount_bdt", 0) or 0)
+    if payment_method == "nigeria" and expected_amount and abs(float(amount_bdt) - expected_amount) > 0.01:
+        order_id = save_pending_order(trx_id, user_id, expected_amount, context.user_data.get("usdc_amount", 0), wallet, network)
+        keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"), InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}")]]
+        await update.get_bot().send_message(
+            ADMIN_ID,
+            f"⚠️ Nigerian payment reference matched but amount is different.\n\n🧾 Order: {order_id}\n👤 User: @{username} ({user_id})\n🔑 Reference: {display_reference(trx_id)}\n🧾 Expected: {expected_amount} NGN\n📩 Notice received: {amount_bdt} NGN\n🌐 {net_info['name']}\n👛 {wallet}\n\nPlease verify manually.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+        await update.message.reply_text("⏳ Payment reference found but amount needs admin review. Please wait.")
+        return
     sufficient, current_bal = check_sufficient(network, crypto_amount)
     if not sufficient and current_bal is not None:
         await update.message.reply_text(f"❌ পর্যাপ্ত {net_info['symbol']} নেই!\n\n🌐 {net_info['name']}\n💵 চান: {crypto_amount}\n💰 আছে: {current_bal}\n\n📞 @MdMouno")
         return
 
-    await update.message.reply_text(f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে...")
+    await update.message.reply_text(f"✅ Payment verified!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} {meta['currency']} = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...")
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
@@ -1862,10 +2178,42 @@ async def process_bkash(app, text, sender):
         logger.error(exc)
 
 
+async def process_nigeria_payment(app, text, sender):
+    parsed = parse_nigeria_payment_notice(text)
+    if not parsed:
+        return
+    trx_id = ng_reference_key(parsed["reference"])
+    amount_ngn = parsed["amount_ngn"]
+    notice_sender = parsed.get("sender") or sender
+
+    if trx_exists(trx_id):
+        logger.info("Duplicate Nigeria notice ignored because transaction already exists: %s", trx_id)
+        return
+
+    already_saved = sms_exists(trx_id)
+    saved_new = save_sms(trx_id, amount_ngn, notice_sender or sender, text)
+    logger.info("Nigeria notice saved: %s NGN | Ref: %s | source: %s | new: %s", amount_ngn, trx_id, sender, saved_new)
+
+    pending = get_pending_order(trx_id)
+    if pending:
+        await complete_pending_order_from_sms(app, pending, amount_ngn)
+        return
+
+    if already_saved:
+        logger.info("Duplicate Nigeria notice ignored because reference was already saved: %s", trx_id)
+        return
+
+    try:
+        await app.bot.send_message(ADMIN_ID, f"🇳🇬 Nigeria payment notice!\n\n📩 Source: {sender}\n🏷️ Parsed sender: {notice_sender}\n💵 {amount_ngn} NGN\n🔑 Reference: {display_reference(trx_id)}")
+    except Exception as exc:
+        logger.error(exc)
+
+
 async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
     trx_id, user_id, expected_bdt, expected_crypto, wallet, network, _created_at = pending[:7]
     order_id = pending[7] if len(pending) > 7 else None
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+    meta = payment_meta(trx_id)
 
     if expected_bdt and abs(float(sms_amount_bdt) - float(expected_bdt)) > 0.01:
         keyboard = [[
@@ -1874,24 +2222,25 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         ]]
         await app.bot.send_message(
             ADMIN_ID,
-            "⚠️ bKash SMS matched a pending order, but amount is different.\n\n"
-            f"🔑 TrxID: {trx_id}\n"
+            f"⚠️ {meta['method']} notice matched a pending order, but amount is different.\n\n"
+            f"🔑 {meta['id_label']}: {display_reference(trx_id)}\n"
             f"👤 User: {user_id}\n"
             f"🌐 {net_info['name']}\n"
-            f"🧾 Expected: {expected_bdt} BDT\n"
-            f"📩 SMS Received: {sms_amount_bdt} BDT\n\n"
+            f"🧾 Expected: {expected_bdt} {meta['currency']}\n"
+            f"📩 Notice received: {sms_amount_bdt} {meta['currency']}\n\n"
             "Please verify manually.",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
         return
 
-    crypto_amount = expected_crypto or round(float(sms_amount_bdt) / get_rate(network), 6)
+    rate = get_ngn_rate(network) if str(trx_id).startswith("NGN-") else get_rate(network)
+    crypto_amount = expected_crypto or round(float(sms_amount_bdt) / rate, 6)
     sufficient, current_bal = check_sufficient(network, crypto_amount)
     if not sufficient and current_bal is not None:
         await app.bot.send_message(
             ADMIN_ID,
             f"❌ Payment verified but insufficient {net_info['symbol']}.\n\n"
-            f"🔑 TrxID: {trx_id}\n"
+            f"🔑 {meta['id_label']}: {display_reference(trx_id)}\n"
             f"👤 User: {user_id}\n"
             f"💵 Need: {crypto_amount}\n"
             f"💰 Available: {current_bal}",
@@ -1908,6 +2257,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             int(user_id),
             f"🎉 Payment verified automatically!\n\n"
             f"🌐 {net_info['name']}\n"
+            f"💰 {sms_amount_bdt} {meta['currency']}\n"
             f"💵 {crypto_amount} {net_info['symbol']}\n"
             f"👛 {wallet}\n"
             f"🔗 {explorer}\n\n"
@@ -1915,11 +2265,11 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         )
         await app.bot.send_message(
             ADMIN_ID,
-            f"✅ Auto-completed delayed bKash order.\n\n"
+            f"✅ Auto-completed delayed {meta['method']} order.\n\n"
             f"👤 User: {user_id}\n"
-            f"🔑 TrxID: {trx_id}\n"
+            f"🔑 {meta['id_label']}: {display_reference(trx_id)}\n"
             f"🌐 {net_info['name']}\n"
-            f"💰 {sms_amount_bdt} BDT\n"
+            f"💰 {sms_amount_bdt} {meta['currency']}\n"
             f"💵 {crypto_amount} {net_info['symbol']}\n"
             f"🔗 {explorer}",
         )
@@ -1927,14 +2277,17 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id)
         await app.bot.send_message(
             ADMIN_ID,
-            f"🚨 Auto-complete failed after bKash SMS verification.\n\n"
-            f"👤 User: {user_id}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}\n❌ {exc}",
+            f"🚨 Auto-complete failed after {meta['method']} verification.\n\n"
+            f"👤 User: {user_id}\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n🌐 {net_info['name']}\n❌ {exc}",
         )
         logger.error("Auto-complete pending order failed: %s", exc)
 
 
 def sms_handler(app, loop, text, sender):
-    asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender), loop)
+    if str(sender).startswith("ng_"):
+        asyncio.run_coroutine_threadsafe(process_nigeria_payment(app, text, sender), loop)
+    else:
+        asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender), loop)
 
 
 async def main():

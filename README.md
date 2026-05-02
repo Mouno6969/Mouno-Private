@@ -13,7 +13,8 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 - AI Support button using Gemini API through `GEMINI_API_KEY`
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
-- Delayed-SMS pending order recovery and `/pending` admin fallback
+- Nigerian local payment automation with bot-collected admin setup, NGN rates, and SMS/app notification forwarding (`NIGERIA_PAYMENT_AUTOMATION.md`)
+- Delayed-SMS/app-notification pending order recovery and `/pending` admin fallback
 - Admin/user wallet management with encrypted private keys in `crypto_manager.py`
 - Network senders for Solana, Polygon, BSC, Avalanche, Ethereum, Base, Tron, and TON
 - Balance checks and user guide text
@@ -27,7 +28,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Fill `.env` with your Telegram, bKash, RPC, and wallet values.
+Fill `.env` with your Telegram, bKash, RPC, and wallet values. Nigeria local payment details are configured inside the bot via `🇳🇬 Nigeria Pay Setup`.
 
 ## Run
 
@@ -35,7 +36,7 @@ Fill `.env` with your Telegram, bKash, RPC, and wallet values.
 python bot.py
 ```
 
-The bot starts Telegram polling and a Flask webhook on port `5000` for `/sms`.
+The bot starts Telegram polling and a Flask webhook on port `5000` for bKash endpoints (`/sms`, `/notification`, `/bkash-notification`) and Nigeria endpoints (`/ng-sms`, `/ng-notification`, `/nigeria-notification`).
 
 ## Notes
 
