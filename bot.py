@@ -65,13 +65,20 @@ from db import (
     get_sms,
     get_star_order,
     get_failed_transactions,
+    get_active_gift_code_count,
+    get_escrow_by_code,
     get_setting,
     get_transaction,
     get_transaction_stats,
+    get_today_transaction_stats,
     get_user_language,
+    get_user_transactions,
     get_wallet,
+    list_recent_escrow_records,
+    mark_escrow_redeemed,
     mark_sms_used,
     save_pending_order,
+    save_escrow_record,
     save_sms,
     save_transaction,
     save_wallet,
@@ -154,6 +161,10 @@ TEXT = {
     'rate': {"bn": '📊 রেট', "en": '📊 Rates', "pcm": '📊 Rates' },
     'balance': {"bn": '💰 ব্যালেন্স', "en": '💰 Balance', "pcm": '💰 Balance' },
     'txlog': {"bn": '📜 TX লগ', "en": '📜 TX Log', "pcm": '📜 TX Log' },
+    'my_orders': {"bn": '📦 আমার Orders', "en": '📦 My Orders', "pcm": '📦 My Orders' },
+    'orders_empty': {"bn": '📦 এখনো কোনো order নেই।', "en": '📦 You have no orders yet.', "pcm": '📦 You never get any order yet.' },
+    'orders_title': {"bn": '📦 আমার Orders', "en": '📦 My Orders', "pcm": '📦 My Orders' },
+    'refresh': {"bn": '🔄 রিফ্রেশ', "en": '🔄 Refresh', "pcm": '🔄 Refresh' },
     'help': {"bn": '❓ সাহায্য', "en": '❓ Help', "pcm": '❓ Help' },
     'support': {"bn": '📞 Support', "en": '📞 Support', "pcm": '📞 Support' },
     'ai_support': {"bn": '🤖 AI Support', "en": '🤖 AI Support', "pcm": '🤖 AI Support' },
@@ -166,6 +177,7 @@ TEXT = {
     'gen_code': {"bn": '🎟️ কোড তৈরি', "en": '🎟️ Generate Code', "pcm": '🎟️ Generate Code' },
     'disable_code': {"bn": '🚫 কোড বাতিল', "en": '🚫 Disable Code', "pcm": '🚫 Disable Code' },
     'admin_send': {"bn": '🚀 Admin Send', "en": '🚀 Admin Send', "pcm": '🚀 Admin Send' },
+    'admin_dashboard': {"bn": '📊 Admin Dashboard', "en": '📊 Admin Dashboard', "pcm": '📊 Admin Dashboard' },
     'back': {"bn": '🔙 ফিরে যান', "en": '🔙 Back', "pcm": '🔙 Back' },
     'cancel': {"bn": '❌ বাতিল', "en": '❌ Cancel', "pcm": '❌ Cancel' },
     'home_title': {"bn": '💱 Crypto Seller Bot', "en": '💱 Crypto Seller Bot', "pcm": '💱 Crypto Seller Bot' },
@@ -606,6 +618,92 @@ def payment_meta(trx_id):
     return {"method": "📲 bKash", "currency": "BDT", "id_label": "TrxID", "verify": "Verify in bKash app"}
 
 
+def payment_source_label(trx_id, source=None):
+    if source:
+        return source
+    trx = str(trx_id or "")
+    if trx.startswith("NGN-"):
+        return "Nigeria"
+    if trx.startswith("STAR-"):
+        return "Telegram Stars"
+    if trx.startswith("GIFT-"):
+        return "Gift Code"
+    if trx.startswith("UGIFT-FUND-"):
+        return "User-funded Gift Code"
+    if trx.startswith("WALLET-"):
+        return "User Wallet"
+    if trx.startswith("ADMIN-"):
+        return "Admin Send"
+    return "bKash"
+
+
+def fiat_currency_for_trx(trx_id):
+    trx = str(trx_id or "")
+    if trx.startswith("NGN-"):
+        return "NGN"
+    if trx.startswith("STAR-"):
+        return "Stars"
+    if trx and not any(trx.startswith(prefix) for prefix in ("GIFT-", "UGIFT-FUND-", "WALLET-", "ADMIN-")):
+        return "BDT"
+    return None
+
+
+def receipt_text(
+    trx_id,
+    order_id=None,
+    source=None,
+    network=None,
+    amount_crypto=None,
+    fiat_amount=None,
+    fiat_currency=None,
+    wallet=None,
+    sig=None,
+    status="completed",
+    created_at=None,
+):
+    net_info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "", "explorer": ""})
+    status_text = str(status or "pending").upper()
+    timestamp = str(created_at)[:19] if created_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = ["🧾 Receipt", DIVIDER]
+    if order_id:
+        lines.append(f"Order ID: {order_id}")
+    lines.extend([
+        f"Reference: {trx_id or 'N/A'}",
+        f"Source: {payment_source_label(trx_id, source)}",
+        f"Status: {status_text}",
+        f"Network: {net_info.get('name') or network or 'N/A'}",
+    ])
+    if amount_crypto is not None:
+        lines.append(f"Crypto: {amount_crypto} {net_info.get('symbol', '').strip()}".rstrip())
+    if fiat_amount not in (None, "") and fiat_currency:
+        lines.append(f"Fiat: {fiat_amount} {fiat_currency}")
+    if wallet:
+        lines.append(f"Wallet: {wallet}")
+    if sig:
+        explorer = f"{net_info.get('explorer', '')}{sig}" if net_info.get("explorer") else sig
+        lines.append(f"Explorer: {explorer}")
+    lines.append(f"Time: {timestamp}")
+    return "\n".join(lines)
+
+
+def receipt_from_transaction(row, source=None):
+    trx_id, amount_bdt, amount_crypto, network, wallet, status, created_at, order_id, _user_id, sig = row
+    fiat_currency = fiat_currency_for_trx(trx_id) if amount_bdt not in (None, 0, 0.0) else None
+    return receipt_text(
+        trx_id=trx_id,
+        order_id=order_id,
+        source=source,
+        network=network,
+        amount_crypto=amount_crypto,
+        fiat_amount=amount_bdt if fiat_currency else None,
+        fiat_currency=fiat_currency,
+        wallet=wallet,
+        sig=sig,
+        status=status,
+        created_at=created_at,
+    )
+
+
 def nigeria_config_text():
     lines = [
         "🇳🇬 Nigeria Pay Setup",
@@ -756,11 +854,13 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("rate", lang), callback_data="rate")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
+        [InlineKeyboardButton(tr("my_orders", lang), callback_data="my_orders")],
         [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support")],
         [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton(tr("terms", lang), callback_data="terms"), InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
     ]
     if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton(tr("admin_dashboard", lang), callback_data="admin_dashboard")])
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
         keyboard.append([InlineKeyboardButton(tr("ng_setup", lang), callback_data="ng_setup"), InlineKeyboardButton(tr("ai_setup", lang), callback_data="ai_setup")])
@@ -1067,6 +1167,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "txlog":
         await show_txlog(query)
+
+    elif query.data == "my_orders":
+        await show_my_orders(query, user_id, lang)
+
+    elif query.data == "admin_dashboard":
+        await show_admin_dashboard(query, user_id)
+
+    elif query.data == "admin_pending":
+        await show_admin_pending(query, user_id)
+
+    elif query.data == "admin_failed":
+        await show_admin_failed(query, user_id)
+
+    elif query.data == "admin_balances":
+        await show_admin_balances(query, user_id)
 
     elif query.data == "help":
         await query.edit_message_text(
@@ -1379,6 +1494,48 @@ async def txlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ লোড ব্যর্থ!\n{exc}")
 
 
+def user_orders_text(user_id, lang="bn", limit=10):
+    rows = get_user_transactions(user_id, limit)
+    if not rows:
+        return tr("orders_empty", lang)
+    lines = []
+    for trx_id, fiat_amount, crypto_amount, network, wallet, status, created_at, order_id, sig in rows:
+        net_info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "?", "explorer": ""})
+        icon = "✅" if status == "completed" else ("❌" if status == "failed" else "⏳")
+        source = payment_source_label(trx_id)
+        order_line = f"🧾 {order_id}\n" if order_id else ""
+        fiat_line = ""
+        if fiat_amount not in (None, 0, 0.0):
+            fiat_line = f"💰 {fiat_amount} {fiat_currency_for_trx(trx_id) or 'fiat'}\n"
+        explorer_line = f"🔗 {net_info.get('explorer', '')}{sig}\n" if sig else ""
+        lines.append(
+            f"{icon} {str(created_at)[:16]} • {source}\n"
+            f"{order_line}"
+            f"🔑 {display_reference(trx_id)}\n"
+            f"🌐 {net_info['name']}\n"
+            f"💵 {crypto_amount} {net_info['symbol']}\n"
+            f"{fiat_line}"
+            f"👛 {short_wallet(wallet)}\n"
+            f"{explorer_line}"
+            f"Status: {status}"
+        )
+    return panel(tr("orders_title", lang), f"\n{DIVIDER}\n".join(lines))
+
+
+def orders_keyboard(lang="bn"):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(tr("refresh", lang), callback_data="my_orders")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+
+
+async def show_my_orders(query, user_id, lang):
+    await query.edit_message_text(user_orders_text(user_id, lang), reply_markup=orders_keyboard(lang))
+
+
+async def orders_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
+    await update.message.reply_text(user_orders_text(user_id, lang), reply_markup=orders_keyboard(lang))
+
+
 async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     context.user_data.clear()
@@ -1389,21 +1546,103 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
+    await update.message.reply_text(admin_dashboard_text(), reply_markup=admin_dashboard_keyboard())
+
+
+def admin_dashboard_text():
     total, completed, failed, total_bdt, total_crypto = get_transaction_stats()
+    today_completed, today_fiat, today_crypto, today_pending, today_failed = get_today_transaction_stats()
     pending_count = len(get_pending_orders(100))
     failed_count = len(get_failed_transactions(100))
+    active_codes = get_active_gift_code_count()
+    recent_escrow = list_recent_escrow_records(100)
+    funded_escrow = sum(1 for row in recent_escrow if row[9] == "funded")
+    try:
+        ai_config = get_ai_config()
+        ai_status = "OFF" if ai_config.get("provider") == "off" else ("READY" if ai_config.get("enabled") else "NEEDS SETUP")
+        ai_line = f"{ai_config.get('provider', 'unknown')} / {ai_status}"
+    except Exception as exc:
+        ai_line = f"ERROR: {str(exc)[:60]}"
+    ng_status = "ON + configured" if nigeria_configured() else ("ON + needs setup" if is_nigeria_enabled() else "OFF")
     maintenance = "ON" if is_maintenance_enabled() else "OFF"
-    await update.message.reply_text(
+    return (
         "📊 Admin Dashboard\n\n"
-        f"🧾 Total TX: {total or 0}\n"
-        f"✅ Completed: {completed or 0}\n"
-        f"❌ Failed: {failed or 0}\n"
-        f"⏳ Pending local payments: {pending_count}\n"
-        f"🔁 Retry queue: {failed_count}\n"
-        f"💰 Completed BDT: {round(total_bdt or 0, 4)}\n"
-        f"💵 Completed crypto total: {round(total_crypto or 0, 6)}\n"
-        f"🛠️ Maintenance: {maintenance}"
+        f"Today completed: {today_completed or 0}\n"
+        f"Today fiat volume: {round(today_fiat or 0, 4)}\n"
+        f"Today crypto volume: {round(today_crypto or 0, 6)}\n"
+        f"Today pending/failed TX: {today_pending or 0}/{today_failed or 0}\n"
+        f"{DIVIDER}\n"
+        f"Total TX: {total or 0}\n"
+        f"Completed/Failed: {completed or 0}/{failed or 0}\n"
+        f"Pending local orders: {pending_count}\n"
+        f"Failed send queue: {failed_count}\n"
+        f"Completed fiat total: {round(total_bdt or 0, 4)}\n"
+        f"Completed crypto total: {round(total_crypto or 0, 6)}\n"
+        f"Active gift codes: {active_codes}\n"
+        f"Funded escrow records: {funded_escrow}\n"
+        f"Nigeria Pay: {ng_status}\n"
+        f"AI: {ai_line}\n"
+        f"Maintenance: {maintenance}"
     )
+
+
+def admin_dashboard_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏳ Pending Orders", callback_data="admin_pending"), InlineKeyboardButton("❌ Failed Sends", callback_data="admin_failed")],
+        [InlineKeyboardButton("💰 Balances", callback_data="admin_balances"), InlineKeyboardButton("⚙️ Set Rates", callback_data="setrate_menu")],
+        [InlineKeyboardButton("🇳🇬 Nigeria Pay Setup", callback_data="ng_setup"), InlineKeyboardButton("🤖 AI Setup", callback_data="ai_setup")],
+        [InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="admin_dashboard"), InlineKeyboardButton("🔙 Back", callback_data="back")],
+    ])
+
+
+async def show_admin_dashboard(query, user_id):
+    if not is_admin(user_id):
+        return
+    await query.edit_message_text(admin_dashboard_text(), reply_markup=admin_dashboard_keyboard())
+
+
+async def show_admin_pending(query, user_id):
+    if not is_admin(user_id):
+        return
+    rows = get_pending_orders(10)
+    keyboard = []
+    for row in rows:
+        keyboard.append(pending_order_keyboard(row))
+    keyboard.append([InlineKeyboardButton("🔄 Refresh", callback_data="admin_pending"), InlineKeyboardButton("🔙 Dashboard", callback_data="admin_dashboard")])
+    await query.edit_message_text(pending_orders_text(rows), reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def show_admin_failed(query, user_id):
+    if not is_admin(user_id):
+        return
+    rows = get_failed_transactions(10)
+    if not rows:
+        await query.edit_message_text("✅ No failed sends.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Dashboard", callback_data="admin_dashboard")]]))
+        return
+    lines = []
+    keyboard = []
+    for trx_id, _fiat, crypto, network, wallet, _status, created, order_id, target_uid, _sig in rows:
+        ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        lines.append(f"❌ {str(created)[:16]}\n🧾 {order_id or 'N/A'}\n🔑 {trx_id}\n👤 {target_uid}\n🌐 {ni['name']}\n💵 {crypto} {ni['symbol']}\n👛 {short_wallet(wallet)}")
+        keyboard.append([InlineKeyboardButton(f"🔁 Retry {trx_id[:24]}", callback_data=f"retrytx_{trx_id}")])
+    keyboard.append([InlineKeyboardButton("🔄 Refresh", callback_data="admin_failed"), InlineKeyboardButton("🔙 Dashboard", callback_data="admin_dashboard")])
+    await query.edit_message_text(panel("❌ Failed Sends", f"\n{DIVIDER}\n".join(lines)), reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def show_admin_balances(query, user_id):
+    if not is_admin(user_id):
+        return
+    await query.edit_message_text("⏳ Loading balances...", reply_markup=admin_dashboard_keyboard())
+    try:
+        balances, evm_addr = get_all_balances()
+        msg = "💰 Admin Balances\n\n"
+        for network, info in NETWORKS.items():
+            msg += f"🌐 {info['name']}: {balances.get(network, 'N/A')} {info['symbol']}\n"
+        msg += f"\n🔑 EVM Address: {evm_addr}"
+    except Exception as exc:
+        msg = f"❌ Balance load failed.\n{exc}"
+    await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="admin_balances"), InlineKeyboardButton("🔙 Dashboard", callback_data="admin_dashboard")]]))
 
 
 async def balances_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1897,9 +2136,10 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
         return
     expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
     create_code(code, amount, expires_at, network)
-    save_transaction(f"UGIFT-FUND-{code}", user_id, 0, amount, escrow_wallet, sig, "completed", network)
+    trx_id = f"UGIFT-FUND-{code}"
+    order_id = save_transaction(trx_id, user_id, 0, amount, escrow_wallet, sig, "completed", network)
+    save_escrow_record(code, user_id, network, amount, escrow_wallet, sig, "funded")
     context.user_data.clear()
-    explorer = f"{net_info.get('explorer', '')}{sig}"
     expiry_text = gift_duration_text(minutes, lang)
     await update.message.reply_text(
         f"{lang_text(lang, '🎉 Gift code তৈরি হয়েছে!', '🎉 Gift code generated!', '🎉 Gift code don generate!')}\n\n"
@@ -1907,15 +2147,14 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
         f"🌐 Network: {net_info['name']}\n"
         f"💵 Amount: {amount} {net_info['symbol']}\n"
         f"⏰ Expiry: {expiry_text}\n"
-        f"🔗 Funding TX: {explorer}\n\n"
+        f"\n{receipt_text(trx_id, order_id=order_id, source='User-funded Gift Code', network=network, amount_crypto=amount, wallet=escrow_wallet, sig=sig, status='completed')}\n\n"
         f"{lang_text(lang, '⚠️ যার কাছে এই code থাকবে সে একবার redeem করতে পারবে।', '⚠️ Whoever has this code can redeem it once.', '⚠️ Person wey get this code fit redeem am once.')}",
-        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(lang_text(lang, "🎁 আরেকটি তৈরি", "🎁 Create another", "🎁 Create another"), callback_data="uw_gencode_menu"), InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]),
     )
     try:
         await update.get_bot().send_message(
             ADMIN_ID,
-            f"🎁 User-funded gift code created\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 Source: {source_wallet}\n🏦 Escrow: {escrow_wallet}\n🔗 Funding TX: {explorer}",
+            f"🎁 User-funded gift code created\n\n👤 @{username} ({user_id})\n🎟️ {code}\n📤 Source: {source_wallet}\n{receipt_text(trx_id, order_id=order_id, source='User-funded Gift Code', network=network, amount_crypto=amount, wallet=escrow_wallet, sig=sig, status='completed')}",
         )
     except Exception as exc:
         logger.error("User gift-code admin notify failed: %s", exc)
@@ -1993,14 +2232,14 @@ async def approve_order(query, user_id):
 
     try:
         sig = await send_crypto(network, target_wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         if sms_row:
             mark_sms_used(trx_id)
-        save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id)
+        order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id)
         delete_pending_order(trx_id)
-        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n🔑 {meta['id_label']}: {display_reference(trx_id)}\n💰 {amount_bdt} {meta['currency']}\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}")
+        admin_receipt = receipt_text(trx_id, order_id=order_id, source='Nigeria' if str(trx_id).startswith('NGN-') else 'bKash', network=network, amount_crypto=crypto_amount, fiat_amount=amount_bdt, fiat_currency=meta['currency'], wallet=target_wallet, sig=sig, status='completed')
+        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n{admin_receipt}")
         try:
-            await query.get_bot().send_message(int(target_uid), f"🎉 Payment confirmed!\n\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {target_wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
+            await query.get_bot().send_message(int(target_uid), f"🎉 Payment confirmed!\n\n{admin_receipt}\n\nধন্যবাদ! 🙏")
         except Exception:
             pass
     except Exception as exc:
@@ -2208,15 +2447,12 @@ async def complete_admin_send(query, context, user_id, lang):
     await query.edit_message_text(lang_text(lang, "⏳ Asset পাঠানো হচ্ছে...", "⏳ Sending asset...", "⏳ Asset dey send..."))
     try:
         sig = await send_crypto(network, wallet, amount)
-        explorer = f"{net_info['explorer']}{sig}"
-        save_transaction(f"ADMIN-{sig[:24]}", user_id, 0, amount, wallet, sig, "completed", network)
+        trx_id = f"ADMIN-{sig[:24]}"
+        order_id = save_transaction(trx_id, user_id, 0, amount, wallet, sig, "completed", network)
         context.user_data.clear()
         await query.edit_message_text(
             f"{tr('admin_send_done', lang)}\n\n"
-            f"🌐 {net_info['name']}\n"
-            f"💵 {amount} {net_info['symbol']}\n"
-            f"👛 {wallet}\n"
-            f"🔗 {explorer}",
+            f"{receipt_text(trx_id, order_id=order_id, source='Admin Send', network=network, amount_crypto=amount, wallet=wallet, sig=sig, status='completed')}",
             reply_markup=back_keyboard(lang),
         )
     except Exception as exc:
@@ -2406,16 +2642,19 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ Payment verified!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} {meta['currency']} = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...")
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
-        save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network)
+        order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network)
         context.user_data.clear()
-        await update.message.reply_text(f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
+        await update.message.reply_text(
+            f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n"
+            f"{receipt_text(trx_id, order_id=order_id, source='Nigeria' if payment_method == 'nigeria' else 'bKash', network=network, amount_crypto=crypto_amount, fiat_amount=amount_bdt, fiat_currency=meta['currency'], wallet=wallet, sig=sig, status='completed')}\n\n"
+            f"ধন্যবাদ! 🙏"
+        )
     except Exception as exc:
-        save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, "", "failed", network)
+        order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, "", "failed", network)
         context.user_data.clear()
         logger.error("Send failed: %s", exc)
-        await update.message.reply_text(f"❌ পাঠাতে সমস্যা!\n\n📞 @MdMouno\n\nআপনার TrxID: {trx_id}\nসংরক্ষণ করুন।")
+        await update.message.reply_text(f"❌ পাঠাতে সমস্যা!\n\n{receipt_text(trx_id, order_id=order_id, source='Nigeria' if payment_method == 'nigeria' else 'bKash', network=network, amount_crypto=crypto_amount, fiat_amount=amount_bdt, fiat_currency=meta['currency'], wallet=wallet, status='failed')}\n\n📞 @MdMouno")
 
 
 async def handle_redeem(update, context, user_id, username):
@@ -2448,16 +2687,24 @@ async def handle_redeem(update, context, user_id, username):
         return
     code = context.user_data["redeem_code"]
     amount_crypto = context.user_data["redeem_usdc"]
+    escrow_row = get_escrow_by_code(code)
     context.user_data.clear()
     await update.message.reply_text(lang_text(lang, f"⏳ {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}", f"⏳ Sending {net_info['symbol']}...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}", f"⏳ {net_info['symbol']} dey send...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}"))
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
-        explorer = f"{net_info['explorer']}{sig}"
         use_code(code, user_id)
-        save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
-        await update.message.reply_text(lang_text(lang, f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏", f"🎉 {net_info['symbol']} sent!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nThank you! 🙏", f"🎉 {net_info['symbol']} don send!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nThank you! 🙏"))
+        trx_id = f"GIFT-{code}"
+        order_id = save_transaction(trx_id, user_id, 0, amount_crypto, wallet, sig, "completed", network)
+        if escrow_row:
+            mark_escrow_redeemed(code, user_id, sig)
+        success_title = lang_text(lang, f"🎉 {net_info['symbol']} পাঠানো হয়েছে!", f"🎉 {net_info['symbol']} sent!", f"🎉 {net_info['symbol']} don send!")
+        await update.message.reply_text(
+            f"{success_title}\n\n"
+            f"{receipt_text(trx_id, order_id=order_id, source='Gift Code', network=network, amount_crypto=amount_crypto, wallet=wallet, sig=sig, status='completed')}\n\n"
+            f"{lang_text(lang, 'ধন্যবাদ! 🙏', 'Thank you! 🙏', 'Thank you! 🙏')}"
+        )
         try:
-            await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
+            await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n{receipt_text(trx_id, order_id=order_id, source='Gift Code', network=network, amount_crypto=amount_crypto, wallet=wallet, sig=sig, status='completed')}")
         except Exception:
             pass
     except Exception as exc:
@@ -2511,8 +2758,9 @@ async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"⏳ Sending {amount} USDC (Solana)...")
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_usdc(wallet, amount))
-        save_transaction(f"ADMIN-{sig[:24]}", update.effective_user.id, 0, amount, wallet, sig, "completed", "solana")
-        text = f"✅ Sent!\n\n💵 {amount} USDC\n👛 {wallet}\n🔗 https://solscan.io/tx/{sig}"
+        trx_id = f"ADMIN-{sig[:24]}"
+        order_id = save_transaction(trx_id, update.effective_user.id, 0, amount, wallet, sig, "completed", "solana")
+        text = f"✅ Sent!\n\n{receipt_text(trx_id, order_id=order_id, source='Admin Send', network='solana', amount_crypto=amount, wallet=wallet, sig=sig, status='completed')}"
     except Exception as exc:
         text = f"❌ Failed!\n{exc}"
     await update.message.reply_text(text)
@@ -2653,9 +2901,10 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text("⏳ পাঠানো হচ্ছে...")
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, dest, amount))
-        save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network)
+        trx_id = f"WALLET-{sig[:24]}"
+        order_id = save_transaction(trx_id, user_id, 0, amount, dest, sig, "completed", network)
         context.user_data.clear()
-        await update.message.reply_text(f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}")
+        await update.message.reply_text(f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n{receipt_text(trx_id, order_id=order_id, source='User Wallet', network=network, amount_crypto=amount, wallet=dest, sig=sig, status='completed')}")
     except Exception as exc:
         context.user_data.clear()
         await update.message.reply_text("❌ ভুল Password!" if "ভুল password" in str(exc) else f"❌ পাঠাতে ব্যর্থ!\n\n{exc}\n\n❓ @MdMouno")
@@ -2711,16 +2960,12 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
-        explorer = f"{net_info['explorer']}{sig}"
         update_star_order_status(order_id, "completed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, sig)
-        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
+        trx_id = f"STAR-{payment.telegram_payment_charge_id}"
+        save_transaction(trx_id, user_id, stars_amount, amount_crypto, wallet, sig, "completed", network, order_id=order_id)
         await update.message.reply_text(
             f"{tr('stars_completed', lang)}\n\n"
-            f"🌐 {net_info['name']}\n"
-            f"💵 {amount_crypto} {net_info['symbol']}\n"
-            f"⭐ {stars_amount} Stars\n"
-            f"👛 {wallet}\n"
-            f"🔗 {explorer}"
+            f"{receipt_text(trx_id, order_id=order_id, source='Telegram Stars', network=network, amount_crypto=amount_crypto, fiat_amount=stars_amount, fiat_currency='Stars', wallet=wallet, sig=sig, status='completed')}"
         )
         try:
             await update.get_bot().send_message(
@@ -2732,14 +2977,15 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
                 f"💵 {amount_crypto} {net_info['symbol']}\n"
                 f"⭐ {stars_amount} Stars\n"
                 f"👛 {wallet}\n"
-                f"🔗 {explorer}",
+                f"🔗 {net_info['explorer']}{sig}",
             )
         except Exception:
             pass
     except Exception as exc:
         update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error=str(exc))
-        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, "", "failed", network)
-        await update.message.reply_text("✅ Stars payment received, but crypto sending failed. Admin has been notified.")
+        trx_id = f"STAR-{payment.telegram_payment_charge_id}"
+        save_transaction(trx_id, user_id, stars_amount, amount_crypto, wallet, "", "failed", network, order_id=order_id)
+        await update.message.reply_text(f"✅ Stars payment received, but crypto sending failed. Admin has been notified.\n\n{receipt_text(trx_id, order_id=order_id, source='Telegram Stars', network=network, amount_crypto=amount_crypto, fiat_amount=stars_amount, fiat_currency='Stars', wallet=wallet, status='failed')}")
         try:
             await update.get_bot().send_message(
                 ADMIN_ID,
@@ -2894,18 +3140,14 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
 
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
-        save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id)
+        order_id = save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id)
         delete_pending_order(trx_id)
+        user_receipt = receipt_text(trx_id, order_id=order_id, source='Nigeria' if str(trx_id).startswith('NGN-') else 'bKash', network=network, amount_crypto=crypto_amount, fiat_amount=sms_amount_bdt, fiat_currency=meta['currency'], wallet=wallet, sig=sig, status='completed')
         await app.bot.send_message(
             int(user_id),
             f"🎉 Payment verified automatically!\n\n"
-            f"🌐 {net_info['name']}\n"
-            f"💰 {sms_amount_bdt} {meta['currency']}\n"
-            f"💵 {crypto_amount} {net_info['symbol']}\n"
-            f"👛 {wallet}\n"
-            f"🔗 {explorer}\n\n"
+            f"{user_receipt}\n\n"
             "Thank you!",
         )
         await app.bot.send_message(
@@ -2916,7 +3158,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             f"🌐 {net_info['name']}\n"
             f"💰 {sms_amount_bdt} {meta['currency']}\n"
             f"💵 {crypto_amount} {net_info['symbol']}\n"
-            f"🔗 {explorer}",
+            f"🔗 {net_info['explorer']}{sig}",
         )
     except Exception as exc:
         save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id)
@@ -2995,6 +3237,7 @@ async def main():
     app.add_handler(CommandHandler("terms", terms_cmd))
     app.add_handler(CommandHandler("backup", backup_cmd))
     app.add_handler(CommandHandler("txlog", txlog_cmd))
+    app.add_handler(CommandHandler("orders", orders_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(CommandHandler("ai", ai_cmd))

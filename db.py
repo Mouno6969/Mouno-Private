@@ -119,11 +119,34 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS escrow_ledger (
+                ledger_id TEXT PRIMARY KEY,
+                code TEXT UNIQUE,
+                funder_user_id TEXT,
+                redeemed_by_user_id TEXT,
+                network TEXT,
+                amount_crypto REAL,
+                escrow_wallet TEXT,
+                funding_tx TEXT,
+                redeem_tx TEXT,
+                status TEXT DEFAULT 'funded',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "transactions", "order_id", "TEXT")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
         ensure_column(con, "pending_orders", "order_id", "TEXT")
+        ensure_column(con, "escrow_ledger", "redeemed_by_user_id", "TEXT")
+        ensure_column(con, "escrow_ledger", "redeem_tx", "TEXT")
+        ensure_column(con, "escrow_ledger", "status", "TEXT DEFAULT 'funded'")
+        ensure_column(con, "escrow_ledger", "updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON transactions (user_id, created_at)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_transactions_status_created ON transactions (status, created_at)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_escrow_status_created ON escrow_ledger (status, created_at)")
         con.commit()
 
 
@@ -221,6 +244,20 @@ def get_recent_transactions(limit=10):
         ).fetchall()
 
 
+def get_user_transactions(user_id, limit=10):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, sig
+            FROM transactions
+            WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (str(user_id), limit),
+        ).fetchall()
+
+
 def get_transaction(trx_id):
     with closing(connect()) as con:
         return con.execute(
@@ -229,6 +266,21 @@ def get_transaction(trx_id):
             FROM transactions WHERE trx_id=?
             """,
             (trx_id,),
+        ).fetchone()
+
+
+def get_receipt_transaction(trx_id):
+    return get_transaction(trx_id)
+
+
+def get_user_transaction(user_id, trx_id):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig
+            FROM transactions WHERE user_id=? AND trx_id=?
+            """,
+            (str(user_id), trx_id),
         ).fetchone()
 
 
@@ -257,6 +309,22 @@ def get_transaction_stats():
                 COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0) as total_bdt,
                 COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0) as total_crypto
             FROM transactions
+            """
+        ).fetchone()
+
+
+def get_today_transaction_stats():
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT
+                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed_count,
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0) as fiat_volume,
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0) as crypto_volume,
+                SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed_count
+            FROM transactions
+            WHERE date(created_at)=date('now')
             """
         ).fetchone()
 
@@ -302,6 +370,80 @@ def get_all_active_codes():
             WHERE used=0 AND datetime(expires_at) > datetime('now')
             ORDER BY created_at DESC
             """
+        ).fetchall()
+
+
+def get_active_gift_code_count():
+    with closing(connect()) as con:
+        row = con.execute(
+            """
+            SELECT COUNT(*)
+            FROM gift_codes
+            WHERE used=0 AND datetime(expires_at) > datetime('now')
+            """
+        ).fetchone()
+        return row[0] if row else 0
+
+
+def save_escrow_record(code, funder_user_id, network, amount_crypto, escrow_wallet, funding_tx, status="funded"):
+    ledger_id = f"ESCROW-{code}"
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO escrow_ledger
+            (ledger_id, code, funder_user_id, network, amount_crypto, escrow_wallet, funding_tx, status, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(code) DO UPDATE SET
+                funder_user_id=excluded.funder_user_id,
+                network=excluded.network,
+                amount_crypto=excluded.amount_crypto,
+                escrow_wallet=excluded.escrow_wallet,
+                funding_tx=excluded.funding_tx,
+                status=excluded.status,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (ledger_id, code, str(funder_user_id), network, amount_crypto, escrow_wallet, funding_tx, status),
+        )
+        con.commit()
+        return ledger_id
+
+
+def mark_escrow_redeemed(code, redeemed_by_user_id, redeem_tx):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            UPDATE escrow_ledger
+            SET redeemed_by_user_id=?, redeem_tx=?, status='redeemed', updated_at=CURRENT_TIMESTAMP
+            WHERE code=?
+            """,
+            (str(redeemed_by_user_id), redeem_tx, code),
+        )
+        con.commit()
+
+
+def get_escrow_by_code(code):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT ledger_id, code, funder_user_id, redeemed_by_user_id, network, amount_crypto,
+                   escrow_wallet, funding_tx, redeem_tx, status, created_at, updated_at
+            FROM escrow_ledger WHERE code=?
+            """,
+            (code,),
+        ).fetchone()
+
+
+def list_recent_escrow_records(limit=10):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT ledger_id, code, funder_user_id, redeemed_by_user_id, network, amount_crypto,
+                   escrow_wallet, funding_tx, redeem_tx, status, created_at, updated_at
+            FROM escrow_ledger
+            ORDER BY datetime(created_at) DESC, rowid DESC
+            LIMIT ?
+            """,
+            (limit,),
         ).fetchall()
 
 
