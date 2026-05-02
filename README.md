@@ -5,7 +5,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 ## What is included
 
 - Telegram bot menu and order flow in `bot.py`
-- Bengali/English language selection with stored user preferences
+- Bengali, English, and Nigerian Pidgin language selection with stored user preferences
 - Telegram Stars payment flow with automatic crypto delivery after successful payment
 - Button-driven admin gift-code generation flow
 - Button-driven admin asset send flow across supported networks

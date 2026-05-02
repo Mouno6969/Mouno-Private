@@ -133,79 +133,105 @@ NETWORKS = {
 LANGUAGES = {
     "bn": "বাংলা",
     "en": "English",
+    "pcm": "Nigerian Pidgin 🇳🇬",
 }
 
 TEXT = {
-    "choose_language": {
-        "bn": "🌐 ভাষা নির্বাচন করুন\n\nআপনার পছন্দের ভাষা বেছে নিন।",
-        "en": "🌐 Choose your language\n\nSelect the language you prefer.",
+    'choose_language': {
+        "bn": '🌐 ভাষা নির্বাচন করুন\n\nআপনার পছন্দের ভাষা বেছে নিন।',
+        "en": '🌐 Choose your language\n\nSelect the language you prefer.',
+        "pcm": '🌐 Choose your language\n\nSelect the language wey you prefer.',
     },
-    "language_saved": {"bn": "✅ ভাষা সেট করা হয়েছে।", "en": "✅ Language saved."},
-    "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
-    "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
-    "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
-    "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
-    "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
-    "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
-    "help": {"bn": "❓ সাহায্য", "en": "❓ Help"},
-    "support": {"bn": "📞 Support", "en": "📞 Support"},
-    "ai_support": {"bn": "🤖 AI Support", "en": "🤖 AI Support"},
-    "terms": {"bn": "📜 Terms", "en": "📜 Terms"},
-    "wallet": {"bn": "🔐 আমার Wallet", "en": "🔐 My Wallet"},
-    "language": {"bn": "🌐 ভাষা", "en": "🌐 Language"},
-    "set_rate": {"bn": "⚙️ রেট পরিবর্তন", "en": "⚙️ Set Rates"},
-    "ng_setup": {"bn": "🇳🇬 Nigeria Pay Setup", "en": "🇳🇬 Nigeria Pay Setup"},
-    "gen_code": {"bn": "🎟️ কোড তৈরি", "en": "🎟️ Generate Code"},
-    "disable_code": {"bn": "🚫 কোড বাতিল", "en": "🚫 Disable Code"},
-    "admin_send": {"bn": "🚀 Admin Send", "en": "🚀 Admin Send"},
-    "back": {"bn": "🔙 ফিরে যান", "en": "🔙 Back"},
-    "cancel": {"bn": "❌ বাতিল", "en": "❌ Cancel"},
-    "home_title": {"bn": "💱 Crypto Seller Bot", "en": "💱 Crypto Seller Bot"},
-    "welcome": {"bn": "স্বাগতম", "en": "Welcome"},
-    "current_rates": {"bn": "বর্তমান রেট", "en": "Current Rates"},
-    "select_action": {"bn": "নিচের মেনু থেকে শুরু করুন 👇", "en": "Choose an option below 👇"},
-    "select_network": {"bn": "💱 নেটওয়ার্ক বেছে নিন", "en": "💱 Select a network"},
-    "enter_wallet": {"bn": "আপনার {network} Wallet Address দিন", "en": "Send your {network} wallet address"},
-    "example": {"bn": "উদাহরণ", "en": "Example"},
-    "wallet_saved": {"bn": "✅ Wallet সংরক্ষিত!", "en": "✅ Wallet saved!"},
-    "enter_amount_bdt": {"bn": "কত টাকার {symbol} কিনতে চান?", "en": "How many BDT of {symbol} do you want to buy?"},
-    "enter_fiat_amount": {"bn": "কত fiat amount এর {symbol} কিনতে চান?\n\nপরের ধাপে bKash (BDT) বা Nigeria (NGN) বেছে নিতে পারবেন।", "en": "How much fiat value of {symbol} do you want to buy?\n\nNext you can choose bKash (BDT) or Nigeria (NGN)."},
-    "numbers_only": {"bn": "শুধু সংখ্যা লিখুন (যেমন: 500)", "en": "Send numbers only (example: 500)"},
-    "invalid_wallet": {"bn": "❌ ভুল wallet address!", "en": "❌ Invalid wallet address!"},
-    "invalid_amount": {"bn": "❌ ভুল পরিমাণ! সংখ্যা লিখুন।", "en": "❌ Invalid amount. Send a number."},
-    "confirm": {"bn": "✅ কনফার্ম", "en": "✅ Confirm"},
-    "order_summary": {"bn": "📊 অর্ডার সারসংক্ষেপ", "en": "📊 Order Summary"},
-    "send_bdt": {"bn": "পাঠাবেন", "en": "You pay"},
-    "receive_crypto": {"bn": "পাবেন", "en": "You receive"},
-    "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
-    "choose_payment_method": {"bn": "Payment method বেছে নিন 👇", "en": "Choose payment method 👇"},
-    "bkash_payment": {"bn": "📲 bKash", "en": "📲 bKash"},
-    "nigeria_payment": {"bn": "🇳🇬 Nigerian Local Payment", "en": "🇳🇬 Nigerian Local Payment"},
-    "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
-    "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
-    "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
-    "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
-    "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
-    "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
-    "enter_custom_duration": {"bn": "মিনিট লিখুন। যেমন: 60", "en": "Send minutes. Example: 60"},
-    "code_created": {"bn": "✅ গিফট কোড তৈরি হয়েছে!", "en": "✅ Gift code generated!"},
-    "stars_intro": {"bn": "⭐ Telegram Stars দিয়ে কিনুন\n\nনেটওয়ার্ক বেছে নিন।", "en": "⭐ Pay with Telegram Stars\n\nSelect a network."},
-    "stars_enter_amount": {"bn": "কত {symbol} কিনতে চান?\n\nRate: 1 {symbol} = {rate} Stars", "en": "How many {symbol} do you want to buy?\n\nRate: 1 {symbol} = {rate} Stars"},
-    "stars_invoice_title": {"bn": "Crypto Order", "en": "Crypto Order"},
-    "stars_invoice_description": {"bn": "{amount} {symbol} on {network}", "en": "{amount} {symbol} on {network}"},
-    "stars_pay_prompt": {"bn": "Invoice পাঠানো হয়েছে। Telegram Stars দিয়ে payment complete করুন।", "en": "Invoice sent. Complete payment with Telegram Stars."},
-    "stars_paid_sending": {"bn": "✅ Stars payment received. Crypto পাঠানো হচ্ছে...", "en": "✅ Stars payment received. Sending crypto..."},
-    "stars_completed": {"bn": "🎉 Stars payment verified এবং crypto পাঠানো হয়েছে!", "en": "🎉 Stars payment verified and crypto sent!"},
-    "admin_send_intro": {"bn": "🚀 Admin Send\n\nকোন network থেকে asset পাঠাবেন?", "en": "🚀 Admin Send\n\nSelect the network to send from."},
-    "admin_send_wallet": {"bn": "Destination wallet address দিন", "en": "Send destination wallet address"},
-    "admin_send_amount": {"bn": "কত {symbol} পাঠাবেন?", "en": "How many {symbol} do you want to send?"},
-    "admin_send_confirm": {"bn": "নিশ্চিত করলে asset পাঠানো হবে।", "en": "Confirm to send the asset."},
-    "admin_send_done": {"bn": "✅ Admin transfer complete!", "en": "✅ Admin transfer complete!"},
-    "maintenance_on": {"bn": "🛑 Maintenance mode ON", "en": "🛑 Maintenance mode ON"},
-    "maintenance_off": {"bn": "✅ Maintenance mode OFF", "en": "✅ Maintenance mode OFF"},
-    "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nSend /cancel to close."},
-    "ai_unavailable": {"bn": "❌ AI Support এখন unavailable. Admin-কে জানান।", "en": "❌ AI Support is unavailable. Please contact admin."},
-    "ai_thinking": {"bn": "🤖 উত্তর তৈরি করছি...", "en": "🤖 Thinking..."},
+    'language_saved': {"bn": '✅ ভাষা সেট করা হয়েছে।', "en": '✅ Language saved.', "pcm": '✅ Language don save.' },
+    'buy': {"bn": '💱 কিনুন', "en": '💱 Buy', "pcm": '💱 Buy' },
+    'gift': {"bn": '🎁 গিফট কোড', "en": '🎁 Gift Code', "pcm": '🎁 Gift Code' },
+    'stars': {"bn": '⭐ Telegram Stars', "en": '⭐ Telegram Stars', "pcm": '⭐ Telegram Stars' },
+    'rate': {"bn": '📊 রেট', "en": '📊 Rates', "pcm": '📊 Rates' },
+    'balance': {"bn": '💰 ব্যালেন্স', "en": '💰 Balance', "pcm": '💰 Balance' },
+    'txlog': {"bn": '📜 TX লগ', "en": '📜 TX Log', "pcm": '📜 TX Log' },
+    'help': {"bn": '❓ সাহায্য', "en": '❓ Help', "pcm": '❓ Help' },
+    'support': {"bn": '📞 Support', "en": '📞 Support', "pcm": '📞 Support' },
+    'ai_support': {"bn": '🤖 AI Support', "en": '🤖 AI Support', "pcm": '🤖 AI Support' },
+    'terms': {"bn": '📜 Terms', "en": '📜 Terms', "pcm": '📜 Terms' },
+    'wallet': {"bn": '🔐 আমার Wallet', "en": '🔐 My Wallet', "pcm": '🔐 My Wallet' },
+    'language': {"bn": '🌐 ভাষা', "en": '🌐 Language', "pcm": '🌐 Language' },
+    'set_rate': {"bn": '⚙️ রেট পরিবর্তন', "en": '⚙️ Set Rates', "pcm": '⚙️ Set Rates' },
+    'ng_setup': {"bn": '🇳🇬 Nigeria Pay Setup', "en": '🇳🇬 Nigeria Pay Setup', "pcm": '🇳🇬 Nigeria Pay Setup' },
+    'gen_code': {"bn": '🎟️ কোড তৈরি', "en": '🎟️ Generate Code', "pcm": '🎟️ Generate Code' },
+    'disable_code': {"bn": '🚫 কোড বাতিল', "en": '🚫 Disable Code', "pcm": '🚫 Disable Code' },
+    'admin_send': {"bn": '🚀 Admin Send', "en": '🚀 Admin Send', "pcm": '🚀 Admin Send' },
+    'back': {"bn": '🔙 ফিরে যান', "en": '🔙 Back', "pcm": '🔙 Back' },
+    'cancel': {"bn": '❌ বাতিল', "en": '❌ Cancel', "pcm": '❌ Cancel' },
+    'home_title': {"bn": '💱 Crypto Seller Bot', "en": '💱 Crypto Seller Bot', "pcm": '💱 Crypto Seller Bot' },
+    'welcome': {"bn": 'স্বাগতম', "en": 'Welcome', "pcm": 'Welcome' },
+    'current_rates': {"bn": 'বর্তমান রেট', "en": 'Current Rates', "pcm": 'Current Rates' },
+    'select_action': {"bn": 'নিচের মেনু থেকে শুরু করুন 👇', "en": 'Choose an option below 👇', "pcm": 'Choose one option below 👇' },
+    'select_network': {"bn": '💱 নেটওয়ার্ক বেছে নিন', "en": '💱 Select a network', "pcm": '💱 Choose network' },
+    'enter_wallet': {"bn": 'আপনার {network} Wallet Address দিন', "en": 'Send your {network} wallet address', "pcm": 'Send your {network} wallet address' },
+    'example': {"bn": 'উদাহরণ', "en": 'Example', "pcm": 'Example' },
+    'wallet_saved': {"bn": '✅ Wallet সংরক্ষিত!', "en": '✅ Wallet saved!', "pcm": '✅ Wallet don save!' },
+    'enter_amount_bdt': {"bn": 'কত টাকার {symbol} কিনতে চান?', "en": 'How many BDT of {symbol} do you want to buy?', "pcm": 'How much BDT of {symbol} you wan buy?' },
+    'enter_fiat_amount': {
+        "bn": 'কত fiat amount এর {symbol} কিনতে চান?\n\nপরের ধাপে bKash (BDT) বা Nigeria (NGN) বেছে নিতে পারবেন।',
+        "en": 'How much fiat value of {symbol} do you want to buy?\n\nNext you can choose bKash (BDT) or Nigeria (NGN).',
+        "pcm": 'How much fiat value of {symbol} you wan buy?\n\nNext step, you fit choose bKash (BDT) or Nigeria (NGN).',
+    },
+    'numbers_only': {"bn": 'শুধু সংখ্যা লিখুন (যেমন: 500)', "en": 'Send numbers only (example: 500)', "pcm": 'Send numbers only (example: 500)' },
+    'invalid_wallet': {"bn": '❌ ভুল wallet address!', "en": '❌ Invalid wallet address!', "pcm": '❌ Wallet address no correct!' },
+    'invalid_amount': {"bn": '❌ ভুল পরিমাণ! সংখ্যা লিখুন।', "en": '❌ Invalid amount. Send a number.', "pcm": '❌ Amount no correct. Send number.' },
+    'confirm': {"bn": '✅ কনফার্ম', "en": '✅ Confirm', "pcm": '✅ Confirm' },
+    'order_summary': {"bn": '📊 অর্ডার সারসংক্ষেপ', "en": '📊 Order Summary', "pcm": '📊 Order Summary' },
+    'send_bdt': {"bn": 'পাঠাবেন', "en": 'You pay', "pcm": 'You go pay' },
+    'receive_crypto': {"bn": 'পাবেন', "en": 'You receive', "pcm": 'You go receive' },
+    'confirm_prompt': {"bn": 'নিশ্চিত করতে Confirm চাপুন 👇', "en": 'Tap Confirm to continue 👇', "pcm": 'Tap Confirm to continue 👇' },
+    'choose_payment_method': {"bn": 'Payment method বেছে নিন 👇', "en": 'Choose payment method 👇', "pcm": 'Choose payment method 👇' },
+    'bkash_payment': {"bn": '📲 bKash', "en": '📲 bKash', "pcm": '📲 bKash' },
+    'nigeria_payment': {"bn": '🇳🇬 Nigerian Local Payment', "en": '🇳🇬 Nigerian Local Payment', "pcm": '🇳🇬 Nigerian Local Payment' },
+    'code_select_network': {
+        "bn": '🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন',
+        "en": '🎟️ Generate Gift Code\n\nStep 1/3: Select network',
+        "pcm": '🎟️ Generate Gift Code\n\nStep 1/3: Choose network',
+    },
+    'code_select_amount': {"bn": '২/৩: কত {symbol} এর কোড তৈরি করবেন?', "en": 'Step 2/3: Choose {symbol} amount', "pcm": 'Step 2/3: Choose {symbol} amount' },
+    'code_select_duration': {"bn": '৩/৩: কোডের মেয়াদ বেছে নিন', "en": 'Step 3/3: Choose expiry time', "pcm": 'Step 3/3: Choose expiry time' },
+    'custom_amount': {"bn": '✏️ Custom Amount', "en": '✏️ Custom Amount', "pcm": '✏️ Custom Amount' },
+    'custom_duration': {"bn": '✏️ Custom Time', "en": '✏️ Custom Time', "pcm": '✏️ Custom Time' },
+    'enter_custom_amount': {"bn": 'পরিমাণ লিখুন। যেমন: 1.5', "en": 'Send the amount. Example: 1.5', "pcm": 'Send the amount. Example: 1.5' },
+    'enter_custom_duration': {"bn": 'মিনিট লিখুন। যেমন: 60', "en": 'Send minutes. Example: 60', "pcm": 'Send minutes. Example: 60' },
+    'code_created': {"bn": '✅ গিফট কোড তৈরি হয়েছে!', "en": '✅ Gift code generated!', "pcm": '✅ Gift code don generate!' },
+    'stars_intro': {
+        "bn": '⭐ Telegram Stars দিয়ে কিনুন\n\nনেটওয়ার্ক বেছে নিন।',
+        "en": '⭐ Pay with Telegram Stars\n\nSelect a network.',
+        "pcm": '⭐ Pay with Telegram Stars\n\nChoose network.',
+    },
+    'stars_enter_amount': {
+        "bn": 'কত {symbol} কিনতে চান?\n\nRate: 1 {symbol} = {rate} Stars',
+        "en": 'How many {symbol} do you want to buy?\n\nRate: 1 {symbol} = {rate} Stars',
+        "pcm": 'How many {symbol} you wan buy?\n\nRate: 1 {symbol} = {rate} Stars',
+    },
+    'stars_invoice_title': {"bn": 'Crypto Order', "en": 'Crypto Order', "pcm": 'Crypto Order' },
+    'stars_invoice_description': {"bn": '{amount} {symbol} on {network}', "en": '{amount} {symbol} on {network}', "pcm": '{amount} {symbol} on {network}' },
+    'stars_pay_prompt': {"bn": 'Invoice পাঠানো হয়েছে। Telegram Stars দিয়ে payment complete করুন।', "en": 'Invoice sent. Complete payment with Telegram Stars.', "pcm": 'Invoice don send. Complete payment with Telegram Stars.' },
+    'stars_paid_sending': {"bn": '✅ Stars payment received. Crypto পাঠানো হচ্ছে...', "en": '✅ Stars payment received. Sending crypto...', "pcm": '✅ Stars payment don enter. Crypto dey send...' },
+    'stars_completed': {"bn": '🎉 Stars payment verified এবং crypto পাঠানো হয়েছে!', "en": '🎉 Stars payment verified and crypto sent!', "pcm": '🎉 Stars payment verified and crypto don send!' },
+    'admin_send_intro': {
+        "bn": '🚀 Admin Send\n\nকোন network থেকে asset পাঠাবেন?',
+        "en": '🚀 Admin Send\n\nSelect the network to send from.',
+        "pcm": '🚀 Admin Send\n\nChoose network to send from.',
+    },
+    'admin_send_wallet': {"bn": 'Destination wallet address দিন', "en": 'Send destination wallet address', "pcm": 'Send destination wallet address' },
+    'admin_send_amount': {"bn": 'কত {symbol} পাঠাবেন?', "en": 'How many {symbol} do you want to send?', "pcm": 'How many {symbol} you wan send?' },
+    'admin_send_confirm': {"bn": 'নিশ্চিত করলে asset পাঠানো হবে।', "en": 'Confirm to send the asset.', "pcm": 'Confirm to send the asset.' },
+    'admin_send_done': {"bn": '✅ Admin transfer complete!', "en": '✅ Admin transfer complete!', "pcm": '✅ Admin transfer complete!' },
+    'maintenance_on': {"bn": '🛑 Maintenance mode ON', "en": '🛑 Maintenance mode ON', "pcm": '🛑 Maintenance mode ON' },
+    'maintenance_off': {"bn": '✅ Maintenance mode OFF', "en": '✅ Maintenance mode OFF', "pcm": '✅ Maintenance mode OFF' },
+    'ai_support_intro': {
+        "bn": '🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nবন্ধ করতে /cancel লিখুন।',
+        "en": '🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nSend /cancel to close.',
+        "pcm": '🤖 AI Support\n\nSend your question. I fit help with payment, wallet, network, bKash, Stars, or order issue.\n\nSend /cancel to close.',
+    },
+    'ai_unavailable': {"bn": '❌ AI Support এখন unavailable. Admin-কে জানান।', "en": '❌ AI Support is unavailable. Please contact admin.', "pcm": '❌ AI Support no dey available now. Please contact admin.' },
+    'ai_thinking': {"bn": '🤖 উত্তর তৈরি করছি...', "en": '🤖 Thinking...', "pcm": '🤖 I dey think...' },
 }
 
 
@@ -217,10 +243,21 @@ def is_maintenance_enabled():
     return get_setting("maintenance_mode", "off") == "on"
 
 
-def maintenance_message(lang="bn"):
+def lang_text(lang, bn, en, pcm=None):
     if lang == "en":
-        return "🛑 Orders are temporarily paused for maintenance. Please try again later."
-    return "🛑 Maintenance চলছে। অর্ডার সাময়িকভাবে বন্ধ আছে। কিছুক্ষণ পর চেষ্টা করুন।"
+        return en
+    if lang == "pcm":
+        return pcm if pcm is not None else en
+    return bn
+
+
+def maintenance_message(lang="bn"):
+    return lang_text(
+        lang,
+        "🛑 Maintenance চলছে। অর্ডার সাময়িকভাবে বন্ধ আছে। কিছুক্ষণ পর চেষ্টা করুন।",
+        "🛑 Orders are temporarily paused for maintenance. Please try again later.",
+        "🛑 Orders dey paused for maintenance now. Try again later.",
+    )
 
 
 def gas_warning(network, lang="bn"):
@@ -235,9 +272,12 @@ def gas_warning(network, lang="bn"):
         "trc20": "TRX",
         "ton": "TON",
     }.get(network, "native gas")
-    if lang == "en":
-        return f"⚠️ Make sure the sender wallet has enough {native} for network gas/fees. Wrong network transfers cannot be reversed."
-    return f"⚠️ Sender wallet-এ gas/fee এর জন্য পর্যাপ্ত {native} থাকতে হবে। ভুল network transfer ফেরত আনা যায় না।"
+    return lang_text(
+        lang,
+        f"⚠️ Sender wallet-এ gas/fee এর জন্য পর্যাপ্ত {native} থাকতে হবে। ভুল network transfer ফেরত আনা যায় না।",
+        f"⚠️ Make sure the sender wallet has enough {native} for network gas/fees. Wrong network transfers cannot be reversed.",
+        f"⚠️ Make sure sender wallet get enough {native} for network gas/fees. Wrong network transfer no fit reverse.",
+    )
 
 
 def terms_text(lang="bn"):
@@ -250,6 +290,15 @@ def terms_text(lang="bn"):
             "• Payments may require manual review if bKash/notification data is delayed or mismatched.\n"
             "• Contact support if a payment is stuck."
         )
+    if lang == "pcm":
+        return (
+            "📜 Terms & Risk Warning\n\n"
+            "• Always choose correct network.\n"
+            "• Wrong wallet/network transfer no fit reverse.\n"
+            "• Keep enough native gas token for wallet sends.\n"
+            "• Payment fit need manual review if bKash/Nigeria notification delay or amount no match.\n"
+            "• Contact support if payment stuck."
+        )
     return (
         "📜 Terms & Risk Warning\n\n"
         "• সবসময় সঠিক network বেছে নিন।\n"
@@ -261,9 +310,10 @@ def terms_text(lang="bn"):
 
 
 def ai_support_prompt(lang="bn"):
+    reply_language = "Reply in Nigerian Pidgin." if lang == "pcm" else "Reply in Bengali if the user writes Bengali, otherwise reply in English."
     return (
         "You are the read-only AI support assistant for a Telegram crypto seller bot. "
-        "Reply in Bengali if the user writes Bengali, otherwise reply in English. "
+        f"{reply_language} "
         "Keep replies short, practical, and beginner-friendly. "
         "You can explain bKash payment verification, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, and contacting admin. "
         "Never approve payments, never claim a transaction is paid unless the bot/admin verified it, never send crypto, never ask for private keys, never reveal secrets, and never tell users to share seed phrases/private keys. "
@@ -315,7 +365,8 @@ def short_wallet(wallet):
 def language_keyboard():
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("বাংলা 🇧🇩", callback_data="set_lang_bn"), InlineKeyboardButton("English 🇺🇸", callback_data="set_lang_en")]
+            [InlineKeyboardButton("বাংলা 🇧🇩", callback_data="set_lang_bn"), InlineKeyboardButton("English 🇺🇸", callback_data="set_lang_en")],
+            [InlineKeyboardButton("Nigerian Pidgin 🇳🇬", callback_data="set_lang_pcm")],
         ]
     )
 
@@ -459,6 +510,62 @@ def wallet_hint(network):
     return "0x1234abcd..."
 
 
+PIDGIN_GUIDE = """
+╔══════════════════════════════╗
+║   📖 User Guide              ║
+╚══════════════════════════════╝
+
+You fit use your own crypto wallet to send USDC/USDT safely from this bot.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Tap My Wallet or send /setup
+2. Choose network
+3. Send your private key. Bot go delete the message and store only encrypted key.
+4. Create strong password. If you forget password, key no fit recover.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 BALANCE / SEND
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/mybalance → check wallet balance with password
+/send_wallet → send crypto from your wallet
+
+Always confirm destination wallet, network, amount, and gas token before sending. Transactions no fit reverse.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎁 GIFT CODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+My Wallet → 🎁 Generate Gift Code
+Choose amount and expiry, confirm, then enter wallet password. Funds go move to bot escrow and code fit be redeemed once.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 Support
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@MdMouno
+"""
+
+
+def guide_text(lang="bn"):
+    return PIDGIN_GUIDE if lang == "pcm" else GUIDE
+
+
+def network_guide_text(network, lang="bn"):
+    if lang == "pcm":
+        net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        return (
+            f"🌐 {net_info['name']} Network Guide:\n"
+            f"• Token: {net_info['symbol']}\n"
+            f"• Use the correct private key and wallet for this network.\n"
+            f"• Keep native gas token for fees.\n"
+            f"• Wrong network transfer no fit reverse."
+        )
+    return NETWORK_GUIDE.get(network, "")
+
+
 def valid_wallet(network, wallet):
     if network == "solana":
         return 32 <= len(wallet) <= 44
@@ -532,15 +639,15 @@ def rates_text(title=None, lang="bn"):
 
 
 def home_text(user_name=None, lang="bn"):
-    greeting = f"👋 {tr('welcome', lang)}, {user_name}!" if user_name else "👋 Welcome!"
-    subtitle = "Fast • Secure • Multi-chain" if lang == "en" else "দ্রুত • নিরাপদ • Multi-chain"
+    greeting = f"👋 {tr('welcome', lang)}, {user_name}!" if user_name else f"👋 {tr('welcome', lang)}!"
+    subtitle = lang_text(lang, "দ্রুত • নিরাপদ • Multi-chain", "Fast • Secure • Multi-chain", "Fast • Secure • Multi-chain")
     body = (
         f"{greeting}\n"
         f"⚡ {subtitle}\n\n"
         f"{rates_text(lang=lang)}\n{DIVIDER}\n"
         f"📲 bKash: `{BKASH_NUMBER}`\n"
         f"🇳🇬 Nigeria Pay: {'ON' if is_nigeria_enabled() else 'OFF'}\n"
-        f"🛡️ {'Always check network and wallet before payment.' if lang == 'en' else 'Payment করার আগে network ও wallet যাচাই করুন।'}\n\n"
+        f"🛡️ {lang_text(lang, 'Payment করার আগে network ও wallet যাচাই করুন।', 'Always check network and wallet before payment.', 'Always check network and wallet before payment.')}\n\n"
         f"👇 {tr('select_action', lang)}"
     )
     return panel(tr("home_title", lang), body)
@@ -624,7 +731,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "rate":
         await query.edit_message_text(
-            panel("📊 Rates", f"{rates_text('', lang)}\n{DIVIDER}\n📲 bKash: `{BKASH_NUMBER}`\n⚡ {'Delivery: usually 1-3 minutes' if lang == 'en' else 'সাধারণত ১-৩ মিনিটে পাঠানো হয়'}"),
+            panel("📊 Rates", f"{rates_text('', lang)}\n{DIVIDER}\n📲 bKash: `{BKASH_NUMBER}`\n⚡ {lang_text(lang, 'সাধারণত ১-৩ মিনিটে পাঠানো হয়', 'Delivery: usually 1-3 minutes', 'Delivery: usually 1-3 minutes')}"),
             reply_markup=back_keyboard(lang),
         )
 
@@ -719,7 +826,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return NG_SETUP_TEXT
 
     elif query.data == "balance":
-        await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
+        await query.edit_message_text(lang_text(lang, "⏳ ব্যালেন্স লোড হচ্ছে...", "⏳ Loading balance...", "⏳ Balance dey load..."), reply_markup=back_keyboard(lang))
         try:
             balances, evm_addr = get_all_balances()
             msg = panel(
@@ -736,10 +843,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{DIVIDER}\n🔑 EVM: `{short_wallet(evm_addr)}`\n⚡ Real-time balance"
             )
         except Exception as exc:
-            msg = f"❌ ব্যালেন্স লোড ব্যর্থ!\n{exc}"
+            msg = f"{lang_text(lang, '❌ ব্যালেন্স লোড ব্যর্থ!', '❌ Balance load failed!', '❌ Balance no load!')}\n{exc}"
         await query.edit_message_text(
             msg,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh" if lang == "en" else "🔄 রিফ্রেশ", callback_data="balance")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(lang_text(lang, "🔄 রিফ্রেশ", "🔄 Refresh", "🔄 Refresh"), callback_data="balance")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]),
         )
 
     elif query.data == "txlog":
@@ -759,23 +866,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "my_wallet_menu":
-        await show_my_wallet_menu(query, user_id)
+        await show_my_wallet_menu(query, user_id, lang)
 
     elif query.data in {"mw_setup", "mw_change"}:
         if query.data == "mw_change":
             delete_user_wallet(user_id)
         context.user_data.clear()
-        await query.edit_message_text("🔐 Wallet Setup\n\nআপনার Network বেছে নিন:", reply_markup=user_network_menu())
+        await query.edit_message_text(lang_text(lang, "🔐 Wallet Setup\n\nআপনার Network বেছে নিন:", "🔐 Wallet Setup\n\nChoose your network:", "🔐 Wallet Setup\n\nChoose your network:"), reply_markup=user_network_menu())
         return SETUP_NETWORK
 
     elif query.data == "mw_send":
         row = get_user_wallet(user_id)
         if not row:
-            await query.edit_message_text("❌ Wallet নেই! আগে setup করুন।")
+            await query.edit_message_text(lang_text(lang, "❌ Wallet নেই! আগে setup করুন।", "❌ No wallet! Set up wallet first.", "❌ No wallet! Set up wallet first."))
             return ConversationHandler.END
         network = row[2]
         net_info = NETWORKS.get(network, {"name": network})
-        await query.edit_message_text(f"💸 Crypto পাঠানো\n\n🌐 Network: {net_info['name']}\n👛 আপনার address: {row[3]}\n\nDestination wallet address দিন:\n📋 উদাহরণ: {wallet_hint(network)}")
+        await query.edit_message_text(lang_text(lang, f"💸 Crypto পাঠানো\n\n🌐 Network: {net_info['name']}\n👛 আপনার address: {row[3]}\n\nDestination wallet address দিন:\n📋 উদাহরণ: {wallet_hint(network)}", f"💸 Send Crypto\n\n🌐 Network: {net_info['name']}\n👛 Your address: {row[3]}\n\nSend destination wallet address:\n📋 Example: {wallet_hint(network)}", f"💸 Send Crypto\n\n🌐 Network: {net_info['name']}\n👛 Your address: {row[3]}\n\nSend destination wallet address:\n📋 Example: {wallet_hint(network)}"))
         return SEND_W_DEST
 
     elif query.data == "uw_gencode_menu":
@@ -795,20 +902,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "uw_gc_cancel":
         context.user_data.clear()
-        await query.edit_message_text("❌ Gift code creation cancelled." if lang == "en" else "❌ Gift code তৈরি বাতিল হয়েছে।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Gift code তৈরি বাতিল হয়েছে।", "❌ Gift code creation cancelled.", "❌ Gift code creation cancel."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
 
     elif query.data == "mw_delete":
         await query.edit_message_text(
-            "⚠️ সতর্কতা!\n\nWallet key মুছে দেওয়া হবে।\nUndo করা যাবে না!\n\nনিশ্চিত?",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ হ্যাঁ, মুছে দাও", callback_data="del_confirm"), InlineKeyboardButton("❌ না", callback_data="my_wallet_menu")]]),
+            lang_text(lang, "⚠️ সতর্কতা!\n\nWallet key মুছে দেওয়া হবে।\nUndo করা যাবে না!\n\nনিশ্চিত?", "⚠️ Warning!\n\nWallet key will be deleted.\nThis cannot be undone.\n\nConfirm?", "⚠️ Warning!\n\nWallet key go delete.\nYou no fit undo am.\n\nConfirm?"),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(lang_text(lang, "✅ হ্যাঁ, মুছে দাও", "✅ Yes, delete", "✅ Yes, delete"), callback_data="del_confirm"), InlineKeyboardButton(lang_text(lang, "❌ না", "❌ No", "❌ No"), callback_data="my_wallet_menu")]]),
         )
 
     elif query.data == "show_guide":
-        await query.edit_message_text(GUIDE, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(guide_text(lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
 
     elif query.data == "check_mybal":
         context.user_data["uw_waiting_bal_password"] = True
-        await query.edit_message_text("🔐 আপনার Password দিন:\n\n⚠️ Message পাঠানোর পর মুছে যাবে।")
+        await query.edit_message_text(lang_text(lang, "🔐 আপনার Password দিন:\n\n⚠️ Message পাঠানোর পর মুছে যাবে।", "🔐 Send your password:\n\n⚠️ Message will be deleted after you send it.", "🔐 Send your password:\n\n⚠️ Message go delete after you send am."))
 
     elif query.data == "back":
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(query.from_user.id, lang))
@@ -866,7 +973,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "admin_send_cancel":
         context.user_data.clear()
-        await query.edit_message_text("❌ Cancelled." if lang == "en" else "❌ বাতিল হয়েছে।", reply_markup=back_keyboard(lang))
+        await query.edit_message_text(lang_text(lang, "❌ বাতিল হয়েছে।", "❌ Cancelled.", "❌ Cancelled."), reply_markup=back_keyboard(lang))
         return ConversationHandler.END
 
     elif query.data.startswith("retrytx_"):
@@ -913,7 +1020,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "cancel":
         context.user_data.clear()
-        await query.edit_message_text("❌ বাতিল হয়েছে!\n\nআবার শুরু করতে /start দিন.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 মেনু", callback_data="back")]]))
+        await query.edit_message_text(lang_text(lang, "❌ বাতিল হয়েছে!\n\nআবার শুরু করতে /start দিন.", "❌ Cancelled!\n\nSend /start to begin again.", "❌ Cancelled!\n\nSend /start to start again."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Menu", callback_data="back")]]))
         return ConversationHandler.END
 
     elif query.data == "setrate_menu":
@@ -935,7 +1042,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
             return ConversationHandler.END
         context.user_data["redeem_step"] = "code"
-        await query.edit_message_text("🎁 গিফট কোড রিডিম\n\nআপনার গিফট কোড লিখুন:\n\n📋 উদাহরণ: ABC12345")
+        await query.edit_message_text(lang_text(lang, "🎁 গিফট কোড রিডিম\n\nআপনার গিফট কোড লিখুন:\n\n📋 উদাহরণ: ABC12345", "🎁 Redeem Gift Code\n\nSend your gift code:\n\n📋 Example: ABC12345", "🎁 Redeem Gift Code\n\nSend your gift code:\n\n📋 Example: ABC12345"))
 
     elif query.data == "gencode_menu":
         if not is_admin(user_id):
@@ -995,20 +1102,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reject_order(query, user_id)
 
     elif query.data == "sw_confirm":
-        await query.edit_message_text("🔐 আপনার Password দিন:\n\n⚠️ Message পাঠানোর পর মুছে যাবে।")
+        await query.edit_message_text(lang_text(lang, "🔐 আপনার Password দিন:\n\n⚠️ Message পাঠানোর পর মুছে যাবে।", "🔐 Send your password:\n\n⚠️ Message will be deleted after you send it.", "🔐 Send your password:\n\n⚠️ Message go delete after you send am."))
         return SEND_W_PASSWORD
 
     elif query.data == "sw_cancel":
         context.user_data.clear()
-        await query.edit_message_text("❌ বাতিল হয়েছে।")
+        await query.edit_message_text(lang_text(lang, "❌ বাতিল হয়েছে।", "❌ Cancelled.", "❌ Cancelled."))
         return ConversationHandler.END
 
     elif query.data == "del_confirm":
-        await query.edit_message_text("🔐 Password দিন নিশ্চিত করতে:")
+        await query.edit_message_text(lang_text(lang, "🔐 Password দিন নিশ্চিত করতে:", "🔐 Send password to confirm:", "🔐 Send password to confirm:"))
         return DEL_PASSWORD
 
     elif query.data == "del_cancel":
-        await query.edit_message_text("❌ বাতিল হয়েছে।")
+        await query.edit_message_text(lang_text(lang, "❌ বাতিল হয়েছে।", "❌ Cancelled.", "❌ Cancelled."))
         return ConversationHandler.END
 
 
@@ -1213,25 +1320,26 @@ async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def show_my_wallet_menu(query, user_id):
+async def show_my_wallet_menu(query, user_id, lang=None):
+    lang = lang or user_lang(user_id)
     row = get_user_wallet(user_id)
     if row:
         network = row[2]
         net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
         keyboard = [
-            [InlineKeyboardButton("💰 আমার Balance", callback_data="check_mybal"), InlineKeyboardButton("💸 Crypto পাঠাও", callback_data="mw_send")],
-            [InlineKeyboardButton("🎁 Gift Code তৈরি", callback_data="uw_gencode_menu")],
-            [InlineKeyboardButton("🔄 Wallet পরিবর্তন", callback_data="mw_change"), InlineKeyboardButton("🗑️ Wallet মুছো", callback_data="mw_delete")],
-            [InlineKeyboardButton("📖 ব্যবহার গাইড", callback_data="show_guide")],
-            [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")],
+            [InlineKeyboardButton(lang_text(lang, "💰 আমার Balance", "💰 My Balance", "💰 My Balance"), callback_data="check_mybal"), InlineKeyboardButton(lang_text(lang, "💸 Crypto পাঠাও", "💸 Send Crypto", "💸 Send Crypto"), callback_data="mw_send")],
+            [InlineKeyboardButton(lang_text(lang, "🎁 Gift Code তৈরি", "🎁 Generate Gift Code", "🎁 Generate Gift Code"), callback_data="uw_gencode_menu")],
+            [InlineKeyboardButton(lang_text(lang, "🔄 Wallet পরিবর্তন", "🔄 Change Wallet", "🔄 Change Wallet"), callback_data="mw_change"), InlineKeyboardButton(lang_text(lang, "🗑️ Wallet মুছো", "🗑️ Delete Wallet", "🗑️ Delete Wallet"), callback_data="mw_delete")],
+            [InlineKeyboardButton(lang_text(lang, "📖 ব্যবহার গাইড", "📖 User Guide", "📖 User Guide"), callback_data="show_guide")],
+            [InlineKeyboardButton(tr("back", lang), callback_data="back")],
         ]
         await query.edit_message_text(
-            panel("🔐 My Wallet", f"✅ Connected\n\n🌐 Network: {net_info['name']}\n👛 Address: `{short_wallet(row[3])}`\n\n👇 Choose an action"),
+            panel(tr("wallet", lang), f"✅ {lang_text(lang, 'Connected', 'Connected', 'Connected')}\n\n🌐 Network: {net_info['name']}\n👛 Address: `{short_wallet(row[3])}`\n\n👇 {lang_text(lang, 'একটি action বেছে নিন', 'Choose an action', 'Choose an action')}"),
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
     else:
-        keyboard = [[InlineKeyboardButton("🔐 Wallet সংযুক্ত করুন", callback_data="mw_setup")], [InlineKeyboardButton("📖 ব্যবহার গাইড", callback_data="show_guide")], [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]
-        await query.edit_message_text(panel("🔐 My Wallet", "❌ No wallet connected yet.\n\nConnect a wallet to check balance and send crypto securely."), reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard = [[InlineKeyboardButton(lang_text(lang, "🔐 Wallet সংযুক্ত করুন", "🔐 Connect Wallet", "🔐 Connect Wallet"), callback_data="mw_setup")], [InlineKeyboardButton(lang_text(lang, "📖 ব্যবহার গাইড", "📖 User Guide", "📖 User Guide"), callback_data="show_guide")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]
+        await query.edit_message_text(panel(tr("wallet", lang), lang_text(lang, "❌ এখনো কোনো wallet connected নেই।\n\nBalance দেখতে বা crypto নিরাপদে পাঠাতে wallet connect করুন।", "❌ No wallet connected yet.\n\nConnect a wallet to check balance and send crypto securely.", "❌ No wallet connected yet.\n\nConnect wallet to check balance and send crypto safely.")), reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def show_payment_method_menu(query, context, user_id):
@@ -1240,7 +1348,7 @@ async def show_payment_method_menu(query, context, user_id):
     wallet = context.user_data.get("wallet")
     network = context.user_data.get("network", "solana")
     if not all([fiat_amount, wallet]):
-        await query.edit_message_text("❌ Session expired. Send /start again." if lang == "en" else "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
+        await query.edit_message_text(lang_text(lang, "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।", "❌ Session expired. Send /start again.", "❌ Session expire. Send /start again."))
         return
     net_info = NETWORKS[network]
     bdt_rate = get_rate(network)
@@ -1269,15 +1377,13 @@ async def confirm_buy(query, context, user_id, username, payment_method="bkash")
     wallet = context.user_data.get("wallet")
     network = context.user_data.get("network", "solana")
     if not all([fiat_amount, wallet]):
-        await query.edit_message_text("❌ Session expired. Send /start again." if lang == "en" else "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
+        await query.edit_message_text(lang_text(lang, "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।", "❌ Session expired. Send /start again.", "❌ Session expire. Send /start again."))
         return
     net_info = NETWORKS[network]
     if payment_method == "nigeria":
         if not nigeria_configured(network):
             await query.edit_message_text(
-                "🇳🇬 Nigeria payment is not enabled/configured for this network. Choose bKash or contact admin."
-                if lang == "en"
-                else "🇳🇬 Nigeria payment এই network-এর জন্য চালু/সেটআপ করা নেই। bKash বেছে নিন অথবা admin-এর সাথে যোগাযোগ করুন।",
+                lang_text(lang, "🇳🇬 Nigeria payment এই network-এর জন্য চালু/সেটআপ করা নেই। bKash বেছে নিন অথবা admin-এর সাথে যোগাযোগ করুন।", "🇳🇬 Nigeria payment is not enabled/configured for this network. Choose bKash or contact admin.", "🇳🇬 Nigeria payment no dey enabled/configured for this network. Choose bKash or contact admin."),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("bkash_payment", lang), callback_data="pay_bkash"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
             )
             return
@@ -1298,15 +1404,15 @@ async def confirm_buy(query, context, user_id, username, payment_method="bkash")
         bank = get_setting("ng_bank", "")
         await query.edit_message_text(
             (
-                f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n{DIVIDER}\n"
+                f"🎯 {lang_text(lang, 'অর্ডার কনফার্ম', 'Order Confirmed', 'Order Confirmed')}!\n{DIVIDER}\n"
                 f"🌐 Network: {net_info['name']}\n"
-                f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {fiat_amount} NGN\n"
+                f"💰 {lang_text(lang, 'ঠিক', 'Send exactly', 'Send exactly')} {fiat_amount} NGN\n"
                 f"🇳🇬 Provider: {provider}\n"
                 f"🏛️ Bank/Wallet: {bank}\n"
                 f"👤 Name: {holder}\n"
                 f"📱 Account/Phone: `{account}`\n\n"
-                f"✅ {'After payment, send your Reference/Session/Transaction ID' if lang == 'en' else 'Payment করার পর Reference/Session/Transaction ID লিখুন'}\n"
-                f"⏰ {'Time limit: 15 minutes' if lang == 'en' else 'সময়সীমা: ১৫ মিনিট'}"
+                f"✅ {lang_text(lang, 'Payment করার পর Reference/Session/Transaction ID লিখুন', 'After payment, send your Reference/Session/Transaction ID', 'After payment, send your Reference/Session/Transaction ID')}\n"
+                f"⏰ {lang_text(lang, 'সময়সীমা: ১৫ মিনিট', 'Time limit: 15 minutes', 'Time limit: 15 minutes')}"
             ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
         )
@@ -1331,9 +1437,9 @@ async def confirm_buy(query, context, user_id, username, payment_method="bkash")
         (
             f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n{DIVIDER}\n"
             f"🌐 Network: {net_info['name']}\n"
-            f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {amount_bdt} BDT\n\n"
+            f"💰 {lang_text(lang, 'ঠিক', 'Send exactly', 'Send exactly')} {amount_bdt} BDT\n\n"
             f"📲 bKash: {BKASH_NUMBER}\n\n"
-            f"✅ {'After payment, send your TrxID' if lang == 'en' else 'পাঠানোর পর TrxID লিখুন'}\n"
+            f"✅ {lang_text(lang, 'পাঠানোর পর TrxID লিখুন', 'After payment, send your TrxID', 'After payment, send your TrxID')}\n"
             f"⏰ {'Time limit: 15 minutes' if lang == 'en' else 'সময়সীমা: ১৫ মিনিট'}"
         ),
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
@@ -1390,7 +1496,7 @@ def user_gencode_duration_keyboard(lang):
 
 def gift_duration_text(minutes, lang="bn"):
     hours, mins = divmod(int(minutes), 60)
-    if lang == "en":
+    if lang in {"en", "pcm"}:
         return f"{hours}h {mins}m" if hours else f"{mins}m"
     return f"{hours} ঘণ্টা {mins} মিনিট" if hours else f"{mins} মিনিট"
 
@@ -1399,7 +1505,7 @@ async def start_user_gencode(query, context, user_id, username, lang):
     row = get_user_wallet(user_id)
     if not row:
         context.user_data.clear()
-        await query.edit_message_text("❌ Connected wallet নেই। আগে wallet connect করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔐 Wallet সংযুক্ত করুন", callback_data="mw_setup")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Connected wallet নেই। আগে wallet connect করুন।", "❌ No connected wallet. Connect a wallet first.", "❌ No connected wallet. Connect wallet first."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(lang_text(lang, "🔐 Wallet সংযুক্ত করুন", "🔐 Connect Wallet", "🔐 Connect Wallet"), callback_data="mw_setup")]]))
         return
     network = row[2]
     source_wallet = row[3]
@@ -1407,7 +1513,7 @@ async def start_user_gencode(query, context, user_id, username, lang):
     if not escrow_wallet:
         context.user_data.clear()
         net_info = NETWORKS.get(network, {"name": network})
-        await query.edit_message_text("⚠️ এই network-এর gift code funding এখন unavailable. Admin setup শেষ হলে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "⚠️ এই network-এর gift code funding এখন unavailable. Admin setup শেষ হলে আবার চেষ্টা করুন।", "⚠️ Gift code funding is unavailable for this network. Try again after admin setup is complete.", "⚠️ Gift code funding no dey available for this network now. Try again after admin setup complete."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
         try:
             await query.get_bot().send_message(ADMIN_ID, f"⚠️ User gift-code escrow unavailable\n\n👤 @{username} ({user_id})\n🌐 {net_info['name']}\n👛 Source: {source_wallet}\nError: {escrow_error}")
         except Exception as exc:
@@ -1431,12 +1537,12 @@ async def show_user_gencode_amount_step(query, context, user_id, lang):
     network = context.user_data.get("uw_gencode_network") or (row[2] if row else None)
     if not row or not network:
         context.user_data.clear()
-        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", "❌ Session expired. Try again from Wallet menu.", "❌ Session expire. Try again from Wallet menu."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
         return
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
     context.user_data["uw_gencode_step"] = "amount"
     await query.edit_message_text(
-        f"🎁 Gift Code তৈরি\n\n🌐 Network: {net_info['name']}\n👛 Connected wallet: `{short_wallet(row[3])}`\n\nকত {net_info['symbol']} gift code করবেন?",
+        lang_text(lang, f"🎁 Gift Code তৈরি\n\n🌐 Network: {net_info['name']}\n👛 Connected wallet: `{short_wallet(row[3])}`\n\nকত {net_info['symbol']} gift code করবেন?", f"🎁 Generate Gift Code\n\n🌐 Network: {net_info['name']}\n👛 Connected wallet: `{short_wallet(row[3])}`\n\nHow many {net_info['symbol']} should the gift code contain?", f"🎁 Generate Gift Code\n\n🌐 Network: {net_info['name']}\n👛 Connected wallet: `{short_wallet(row[3])}`\n\nHow many {net_info['symbol']} you wan put for gift code?"),
         parse_mode="Markdown",
         reply_markup=user_gencode_amount_keyboard(lang),
     )
@@ -1446,27 +1552,27 @@ async def select_user_gencode_amount(query, context, user_id, lang):
     row = get_user_wallet(user_id)
     if not row or not context.user_data.get("uw_gencode_network"):
         context.user_data.clear()
-        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", "❌ Session expired. Try again from Wallet menu.", "❌ Session expire. Try again from Wallet menu."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
         return
     value = query.data.replace("uw_gc_amount_", "", 1)
     if value == "custom":
         context.user_data["uw_gencode_step"] = "custom_amount"
-        await query.edit_message_text("💵 Custom amount লিখুন:\n\nশুধু সংখ্যা (যেমন: 3.5)", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+        await query.edit_message_text(lang_text(lang, "💵 Custom amount লিখুন:\n\nশুধু সংখ্যা (যেমন: 3.5)", "💵 Send custom amount:\n\nNumbers only (example: 3.5)", "💵 Send custom amount:\n\nNumbers only (example: 3.5)"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
         return
     context.user_data["uw_gencode_amount"] = float(value)
     context.user_data["uw_gencode_step"] = "duration"
-    await query.edit_message_text("⏰ Gift code কতক্ষণ valid থাকবে?", reply_markup=user_gencode_duration_keyboard(lang))
+    await query.edit_message_text(lang_text(lang, "⏰ Gift code কতক্ষণ valid থাকবে?", "⏰ How long should the gift code stay valid?", "⏰ How long gift code go valid?"), reply_markup=user_gencode_duration_keyboard(lang))
 
 
 async def select_user_gencode_duration(query, context, user_id, lang):
     if not get_user_wallet(user_id) or not context.user_data.get("uw_gencode_amount"):
         context.user_data.clear()
-        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", "❌ Session expired. Try again from Wallet menu.", "❌ Session expire. Try again from Wallet menu."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
         return
     value = query.data.replace("uw_gc_duration_", "", 1)
     if value == "custom":
         context.user_data["uw_gencode_step"] = "custom_duration"
-        await query.edit_message_text("⏰ Custom duration মিনিটে লিখুন:\n\nযেমন: 45", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+        await query.edit_message_text(lang_text(lang, "⏰ Custom duration মিনিটে লিখুন:\n\nযেমন: 45", "⏰ Send custom duration in minutes:\n\nExample: 45", "⏰ Send custom duration in minutes:\n\nExample: 45"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
         return
     context.user_data["uw_gencode_minutes"] = int(value)
     context.user_data["uw_gencode_step"] = "summary"
@@ -1487,9 +1593,9 @@ async def show_user_gencode_summary(target, context, lang):
         f"💵 Amount: {amount} {net_info['symbol']}\n"
         f"⏰ Expiry: {gift_duration_text(minutes, lang)}\n"
         f"🏦 Escrow: `{short_wallet(escrow_wallet)}`\n\n"
-        f"⚠️ Confirm করলে আপনার connected wallet থেকে asset deduct হয়ে bot escrow-তে যাবে।\n"
-        f"🎟️ এরপর code তৈরি হবে এবং যার কাছে code থাকবে সে একবার redeem করতে পারবে।\n\n"
-        f"নিশ্চিত?"
+        f"{lang_text(lang, '⚠️ Confirm করলে আপনার connected wallet থেকে asset deduct হয়ে bot escrow-তে যাবে।', '⚠️ Confirming will deduct the asset from your connected wallet and send it to bot escrow.', '⚠️ If you confirm, asset go deduct from your connected wallet and enter bot escrow.')}\n"
+        f"{lang_text(lang, '🎟️ এরপর code তৈরি হবে এবং যার কাছে code থাকবে সে একবার redeem করতে পারবে।', '🎟️ Then a code will be generated. Whoever has the code can redeem it once.', '🎟️ Then code go generate. Person wey get code fit redeem am once.')}\n\n"
+        f"{lang_text(lang, 'নিশ্চিত?', 'Confirm?', 'Confirm?')}"
     )
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Confirm", callback_data="uw_gc_confirm"), InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")], [InlineKeyboardButton(tr("back", lang), callback_data="uw_gc_back_amount")]])
     if hasattr(target, "edit_message_text"):
@@ -1501,10 +1607,10 @@ async def show_user_gencode_summary(target, context, lang):
 async def ask_user_gencode_password(query, context, user_id, lang):
     if not get_user_wallet(user_id) or not all(context.user_data.get(key) for key in ["uw_gencode_network", "uw_gencode_amount", "uw_gencode_minutes", "uw_gencode_escrow_wallet"]):
         context.user_data.clear()
-        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        await query.edit_message_text(lang_text(lang, "❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", "❌ Session expired. Try again from Wallet menu.", "❌ Session expire. Try again from Wallet menu."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")]]))
         return
     context.user_data["uw_gencode_step"] = "password"
-    await query.edit_message_text("🔐 Wallet Password দিন:\n\nConfirm funding করতে একবার password লাগবে।\n⚠️ Message পাঠানোর পর মুছে যাবে।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+    await query.edit_message_text(lang_text(lang, "🔐 Wallet Password দিন:\n\nConfirm funding করতে একবার password লাগবে।\n⚠️ Message পাঠানোর পর মুছে যাবে।", "🔐 Send wallet password:\n\nPassword is required once to confirm funding.\n⚠️ Message will be deleted after you send it.", "🔐 Send wallet password:\n\nPassword dey required once to confirm funding.\n⚠️ Message go delete after you send am."), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
 
 
 async def handle_user_gencode_text(update, context, user_id, username, lang):
@@ -1519,7 +1625,7 @@ async def handle_user_gencode_text(update, context, user_id, username, lang):
             return
         context.user_data["uw_gencode_amount"] = amount
         context.user_data["uw_gencode_step"] = "duration"
-        await update.message.reply_text("⏰ Gift code কতক্ষণ valid থাকবে?", reply_markup=user_gencode_duration_keyboard(lang))
+        await update.message.reply_text(lang_text(lang, "⏰ Gift code কতক্ষণ valid থাকবে?", "⏰ How long should the gift code stay valid?", "⏰ How long gift code go valid?"), reply_markup=user_gencode_duration_keyboard(lang))
         return
     if step == "custom_duration":
         try:
@@ -1546,7 +1652,7 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
     row = get_user_wallet(user_id)
     if not row:
         context.user_data.clear()
-        await update.message.reply_text("❌ Wallet নেই। আবার setup করুন।")
+        await update.message.reply_text(lang_text(lang, "❌ Wallet নেই। আবার setup করুন।", "❌ No wallet. Set it up again.", "❌ No wallet. Set am up again."))
         return
     network = context.user_data.get("uw_gencode_network")
     amount = float(context.user_data.get("uw_gencode_amount", 0))
@@ -1555,7 +1661,7 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
     source_wallet = context.user_data.get("uw_gencode_source_wallet") or row[3]
     if not all([network, amount > 0, minutes > 0, escrow_wallet]):
         context.user_data.clear()
-        await update.message.reply_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।")
+        await update.message.reply_text(lang_text(lang, "❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", "❌ Session expired. Try again from Wallet menu.", "❌ Session expire. Try again from Wallet menu."))
         return
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
     code = gen_code()
@@ -1566,12 +1672,12 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, escrow_wallet, amount))
     except Exception as exc:
         if "ভুল password" in str(exc) or "wrong" in str(exc).lower():
-            await update.message.reply_text("❌ ভুল Password! আবার password দিন:\n\nCode এখনো তৈরি হয়নি।")
+            await update.message.reply_text(lang_text(lang, "❌ ভুল Password! আবার password দিন:\n\nCode এখনো তৈরি হয়নি।", "❌ Wrong password! Send password again:\n\nCode has not been created yet.", "❌ Wrong password! Send password again:\n\nCode never create yet."))
             context.user_data["uw_gencode_step"] = "password"
             return
         context.user_data.clear()
         logger.error("User gift-code funding failed: %s", exc)
-        await update.message.reply_text(f"❌ Gift code funding ব্যর্থ!\n\n{exc}\n\nCode তৈরি হয়নি।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]))
+        await update.message.reply_text(f"{lang_text(lang, '❌ Gift code funding ব্যর্থ!', '❌ Gift code funding failed!', '❌ Gift code funding fail!')}\n\n{exc}\n\n{lang_text(lang, 'Code তৈরি হয়নি।', 'Code was not created.', 'Code no create.')}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]))
         return
     expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
     create_code(code, amount, expires_at, network)
@@ -1580,15 +1686,15 @@ async def complete_user_gift_code(update, context, user_id, username, lang):
     explorer = f"{net_info.get('explorer', '')}{sig}"
     expiry_text = gift_duration_text(minutes, lang)
     await update.message.reply_text(
-        f"🎉 Gift code তৈরি হয়েছে!\n\n"
+        f"{lang_text(lang, '🎉 Gift code তৈরি হয়েছে!', '🎉 Gift code generated!', '🎉 Gift code don generate!')}\n\n"
         f"🎟️ Code: `{code}`\n"
         f"🌐 Network: {net_info['name']}\n"
         f"💵 Amount: {amount} {net_info['symbol']}\n"
         f"⏰ Expiry: {expiry_text}\n"
         f"🔗 Funding TX: {explorer}\n\n"
-        f"⚠️ যার কাছে এই code থাকবে সে একবার redeem করতে পারবে।",
+        f"{lang_text(lang, '⚠️ যার কাছে এই code থাকবে সে একবার redeem করতে পারবে।', '⚠️ Whoever has this code can redeem it once.', '⚠️ Person wey get this code fit redeem am once.')}",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎁 আরেকটি তৈরি", callback_data="uw_gencode_menu"), InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(lang_text(lang, "🎁 আরেকটি তৈরি", "🎁 Create another", "🎁 Create another"), callback_data="uw_gencode_menu"), InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]),
     )
     try:
         await update.get_bot().send_message(
@@ -1603,14 +1709,13 @@ async def create_gift_code_from_context(target, context, minutes, lang):
     network = context.user_data.get("gencode_network", "solana")
     amount = float(context.user_data.get("gencode_amount", 0))
     if amount <= 0 or minutes <= 0:
-        await target.edit_message_text("❌ Invalid amount or time." if lang == "en" else "❌ ভুল পরিমাণ বা সময়!")
+        await target.edit_message_text(lang_text(lang, "❌ ভুল পরিমাণ বা সময়!", "❌ Invalid amount or time.", "❌ Amount or time no correct."))
         return
     code = gen_code()
     expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
     create_code(code, amount, expires_at, network)
     net_info = NETWORKS[network]
-    hours, mins = divmod(minutes, 60)
-    time_str = f"{hours}h {mins}m" if lang == "en" and hours else (f"{mins}m" if lang == "en" else (f"{hours} ঘণ্টা {mins} মিনিট" if hours > 0 else f"{mins} মিনিট"))
+    time_str = gift_duration_text(minutes, lang)
     context.user_data.clear()
     message = (
         f"{tr('code_created', lang)}\n\n"
@@ -1618,7 +1723,7 @@ async def create_gift_code_from_context(target, context, minutes, lang):
         f"🌐 {net_info['name']}\n"
         f"💵 {amount} {net_info['symbol']}\n"
         f"⏰ {time_str}\n\n"
-        f"⚠️ {'Single use only.' if lang == 'en' else 'শুধুমাত্র একজন ব্যবহার করতে পারবে!'}"
+        f"⚠️ {lang_text(lang, 'শুধুমাত্র একজন ব্যবহার করতে পারবে!', 'Single use only.', 'Single use only.')}"
     )
     reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu"), InlineKeyboardButton(tr("back", lang), callback_data="back")]])
     if hasattr(target, "edit_message_text"):
@@ -1787,9 +1892,7 @@ async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
     sufficient, current_bal = check_sufficient(network, amount_crypto)
     if not sufficient and current_bal is not None:
         await update.message.reply_text(
-            f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {amount_crypto}\nAvailable: {current_bal}"
-            if lang == "en"
-            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\nআছে: {current_bal}"
+            lang_text(lang, f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\nআছে: {current_bal}", f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {amount_crypto}\nAvailable: {current_bal}", f"❌ {net_info['symbol']} stock no enough.\n\nNeed: {amount_crypto}\nAvailable: {current_bal}")
         )
         return ConversationHandler.END
 
@@ -1862,9 +1965,7 @@ async def admin_send_amount_received(update: Update, context: ContextTypes.DEFAU
         stock_line = f"\n💰 Available: {current_bal} {net_info['symbol']}"
     if not sufficient and current_bal is not None:
         await update.message.reply_text(
-            f"❌ Insufficient {net_info['symbol']} stock.{stock_line}\nNeed: {amount} {net_info['symbol']}"
-            if lang == "en"
-            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।{stock_line}\nদরকার: {amount} {net_info['symbol']}"
+            lang_text(lang, f"❌ পর্যাপ্ত {net_info['symbol']} নেই।{stock_line}\nদরকার: {amount} {net_info['symbol']}", f"❌ Insufficient {net_info['symbol']} stock.{stock_line}\nNeed: {amount} {net_info['symbol']}", f"❌ {net_info['symbol']} stock no enough.{stock_line}\nNeed: {amount} {net_info['symbol']}")
         )
         return ConversationHandler.END
 
@@ -1885,10 +1986,10 @@ async def complete_admin_send(query, context, user_id, lang):
     wallet = context.user_data.get("admin_send_wallet")
     amount = context.user_data.get("admin_send_amount")
     if not all([network, wallet, amount]):
-        await query.edit_message_text("❌ Session expired. Start again." if lang == "en" else "❌ সেশন শেষ। আবার শুরু করুন।")
+        await query.edit_message_text(lang_text(lang, "❌ সেশন শেষ। আবার শুরু করুন।", "❌ Session expired. Start again.", "❌ Session expire. Start again."))
         return
     net_info = NETWORKS[network]
-    await query.edit_message_text("⏳ Sending asset..." if lang == "en" else "⏳ Asset পাঠানো হচ্ছে...")
+    await query.edit_message_text(lang_text(lang, "⏳ Asset পাঠানো হচ্ছে...", "⏳ Sending asset...", "⏳ Asset dey send..."))
     try:
         sig = await send_crypto(network, wallet, amount)
         explorer = f"{net_info['explorer']}{sig}"
@@ -1934,7 +2035,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text.strip()
         if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
             context.user_data.clear()
-            await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(user_id, lang))
+            await update.message.reply_text(lang_text(lang, "✅ AI Support বন্ধ হয়েছে।", "✅ AI Support closed.", "✅ AI Support don close."), reply_markup=main_menu(user_id, lang))
             return
         await update.message.reply_text(tr("ai_thinking", lang))
         try:
@@ -2016,7 +2117,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid Reference/Session ID. Try again." if payment_method == "nigeria" else "❌ ভুল TrxID! আবার চেষ্টা করুন।")
         return
     if trx_exists(trx_id):
-        await update.message.reply_text(f"⚠️ This {meta['id_label']} was already used!\n\n❓ @MdMouno" if lang == "en" else f"⚠️ এই {meta['id_label']} আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno")
+        await update.message.reply_text(lang_text(lang, f"⚠️ এই {meta['id_label']} আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno", f"⚠️ This {meta['id_label']} was already used!\n\n❓ @MdMouno", f"⚠️ This {meta['id_label']} don already use!\n\n❓ @MdMouno"))
         return
 
     wallet = get_wallet(user_id)
@@ -2073,52 +2174,54 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_redeem(update, context, user_id, username):
+    lang = user_lang(user_id)
     if context.user_data.get("redeem_step") == "code":
         code = update.message.text.strip().upper()
         row = get_code(code)
         if not row:
-            await update.message.reply_text("❌ কোড পাওয়া যায়নি!\n\nসঠিক কোড লিখুন।")
+            await update.message.reply_text(lang_text(lang, "❌ কোড পাওয়া যায়নি!\n\nসঠিক কোড লিখুন।", "❌ Code not found!\n\nSend the correct code.", "❌ Code no dey!\n\nSend correct code."))
             return
         _code_val, amount_crypto, expires_at, used, _used_by, _created_at, code_network = row
         if used:
-            await update.message.reply_text("⚠️ এই কোড আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno")
+            await update.message.reply_text(lang_text(lang, "⚠️ এই কোড আগেই ব্যবহার হয়েছে!\n\n❓ @MdMouno", "⚠️ This code was already used!\n\n❓ @MdMouno", "⚠️ This code don already use!\n\n❓ @MdMouno"))
             context.user_data.clear()
             return
         if datetime.now() > datetime.fromisoformat(expires_at):
-            await update.message.reply_text("⏰ এই কোডের মেয়াদ শেষ!\n\n❓ @MdMouno")
+            await update.message.reply_text(lang_text(lang, "⏰ এই কোডের মেয়াদ শেষ!\n\n❓ @MdMouno", "⏰ This code has expired!\n\n❓ @MdMouno", "⏰ This code don expire!\n\n❓ @MdMouno"))
             context.user_data.clear()
             return
         net_info = NETWORKS.get(code_network, NETWORKS["solana"])
         context.user_data.update({"redeem_code": code, "redeem_usdc": amount_crypto, "redeem_network": code_network, "redeem_step": "wallet"})
-        await update.message.reply_text(f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}")
+        await update.message.reply_text(lang_text(lang, f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}", f"✅ Code verified!\n\n🎁 You will receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nSend your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Code verified!\n\n🎁 You go receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nSend your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}"))
         return
 
     wallet = update.message.text.strip()
     network = context.user_data.get("redeem_network", "solana")
     net_info = NETWORKS[network]
     if not valid_wallet(network, wallet):
-        await update.message.reply_text(f"❌ ভুল {net_info['name']} wallet!\n\nসঠিক address দিন।")
+        await update.message.reply_text(lang_text(lang, f"❌ ভুল {net_info['name']} wallet!\n\nসঠিক address দিন।", f"❌ Invalid {net_info['name']} wallet!\n\nSend correct address.", f"❌ {net_info['name']} wallet no correct!\n\nSend correct address."))
         return
     code = context.user_data["redeem_code"]
     amount_crypto = context.user_data["redeem_usdc"]
     context.user_data.clear()
-    await update.message.reply_text(f"⏳ {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}")
+    await update.message.reply_text(lang_text(lang, f"⏳ {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}", f"⏳ Sending {net_info['symbol']}...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}", f"⏳ {net_info['symbol']} dey send...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}"))
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
         explorer = f"{net_info['explorer']}{sig}"
         use_code(code, user_id)
         save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
-        await update.message.reply_text(f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
+        await update.message.reply_text(lang_text(lang, f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏", f"🎉 {net_info['symbol']} sent!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nThank you! 🙏", f"🎉 {net_info['symbol']} don send!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nThank you! 🙏"))
         try:
             await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
         except Exception:
             pass
     except Exception as exc:
-        await update.message.reply_text("❌ পাঠাতে সমস্যা!\n\n📞 @MdMouno")
+        await update.message.reply_text(lang_text(lang, "❌ পাঠাতে সমস্যা!\n\n📞 @MdMouno", "❌ Sending failed!\n\n📞 @MdMouno", "❌ Sending fail!\n\n📞 @MdMouno"))
         logger.error("Redeem failed: %s", exc)
 
 
 async def handle_balance_password(update, context, user_id):
+    lang = user_lang(user_id)
     password = update.message.text.strip()
     try:
         await update.message.delete()
@@ -2127,14 +2230,14 @@ async def handle_balance_password(update, context, user_id):
     context.user_data.pop("uw_waiting_bal_password", None)
     bal, network, error = get_user_balance(user_id, password)
     if error == "wrong_password":
-        await update.message.reply_text("❌ ভুল Password!")
+        await update.message.reply_text(lang_text(lang, "❌ ভুল Password!", "❌ Wrong password!", "❌ Wrong password!"))
         return
     if error:
         await update.message.reply_text(f"❌ Error: {error}")
         return
     row = get_user_wallet(user_id)
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
-    await update.message.reply_text(f"💰 আপনার Balance:\n\n🌐 {net_info['name']}\n👛 {row[3]}\n💵 {bal} {net_info['symbol']}\n\n💸 পাঠাতে: /send_wallet")
+    await update.message.reply_text(lang_text(lang, f"💰 আপনার Balance:\n\n🌐 {net_info['name']}\n👛 {row[3]}\n💵 {bal} {net_info['symbol']}\n\n💸 পাঠাতে: /send_wallet", f"💰 Your Balance:\n\n🌐 {net_info['name']}\n👛 {row[3]}\n💵 {bal} {net_info['symbol']}\n\n💸 To send: /send_wallet", f"💰 Your Balance:\n\n🌐 {net_info['name']}\n👛 {row[3]}\n💵 {bal} {net_info['symbol']}\n\n💸 To send: /send_wallet"))
 
 
 async def gencode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2171,26 +2274,29 @@ async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def setup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔐 Wallet Setup\n\nআপনার Network বেছে নিন:\n\n⚠️ Private Key AES-256 দিয়ে encrypt হবে\n❓ গাইড: /guide", reply_markup=user_network_menu())
+    lang = user_lang(update.effective_user.id)
+    await update.message.reply_text(lang_text(lang, "🔐 Wallet Setup\n\nআপনার Network বেছে নিন:\n\n⚠️ Private Key AES-256 দিয়ে encrypt হবে\n❓ গাইড: /guide", "🔐 Wallet Setup\n\nChoose your network:\n\n⚠️ Private key will be encrypted with AES-256\n❓ Guide: /guide", "🔐 Wallet Setup\n\nChoose your network:\n\n⚠️ Private key go encrypt with AES-256\n❓ Guide: /guide"), reply_markup=user_network_menu())
     return SETUP_NETWORK
 
 
 async def setup_network_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    lang = user_lang(query.from_user.id)
     if query.data == "uw_cancel":
-        await query.edit_message_text("❌ বাতিল হয়েছে।")
+        await query.edit_message_text(lang_text(lang, "❌ বাতিল হয়েছে।", "❌ Cancelled.", "❌ Cancelled."))
         return ConversationHandler.END
     network = query.data.replace("uw_", "")
     context.user_data["uw_network"] = network
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
-    net_guide = NETWORK_GUIDE.get(network, "")
-    await query.edit_message_text(f"✅ নেটওয়ার্ক: {net_info['name']}\n\n{net_guide}\n━━━━━━━━━━━━━━━━━━━━━\nএখন আপনার Private Key পাঠান:\n\n⚠️ Message পাঠানোর পর bot স্বয়ংক্রিয়ভাবে মুছে দেবে।")
+    net_guide = network_guide_text(network, lang)
+    await query.edit_message_text(lang_text(lang, f"✅ নেটওয়ার্ক: {net_info['name']}\n\n{net_guide}\n━━━━━━━━━━━━━━━━━━━━━\nএখন আপনার Private Key পাঠান:\n\n⚠️ Message পাঠানোর পর bot স্বয়ংক্রিয়ভাবে মুছে দেবে।", f"✅ Network: {net_info['name']}\n\n{net_guide}\n━━━━━━━━━━━━━━━━━━━━━\nNow send your private key:\n\n⚠️ Bot will delete the message automatically after you send it.", f"✅ Network: {net_info['name']}\n\n{net_guide}\n━━━━━━━━━━━━━━━━━━━━━\nNow send your private key:\n\n⚠️ Bot go delete the message automatically after you send am."))
     return SETUP_KEY
 
 
 async def setup_key_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     private_key = update.message.text.strip()
+    lang = user_lang(update.effective_user.id)
     network = context.user_data.get("uw_network", "solana")
     try:
         await update.message.delete()
@@ -2199,17 +2305,18 @@ async def setup_key_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         wallet_address = get_wallet_address(network, private_key)
     except Exception as exc:
-        await update.message.reply_text(f"❌ Invalid Private Key!\n\n{exc}\n\nআবার চেষ্টা করুন:")
+        await update.message.reply_text(f"{lang_text(lang, '❌ Invalid Private Key!', '❌ Invalid Private Key!', '❌ Invalid Private Key!')}\n\n{exc}\n\n{lang_text(lang, 'আবার চেষ্টা করুন:', 'Try again:', 'Try again:')}")
         return SETUP_KEY
     context.user_data["uw_private_key"] = private_key
     context.user_data["uw_wallet_address"] = wallet_address
-    await update.message.reply_text(f"✅ Key যাচাই সফল!\n\n👛 {wallet_address}\n\nএখন একটি শক্তিশালী Password তৈরি করুন:\n\n• কমপক্ষে ৮ character\n• সংখ্যা ও অক্ষর মিলিয়ে দিন\n• Password ভুললে key recover হবে না!\n\nআপনার password লিখুন:")
+    await update.message.reply_text(lang_text(lang, f"✅ Key যাচাই সফল!\n\n👛 {wallet_address}\n\nএখন একটি শক্তিশালী Password তৈরি করুন:\n\n• কমপক্ষে ৮ character\n• সংখ্যা ও অক্ষর মিলিয়ে দিন\n• Password ভুললে key recover হবে না!\n\nআপনার password লিখুন:", f"✅ Key verified!\n\n👛 {wallet_address}\n\nNow create a strong password:\n\n• Minimum 8 characters\n• Mix letters and numbers\n• If you forget password, key cannot be recovered!\n\nSend your password:", f"✅ Key verified!\n\n👛 {wallet_address}\n\nNow create strong password:\n\n• Minimum 8 characters\n• Mix letters and numbers\n• If you forget password, key no fit recover!\n\nSend your password:"))
     return SETUP_PASSWORD
 
 
 async def setup_password_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     password = update.message.text.strip()
     user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
     private_key = context.user_data.get("uw_private_key")
     network = context.user_data.get("uw_network")
     wallet_addr = context.user_data.get("uw_wallet_address")
@@ -2218,16 +2325,16 @@ async def setup_password_received(update: Update, context: ContextTypes.DEFAULT_
     except Exception:
         pass
     if len(password) < 8:
-        await update.message.reply_text("❌ Password কমপক্ষে ৮ character!\n\nআবার লিখুন:")
+        await update.message.reply_text(lang_text(lang, "❌ Password কমপক্ষে ৮ character!\n\nআবার লিখুন:", "❌ Password must be at least 8 characters!\n\nSend again:", "❌ Password must be at least 8 characters!\n\nSend again:"))
         return SETUP_PASSWORD
     try:
         encrypted_key, salt = encrypt_key(private_key, password)
         save_user_wallet(user_id, encrypted_key, salt, network, wallet_addr)
         context.user_data.clear()
         net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
-        await update.message.reply_text(f"🎉 Wallet Setup সফল!\n\n🌐 {net_info['name']}\n👛 {wallet_addr}\n\n💰 /mybalance → Balance দেখুন\n💸 /send_wallet → Crypto পাঠান\n🔑 /changekey → Key পরিবর্তন\n🗑️ /deletekey → Key মুছুন\n📖 /guide → ব্যবহার বিধি\n\n⚠️ Password মনে রাখুন!")
+        await update.message.reply_text(lang_text(lang, f"🎉 Wallet Setup সফল!\n\n🌐 {net_info['name']}\n👛 {wallet_addr}\n\n💰 /mybalance → Balance দেখুন\n💸 /send_wallet → Crypto পাঠান\n🔑 /changekey → Key পরিবর্তন\n🗑️ /deletekey → Key মুছুন\n📖 /guide → ব্যবহার বিধি\n\n⚠️ Password মনে রাখুন!", f"🎉 Wallet Setup successful!\n\n🌐 {net_info['name']}\n👛 {wallet_addr}\n\n💰 /mybalance → Check balance\n💸 /send_wallet → Send crypto\n🔑 /changekey → Change key\n🗑️ /deletekey → Delete key\n📖 /guide → User guide\n\n⚠️ Remember your password!", f"🎉 Wallet Setup successful!\n\n🌐 {net_info['name']}\n👛 {wallet_addr}\n\n💰 /mybalance → Check balance\n💸 /send_wallet → Send crypto\n🔑 /changekey → Change key\n🗑️ /deletekey → Delete key\n📖 /guide → User guide\n\n⚠️ Remember your password!"))
     except Exception as exc:
-        await update.message.reply_text(f"❌ Setup ব্যর্থ!\n{exc}")
+        await update.message.reply_text(f"{lang_text(lang, '❌ Setup ব্যর্থ!', '❌ Setup failed!', '❌ Setup fail!')}\n{exc}")
     return ConversationHandler.END
 
 
@@ -2432,7 +2539,7 @@ async def deletekey_password(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(GUIDE)
+    await update.message.reply_text(guide_text(user_lang(update.effective_user.id)))
 
 
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
