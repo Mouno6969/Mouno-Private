@@ -557,20 +557,41 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_txlog(query):
     try:
-        rows = get_recent_transactions(10)
-        if not rows:
-            msg = "📜 কোনো ট্রানজেকশন নেই।"
-        else:
-            msg = "📜 সর্বশেষ ট্রানজেকশন:\n\n━━━━━━━━━━━━━━━━━━━━━\n"
-            for _trx_id, bdt, crypto, network, wallet, status, created in rows:
-                ni = NETWORKS.get(network or "solana", {"name": network, "symbol": "?"})
-                icon = "✅" if status == "completed" else "❌"
-                sw = f"{wallet[:6]}...{wallet[-4:]}" if wallet else "N/A"
-                sd = str(created)[:16] if created else "N/A"
-                msg += f"{icon} {sd}\n💵 {crypto} {ni['symbol']} ({bdt} BDT)\n🌐 {ni['name']}\n👛 {sw}\n───────────────────\n"
+        msg = txlog_text()
     except Exception as exc:
         msg = f"❌ লোড ব্যর্থ!\n{exc}"
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 রিফ্রেশ", callback_data="txlog")], [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]))
+
+
+def txlog_text(limit=10):
+    rows = get_recent_transactions(limit)
+    if not rows:
+        return "📜 কোনো ট্রানজেকশন নেই।"
+    msg = "📜 সর্বশেষ ট্রানজেকশন:\n\n━━━━━━━━━━━━━━━━━━━━━\n"
+    for trx_id, bdt, crypto, network, wallet, status, created in rows:
+        ni = NETWORKS.get(network or "solana", {"name": network, "symbol": "?"})
+        icon = "✅" if status == "completed" else "❌"
+        sw = f"{wallet[:6]}...{wallet[-4:]}" if wallet else "N/A"
+        sd = str(created)[:16] if created else "N/A"
+        if trx_id.startswith("STAR-"):
+            source = "⭐ Stars"
+        elif trx_id.startswith("GIFT-"):
+            source = "🎁 Gift Code"
+        elif trx_id.startswith("ADMIN-"):
+            source = "🛠️ Admin Send"
+        elif trx_id.startswith("WALLET-"):
+            source = "🔐 User Wallet"
+        else:
+            source = f"💰 {bdt} BDT"
+        msg += f"{icon} {sd}\n{source}\n💵 {crypto} {ni['symbol']}\n🌐 {ni['name']}\n👛 {sw}\n🔑 {trx_id}\n───────────────────\n"
+    return msg
+
+
+async def txlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await update.message.reply_text(txlog_text())
+    except Exception as exc:
+        await update.message.reply_text(f"❌ লোড ব্যর্থ!\n{exc}")
 
 
 def pending_order_keyboard(row):
@@ -1047,6 +1068,7 @@ async def handle_redeem(update, context, user_id, username):
         sig = await send_crypto(network, wallet, amount_crypto)
         explorer = f"{net_info['explorer']}{sig}"
         use_code(code, user_id)
+        save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
         await update.message.reply_text(f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n🎁 {amount_crypto} {net_info['symbol']}\n🌐 {net_info['name']}\n👛 {wallet}\n🔗 {explorer}\n\nধন্যবাদ! 🙏")
         try:
             await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
@@ -1102,6 +1124,7 @@ async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"⏳ Sending {amount} USDC (Solana)...")
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_usdc(wallet, amount))
+        save_transaction(f"ADMIN-{sig[:24]}", update.effective_user.id, 0, amount, wallet, sig, "completed", "solana")
         text = f"✅ Sent!\n\n💵 {amount} USDC\n👛 {wallet}\n🔗 https://solscan.io/tx/{sig}"
     except Exception as exc:
         text = f"❌ Failed!\n{exc}"
@@ -1239,6 +1262,7 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text("⏳ পাঠানো হচ্ছে...")
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, dest, amount))
+        save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network)
         context.user_data.clear()
         await update.message.reply_text(f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}")
     except Exception as exc:
@@ -1527,6 +1551,7 @@ async def main():
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
     app.add_handler(CommandHandler("pending", pending_cmd))
+    app.add_handler(CommandHandler("txlog", txlog_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(buy_conv)
