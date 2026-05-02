@@ -18,6 +18,7 @@ GUIDE = """
    • Ethereum → USDT/USDC
    • Base → USDC
    • Tron → USDT (TRC20)
+   • TON → TON
 
 ৩. আপনার Private Key দিন
    ⚠️ Private Key কখনো কাউকে দেবেন না
@@ -70,6 +71,7 @@ GUIDE = """
    • Tron → TRX (Energy)
    • Base → ETH
    • Avalanche → AVAX
+   • TON → TON
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📞 সমস্যায় যোগাযোগ করুন
@@ -147,5 +149,12 @@ NETWORK_GUIDE = {
 • Wallet: MetaMask, Core Wallet
 • Speed: ~2 seconds
 • Fee: ~$0.05
+""",
+    "ton": """
+🔵 TON Network Guide:
+• Token: TON
+• Wallet address format: UQ... or EQ...
+• Wallet: Tonkeeper, MyTonWallet
+• Fee: TON
 """,
 }

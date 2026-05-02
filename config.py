@@ -23,3 +23,6 @@ AVALANCHE_RPC = os.getenv("AVALANCHE_RPC", "https://api.avax.network/ext/bc/C/rp
 ETHEREUM_RPC = os.getenv("ETHEREUM_RPC")
 BASE_RPC = os.getenv("BASE_RPC", "https://mainnet.base.org")
 TRON_PRIVATE_KEY = os.getenv("TRON_PRIVATE_KEY")
+TON_MNEMONIC = os.getenv("TON_MNEMONIC")
+TON_API_KEY = os.getenv("TON_API_KEY")
+TON_RPC = os.getenv("TON_RPC", "https://toncenter.com")

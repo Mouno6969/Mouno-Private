@@ -70,6 +70,7 @@ from db import (
 from evm_sender import send_evm_token
 from polygon_sender import send_polygon_usdc
 from sender import send_usdc
+from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
 from webhook import parse_bkash_payment_notice, parse_bkash_sms, run_webhook, set_callback
@@ -110,6 +111,7 @@ NETWORKS = {
     "ethereum_usdc": {"name": "Ethereum USDC (ERC20)", "symbol": "USDC", "explorer": "https://etherscan.io/tx/"},
     "base": {"name": "Base USDC", "symbol": "USDC", "explorer": "https://basescan.org/tx/"},
     "trc20": {"name": "Tron USDT (TRC20)", "symbol": "USDT", "explorer": "https://tronscan.org/#/transaction/"},
+    "ton": {"name": "TON", "symbol": "TON", "explorer": "https://tonviewer.com/transaction/"},
 }
 
 LANGUAGES = {
@@ -210,6 +212,7 @@ def gas_warning(network, lang="bn"):
         "ethereum_usdc": "ETH",
         "base": "ETH",
         "trc20": "TRX",
+        "ton": "TON",
     }.get(network, "native gas")
     if lang == "en":
         return f"⚠️ Make sure the sender wallet has enough {native} for network gas/fees. Wrong network transfers cannot be reversed."
@@ -324,6 +327,8 @@ def wallet_hint(network):
         return "8Qvz2XBZ821N7fkT6DxPGs..."
     if network == "trc20":
         return "TXyz1234..."
+    if network == "ton":
+        return "UQCd... or EQCd..."
     return "0x1234abcd..."
 
 
@@ -332,6 +337,8 @@ def valid_wallet(network, wallet):
         return 32 <= len(wallet) <= 44
     if network == "trc20":
         return wallet.startswith("T") and len(wallet) == 34
+    if network == "ton":
+        return (wallet.startswith("UQ") or wallet.startswith("EQ")) and 48 <= len(wallet) <= 60
     return wallet.startswith("0x") and len(wallet) == 42
 
 
@@ -367,6 +374,7 @@ def network_menu(prefix, lang="bn"):
             [InlineKeyboardButton("⬡ BSC USDT", callback_data=f"{prefix}_bsc"), InlineKeyboardButton("⬡ Avax USDT", callback_data=f"{prefix}_avalanche")],
             [InlineKeyboardButton("⬡ ETH USDT", callback_data=f"{prefix}_ethereum"), InlineKeyboardButton("⬡ ETH USDC", callback_data=f"{prefix}_ethereum_usdc")],
             [InlineKeyboardButton("⬡ Base USDC", callback_data=f"{prefix}_base"), InlineKeyboardButton("⬡ TRC20 USDT", callback_data=f"{prefix}_trc20")],
+            [InlineKeyboardButton("⬡ TON", callback_data=f"{prefix}_ton")],
             [InlineKeyboardButton(tr("cancel", lang), callback_data=cancel_callback)],
         ]
     )
@@ -388,7 +396,8 @@ def rates_text(title=None, lang="bn"):
         f"⬡ Ethereum USDT (ERC20): 1 = {rates.get('ethereum', 0)} BDT\n"
         f"⬡ Ethereum USDC (ERC20): 1 = {rates.get('ethereum_usdc', 0)} BDT\n"
         f"⬡ Base USDC:             1 = {rates.get('base', 0)} BDT\n"
-        f"⬡ Tron USDT (TRC20):     1 = {rates.get('trc20', 0)} BDT"
+        f"⬡ Tron USDT (TRC20):     1 = {rates.get('trc20', 0)} BDT\n"
+        f"⬡ TON:                   1 = {rates.get('ton', 0)} BDT"
     )
 
 
@@ -430,6 +439,8 @@ async def send_crypto(network, wallet, amount):
         return await loop.run_in_executor(None, lambda: send_evm_token("base", "usdc", wallet, amount))
     if network == "trc20":
         return await loop.run_in_executor(None, lambda: send_trc20_usdt(wallet, amount))
+    if network == "ton":
+        return await loop.run_in_executor(None, lambda: send_ton(wallet, amount))
     raise ValueError(f"Unsupported network: {network}")
 
 
@@ -1911,12 +1922,12 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).request(request).build()
 
     buy_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={WAITING_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_wallet)], WAITING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_amount)]},
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
     star_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^star_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^star_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={
             WAITING_STAR_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_wallet)],
             WAITING_STAR_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_amount)],
@@ -1924,7 +1935,7 @@ async def main():
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
     admin_send_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^admin_send_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^admin_send_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={
             ADMIN_SEND_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_wallet_received)],
             ADMIN_SEND_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_amount_received)],
@@ -1932,7 +1943,7 @@ async def main():
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^admin_send_cancel$")],
     )
     rate_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={WAITING_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_rate)]},
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^back$")],
     )

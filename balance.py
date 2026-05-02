@@ -16,6 +16,7 @@ from config import (
     SOLANA_KEY,
     TRON_PRIVATE_KEY,
 )
+from ton_sender import get_ton_balance
 from token_abi import ERC20_ABI
 from tron_utils import tron_client, tron_private_key
 
@@ -119,6 +120,7 @@ def get_all_balances():
         "ethereum_usdc": lambda: get_evm_balance("ethereum_usdc"),
         "base": lambda: get_evm_balance("base"),
         "trc20": get_tron_balance,
+        "ton": get_ton_balance,
     }
     balances = {}
     with ThreadPoolExecutor(max_workers=8) as executor:
