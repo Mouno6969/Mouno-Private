@@ -88,6 +88,8 @@ GEN_CUSTOM_AMOUNT = 20
 GEN_CUSTOM_DURATION = 21
 WAITING_STAR_WALLET = 30
 WAITING_STAR_AMOUNT = 31
+ADMIN_SEND_WALLET = 40
+ADMIN_SEND_AMOUNT = 41
 
 RATE_FILE = "rate.json"
 
@@ -125,6 +127,7 @@ TEXT = {
     "set_rate": {"bn": "⚙️ রেট পরিবর্তন", "en": "⚙️ Set Rates"},
     "gen_code": {"bn": "🎟️ কোড তৈরি", "en": "🎟️ Generate Code"},
     "disable_code": {"bn": "🚫 কোড বাতিল", "en": "🚫 Disable Code"},
+    "admin_send": {"bn": "🚀 Admin Send", "en": "🚀 Admin Send"},
     "back": {"bn": "🔙 ফিরে যান", "en": "🔙 Back"},
     "cancel": {"bn": "❌ বাতিল", "en": "❌ Cancel"},
     "home_title": {"bn": "💱 Crypto Seller Bot", "en": "💱 Crypto Seller Bot"},
@@ -159,6 +162,11 @@ TEXT = {
     "stars_pay_prompt": {"bn": "Invoice পাঠানো হয়েছে। Telegram Stars দিয়ে payment complete করুন।", "en": "Invoice sent. Complete payment with Telegram Stars."},
     "stars_paid_sending": {"bn": "✅ Stars payment received. Crypto পাঠানো হচ্ছে...", "en": "✅ Stars payment received. Sending crypto..."},
     "stars_completed": {"bn": "🎉 Stars payment verified এবং crypto পাঠানো হয়েছে!", "en": "🎉 Stars payment verified and crypto sent!"},
+    "admin_send_intro": {"bn": "🚀 Admin Send\n\nকোন network থেকে asset পাঠাবেন?", "en": "🚀 Admin Send\n\nSelect the network to send from."},
+    "admin_send_wallet": {"bn": "Destination wallet address দিন", "en": "Send destination wallet address"},
+    "admin_send_amount": {"bn": "কত {symbol} পাঠাবেন?", "en": "How many {symbol} do you want to send?"},
+    "admin_send_confirm": {"bn": "নিশ্চিত করলে asset পাঠানো হবে।", "en": "Confirm to send the asset."},
+    "admin_send_done": {"bn": "✅ Admin transfer complete!", "en": "✅ Admin transfer complete!"},
 }
 
 
@@ -242,7 +250,7 @@ def main_menu(user_id, lang=None):
     ]
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
-        keyboard.append([InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
+        keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -253,6 +261,7 @@ def network_menu(prefix, lang="bn"):
         "setrate": "back",
         "gencode": "back",
         "star_network": "back",
+        "admin_send_network": "back",
     }.get(prefix, "back")
     return InlineKeyboardMarkup(
         [
@@ -430,6 +439,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["star_step"] = "network"
         await query.edit_message_text(tr("stars_intro", lang), reply_markup=network_menu("star_network", lang))
+
+    elif query.data == "admin_send":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["admin_send_step"] = "network"
+        await query.edit_message_text(tr("admin_send_intro", lang), reply_markup=network_menu("admin_send_network", lang))
+
+    elif query.data.startswith("admin_send_network_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        network = query.data.replace("admin_send_network_", "")
+        context.user_data["admin_send_network"] = network
+        net_info = NETWORKS[network]
+        await query.edit_message_text(
+            f"🚀 {net_info['name']}\n\n{tr('admin_send_wallet', lang)}:\n\n📋 {tr('example', lang)}: {wallet_hint(network)}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="admin_send_cancel")]]),
+        )
+        return ADMIN_SEND_WALLET
+
+    elif query.data == "admin_send_confirm":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await complete_admin_send(query, context, user_id, lang)
+        return ConversationHandler.END
+
+    elif query.data == "admin_send_cancel":
+        context.user_data.clear()
+        await query.edit_message_text("❌ Cancelled." if lang == "en" else "❌ বাতিল হয়েছে।", reply_markup=back_keyboard(lang))
+        return ConversationHandler.END
 
     elif query.data.startswith("star_network_"):
         network = query.data.replace("star_network_", "")
@@ -922,6 +961,93 @@ async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     context.user_data.clear()
     return ConversationHandler.END
+
+
+async def admin_send_wallet_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
+    if not is_admin(user_id):
+        return ConversationHandler.END
+    wallet = update.message.text.strip()
+    network = context.user_data.get("admin_send_network", "solana")
+    net_info = NETWORKS[network]
+    if not valid_wallet(network, wallet):
+        await update.message.reply_text(f"{tr('invalid_wallet', lang)}\n\n{tr('admin_send_wallet', lang)}.")
+        return ADMIN_SEND_WALLET
+    context.user_data["admin_send_wallet"] = wallet
+    await update.message.reply_text(
+        f"✅ Destination saved\n\n🌐 {net_info['name']}\n👛 {wallet}\n\n{tr('admin_send_amount', lang, symbol=net_info['symbol'])}\n\nExample: 1.5"
+    )
+    return ADMIN_SEND_AMOUNT
+
+
+async def admin_send_amount_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
+    if not is_admin(user_id):
+        return ConversationHandler.END
+    try:
+        amount = float(update.message.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except Exception:
+        await update.message.reply_text(f"{tr('invalid_amount', lang)}\nExample: 1.5")
+        return ADMIN_SEND_AMOUNT
+
+    network = context.user_data.get("admin_send_network", "solana")
+    wallet = context.user_data.get("admin_send_wallet")
+    net_info = NETWORKS[network]
+    context.user_data["admin_send_amount"] = amount
+    sufficient, current_bal = check_sufficient(network, amount)
+    stock_line = ""
+    if current_bal is not None:
+        stock_line = f"\n💰 Available: {current_bal} {net_info['symbol']}"
+    if not sufficient and current_bal is not None:
+        await update.message.reply_text(
+            f"❌ Insufficient {net_info['symbol']} stock.{stock_line}\nNeed: {amount} {net_info['symbol']}"
+            if lang == "en"
+            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।{stock_line}\nদরকার: {amount} {net_info['symbol']}"
+        )
+        return ConversationHandler.END
+
+    keyboard = [[InlineKeyboardButton(tr("confirm", lang), callback_data="admin_send_confirm"), InlineKeyboardButton(tr("cancel", lang), callback_data="admin_send_cancel")]]
+    await update.message.reply_text(
+        f"🚀 Admin Send Summary\n━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 {net_info['name']}\n"
+        f"💵 {amount} {net_info['symbol']}\n"
+        f"👛 {wallet}{stock_line}\n\n"
+        f"{tr('admin_send_confirm', lang)}",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return ConversationHandler.END
+
+
+async def complete_admin_send(query, context, user_id, lang):
+    network = context.user_data.get("admin_send_network")
+    wallet = context.user_data.get("admin_send_wallet")
+    amount = context.user_data.get("admin_send_amount")
+    if not all([network, wallet, amount]):
+        await query.edit_message_text("❌ Session expired. Start again." if lang == "en" else "❌ সেশন শেষ। আবার শুরু করুন।")
+        return
+    net_info = NETWORKS[network]
+    await query.edit_message_text("⏳ Sending asset..." if lang == "en" else "⏳ Asset পাঠানো হচ্ছে...")
+    try:
+        sig = await send_crypto(network, wallet, amount)
+        explorer = f"{net_info['explorer']}{sig}"
+        save_transaction(f"ADMIN-{sig[:24]}", user_id, 0, amount, wallet, sig, "completed", network)
+        context.user_data.clear()
+        await query.edit_message_text(
+            f"{tr('admin_send_done', lang)}\n\n"
+            f"🌐 {net_info['name']}\n"
+            f"💵 {amount} {net_info['symbol']}\n"
+            f"👛 {wallet}\n"
+            f"🔗 {explorer}",
+            reply_markup=back_keyboard(lang),
+        )
+    except Exception as exc:
+        save_transaction(f"ADMIN-FAILED-{gen_code(8)}", user_id, 0, amount, wallet, "", "failed", network)
+        context.user_data.clear()
+        await query.edit_message_text(f"❌ Send failed.\n\n{exc}", reply_markup=back_keyboard(lang))
 
 
 async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1526,6 +1652,14 @@ async def main():
         },
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
+    admin_send_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^admin_send_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        states={
+            ADMIN_SEND_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_wallet_received)],
+            ADMIN_SEND_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_amount_received)],
+        },
+        fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^admin_send_cancel$")],
+    )
     rate_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
         states={WAITING_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_rate)]},
@@ -1556,6 +1690,7 @@ async def main():
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(buy_conv)
     app.add_handler(star_conv)
+    app.add_handler(admin_send_conv)
     app.add_handler(rate_conv)
     app.add_handler(setup_conv)
     app.add_handler(send_wallet_conv)
