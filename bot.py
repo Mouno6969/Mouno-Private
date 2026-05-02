@@ -101,6 +101,7 @@ ADMIN_SEND_AMOUNT = 41
 AI_SUPPORT = 50
 
 RATE_FILE = "rate.json"
+DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -282,6 +283,15 @@ def tr(key, lang="bn", **kwargs):
     return value.format(**kwargs) if kwargs else value
 
 
+def panel(title, body=""):
+    title_line = f"✦ {title} ✦"
+    return f"╭─ {title_line}\n╰{'─' * min(len(title_line) + 3, 28)}\n{body}".rstrip()
+
+
+def short_wallet(wallet):
+    return f"{wallet[:8]}...{wallet[-6:]}" if wallet and len(wallet) > 18 else (wallet or "N/A")
+
+
 def language_keyboard():
     return InlineKeyboardMarkup(
         [
@@ -386,30 +396,35 @@ def user_network_menu():
 
 def rates_text(title=None, lang="bn"):
     rates = get_all_rates()
-    title = title if title is not None else f"💵 {tr('current_rates', lang)}:"
-    return (
-        f"{title}\n━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⬡ Solana USDC:           1 = {rates.get('solana', 0)} BDT\n"
-        f"⬡ Polygon USDC:          1 = {rates.get('polygon', 0)} BDT\n"
-        f"⬡ BSC USDT (BEP20):      1 = {rates.get('bsc', 0)} BDT\n"
-        f"⬡ Avalanche USDT:        1 = {rates.get('avalanche', 0)} BDT\n"
-        f"⬡ Ethereum USDT (ERC20): 1 = {rates.get('ethereum', 0)} BDT\n"
-        f"⬡ Ethereum USDC (ERC20): 1 = {rates.get('ethereum_usdc', 0)} BDT\n"
-        f"⬡ Base USDC:             1 = {rates.get('base', 0)} BDT\n"
-        f"⬡ Tron USDT (TRC20):     1 = {rates.get('trc20', 0)} BDT\n"
-        f"⬡ TON:                   1 = {rates.get('ton', 0)} BDT"
-    )
+    title = title if title is not None else f"💸 {tr('current_rates', lang)}"
+    lines = [
+        f"{title}",
+        DIVIDER,
+        f"🔹 Solana USDC          1 = {rates.get('solana', 0)} BDT",
+        f"🔸 Polygon USDC         1 = {rates.get('polygon', 0)} BDT",
+        f"🟡 BSC USDT             1 = {rates.get('bsc', 0)} BDT",
+        f"🔺 Avalanche USDT       1 = {rates.get('avalanche', 0)} BDT",
+        f"🔷 Ethereum USDT        1 = {rates.get('ethereum', 0)} BDT",
+        f"🔷 Ethereum USDC        1 = {rates.get('ethereum_usdc', 0)} BDT",
+        f"🔵 Base USDC            1 = {rates.get('base', 0)} BDT",
+        f"🔴 Tron USDT            1 = {rates.get('trc20', 0)} BDT",
+        f"💎 TON                  1 = {rates.get('ton', 0)} BDT",
+    ]
+    return "\n".join(lines)
 
 
 def home_text(user_name=None, lang="bn"):
-    greeting = f"👋 {tr('welcome', lang)}, {user_name}!\n\n" if user_name else ""
-    return (
-        "╭────────────────────╮\n"
-        f"   {tr('home_title', lang)}\n"
-        "╰────────────────────╯\n\n"
-        f"{greeting}{rates_text(lang=lang)}\n━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📲 bKash: {BKASH_NUMBER}\n\n{tr('select_action', lang)}"
+    greeting = f"👋 {tr('welcome', lang)}, {user_name}!" if user_name else "👋 Welcome!"
+    subtitle = "Fast • Secure • Multi-chain" if lang == "en" else "দ্রুত • নিরাপদ • Multi-chain"
+    body = (
+        f"{greeting}\n"
+        f"⚡ {subtitle}\n\n"
+        f"{rates_text(lang=lang)}\n{DIVIDER}\n"
+        f"📲 bKash: `{BKASH_NUMBER}`\n"
+        f"🛡️ {'Always check network and wallet before payment.' if lang == 'en' else 'Payment করার আগে network ও wallet যাচাই করুন।'}\n\n"
+        f"👇 {tr('select_action', lang)}"
     )
+    return panel(tr("home_title", lang), body)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -465,7 +480,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "rate":
         await query.edit_message_text(
-            f"📊 {tr('current_rates', lang)}\n\n{rates_text('', lang)}\n\n📲 bKash: {BKASH_NUMBER}\n⚡ 1-3 minutes delivery",
+            panel("📊 Rates", f"{rates_text('', lang)}\n{DIVIDER}\n📲 bKash: `{BKASH_NUMBER}`\n⚡ {'Delivery: usually 1-3 minutes' if lang == 'en' else 'সাধারণত ১-৩ মিনিটে পাঠানো হয়'}"),
             reply_markup=back_keyboard(lang),
         )
 
@@ -485,17 +500,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
         try:
             balances, evm_addr = get_all_balances()
-            msg = (
-                "💰 বর্তমান ব্যালেন্স / Current Balance:\n\n━━━━━━━━━━━━━━━━━━━━━\n"
-                f"⬡ Solana USDC:           {balances.get('solana', 'N/A')} USDC\n"
-                f"⬡ Polygon USDC:          {balances.get('polygon', 'N/A')} USDC\n"
-                f"⬡ BSC USDT (BEP20):      {balances.get('bsc', 'N/A')} USDT\n"
-                f"⬡ Avalanche USDT:        {balances.get('avalanche', 'N/A')} USDT\n"
-                f"⬡ Ethereum USDT (ERC20): {balances.get('ethereum', 'N/A')} USDT\n"
-                f"⬡ Ethereum USDC (ERC20): {balances.get('ethereum_usdc', 'N/A')} USDC\n"
-                f"⬡ Base USDC:             {balances.get('base', 'N/A')} USDC\n"
-                f"⬡ Tron USDT (TRC20):     {balances.get('trc20', 'N/A')} USDT\n"
-                f"━━━━━━━━━━━━━━━━━━━━━\n🔑 EVM Address: {evm_addr}\n\n⚡ Real-time balance"
+            msg = panel(
+                "💰 Live Balance",
+                f"🔹 Solana USDC: {balances.get('solana', 'N/A')}\n"
+                f"🔸 Polygon USDC: {balances.get('polygon', 'N/A')}\n"
+                f"🟡 BSC USDT: {balances.get('bsc', 'N/A')}\n"
+                f"🔺 Avalanche USDT: {balances.get('avalanche', 'N/A')}\n"
+                f"🔷 ETH USDT: {balances.get('ethereum', 'N/A')}\n"
+                f"🔷 ETH USDC: {balances.get('ethereum_usdc', 'N/A')}\n"
+                f"🔵 Base USDC: {balances.get('base', 'N/A')}\n"
+                f"🔴 Tron USDT: {balances.get('trc20', 'N/A')}\n"
+                f"💎 TON: {balances.get('ton', 'N/A')}\n"
+                f"{DIVIDER}\n🔑 EVM: `{short_wallet(evm_addr)}`\n⚡ Real-time balance"
             )
         except Exception as exc:
             msg = f"❌ ব্যালেন্স লোড ব্যর্থ!\n{exc}"
@@ -509,12 +525,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "help":
         await query.edit_message_text(
-            "❓ সাহায্য / Help\n\n━━━━━━━━━━━━━━━━━━━━━\n📌 কিভাবে কিনবেন:\n\n"
-            "1️⃣ USDC/USDT কিনুন বাটনে চাপুন\n2️⃣ নেটওয়ার্ক বেছে নিন\n3️⃣ Wallet address দিন\n"
-            "4️⃣ কত টাকার কিনবেন বলুন\n5️⃣ বিকাশে টাকা পাঠান\n6️⃣ TrxID জমা দিন\n7️⃣ Crypto পেয়ে যান!\n\n"
-            "🎁 গিফট কোড থাকলে:\nগিফট কোড বাটন → কোড → wallet → পান!\n\n"
-            "🔐 নিজের Wallet:\nআমার Wallet বাটন → Setup করুন\n\n━━━━━━━━━━━━━━━━━━━━━\n❓ সমস্যায়: @MdMouno",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]),
+            panel(
+                "❓ Help Center",
+                "🛒 Buy crypto\n"
+                "1️⃣ Select network\n2️⃣ Send wallet address\n3️⃣ Enter amount\n4️⃣ Pay bKash or Stars\n5️⃣ Receive crypto automatically\n\n"
+                "🎁 Gift code\nEnter code → wallet → receive asset\n\n"
+                "🔐 My Wallet\nConnect wallet to check balance or send crypto\n\n"
+                f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}"
+            ),
+            reply_markup=back_keyboard(lang),
         )
 
     elif query.data == "my_wallet_menu":
@@ -557,7 +576,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_maintenance_enabled() and not is_admin(user_id):
             await query.edit_message_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
             return ConversationHandler.END
-        await query.edit_message_text(f"{tr('select_network', lang)}:\n\n{rates_text('', lang)}", reply_markup=network_menu("network", lang))
+        await query.edit_message_text(panel("🛒 Buy Crypto", f"{tr('select_network', lang)}\n\n{rates_text('', lang)}"), reply_markup=network_menu("network", lang))
 
     elif query.data == "star_buy":
         if is_maintenance_enabled() and not is_admin(user_id):
@@ -633,8 +652,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["username"] = username
         net_info = NETWORKS[network]
         await query.edit_message_text(
-            f"✅ নেটওয়ার্ক: {net_info['name']}\n💵 রেট: 1 {net_info['symbol']} = {get_rate(network)} BDT\n\n"
-            f"{tr('enter_wallet', lang, network=net_info['name'])}:\n\n📋 {tr('example', lang)}: {wallet_hint(network)}",
+            panel(
+                f"✅ {net_info['name']}",
+                f"💵 Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT\n{DIVIDER}\n"
+                f"👛 {tr('enter_wallet', lang, network=net_info['name'])}\n\n📋 {tr('example', lang)}: `{wallet_hint(network)}`"
+            ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
         )
         return WAITING_WALLET
@@ -754,8 +776,8 @@ async def show_txlog(query):
 def txlog_text(limit=10):
     rows = get_recent_transactions(limit)
     if not rows:
-        return "📜 কোনো ট্রানজেকশন নেই।"
-    msg = "📜 সর্বশেষ ট্রানজেকশন:\n\n━━━━━━━━━━━━━━━━━━━━━\n"
+        return panel("📜 TX Log", "No transactions yet.")
+    msg = ""
     for row in rows:
         trx_id, bdt, crypto, network, wallet, status, created = row[:7]
         order_id = row[7] if len(row) > 7 else None
@@ -774,8 +796,8 @@ def txlog_text(limit=10):
         else:
             source = f"💰 {bdt} BDT"
         order_line = f"🧾 {order_id}\n" if order_id else ""
-        msg += f"{icon} {sd}\n{order_line}{source}\n💵 {crypto} {ni['symbol']}\n🌐 {ni['name']}\n👛 {sw}\n🔑 {trx_id}\n───────────────────\n"
-    return msg
+        msg += f"{icon} {sd}\n{order_line}{source}\n💵 {crypto} {ni['symbol']}\n🌐 {ni['name']}\n👛 `{sw}`\n🔑 `{trx_id}`\n{DIVIDER}\n"
+    return panel("📜 TX Log", msg.rstrip(DIVIDER + "\n"))
 
 
 async def txlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -950,10 +972,13 @@ async def show_my_wallet_menu(query, user_id):
             [InlineKeyboardButton("📖 ব্যবহার গাইড", callback_data="show_guide")],
             [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")],
         ]
-        await query.edit_message_text(f"🔐 আমার Wallet Panel\n\n✅ Wallet সংযুক্ত আছে!\n\n🌐 Network: {net_info['name']}\n👛 Address: {row[3]}\n\nনিচের মেনু থেকে কাজ করুন 👇", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(
+            panel("🔐 My Wallet", f"✅ Connected\n\n🌐 Network: {net_info['name']}\n👛 Address: `{short_wallet(row[3])}`\n\n👇 Choose an action"),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
     else:
         keyboard = [[InlineKeyboardButton("🔐 Wallet সংযুক্ত করুন", callback_data="mw_setup")], [InlineKeyboardButton("📖 ব্যবহার গাইড", callback_data="show_guide")], [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]
-        await query.edit_message_text("🔐 আমার Wallet Panel\n\n❌ কোনো Wallet সংযুক্ত নেই!\n\nশুরু করতে নিচের বাটনে চাপুন 👇", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text(panel("🔐 My Wallet", "❌ No wallet connected yet.\n\nConnect a wallet to check balance and send crypto securely."), reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def confirm_buy(query, context, user_id, username):
@@ -970,7 +995,7 @@ async def confirm_buy(query, context, user_id, username):
     context.user_data["trx_deadline"] = asyncio.get_event_loop().time() + 900
     await query.edit_message_text(
         (
-            f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n\n"
+            f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n{DIVIDER}\n"
             f"🌐 Network: {net_info['name']}\n"
             f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {amount_bdt} BDT\n\n"
             f"📲 bKash: {BKASH_NUMBER}\n\n"
@@ -1115,11 +1140,7 @@ async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_WALLET
     save_wallet(user_id, wallet)
     context.user_data["wallet"] = wallet
-    await update.message.reply_text(
-        f"{tr('wallet_saved', lang)}\n\n🌐 {net_info['name']}\n👛 {wallet}\n\n"
-        f"{tr('enter_amount_bdt', lang, symbol=net_info['symbol'])}\n\n"
-        f"💵 Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT\n\n{tr('numbers_only', lang)}"
-    )
+    await update.message.reply_text(panel("👛 Wallet Saved", f"🌐 {net_info['name']}\n👛 `{short_wallet(wallet)}`\n{DIVIDER}\n{tr('enter_amount_bdt', lang, symbol=net_info['symbol'])}\n\n💵 Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT\n✍️ {tr('numbers_only', lang)}"))
     return WAITING_AMOUNT
 
 
@@ -1146,13 +1167,15 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["usdc_amount"] = crypto_amount
     keyboard = [[InlineKeyboardButton(tr("confirm", lang), callback_data="confirm_buy"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]
     await update.message.reply_text(
-        f"{tr('order_summary', lang)}\n━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌐 Network: {net_info['name']}\n"
-        f"💰 {tr('send_bdt', lang)}: {amount_bdt} BDT\n"
-        f"💵 {tr('receive_crypto', lang)}: {crypto_amount} {net_info['symbol']}\n"
-        f"📈 Rate: 1 {net_info['symbol']} = {rate} BDT\n"
-        f"👛 Wallet: {context.user_data['wallet']}\n━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{gas_warning(network, lang)}\n\n{tr('confirm_prompt', lang)}",
+        panel(
+            tr('order_summary', lang),
+            f"🌐 Network: {net_info['name']}\n"
+            f"💰 {tr('send_bdt', lang)}: {amount_bdt} BDT\n"
+            f"💵 {tr('receive_crypto', lang)}: {crypto_amount} {net_info['symbol']}\n"
+            f"📈 Rate: 1 {net_info['symbol']} = {rate} BDT\n"
+            f"👛 Wallet: `{short_wallet(context.user_data['wallet'])}`\n{DIVIDER}\n"
+            f"{gas_warning(network, lang)}\n\n{tr('confirm_prompt', lang)}"
+        ),
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return ConversationHandler.END
