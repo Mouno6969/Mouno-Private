@@ -51,6 +51,7 @@ from db import (
     save_wallet,
     set_user_language,
     set_network_rate,
+    sms_exists,
     trx_exists,
     use_code,
 )
@@ -59,7 +60,7 @@ from polygon_sender import send_polygon_usdc
 from sender import send_usdc
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
-from webhook import parse_bkash_sms, run_webhook, set_callback
+from webhook import parse_bkash_payment_notice, parse_bkash_sms, run_webhook, set_callback
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -1171,21 +1172,31 @@ async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def process_bkash(app, text, sender):
-    parsed = parse_bkash_sms(text)
+    parsed = parse_bkash_payment_notice(text)
     if not parsed:
         return
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
-    save_sms(trx_id, amount_bdt, sender, text)
-    logger.info("SMS saved: %s BDT | TrxID: %s", amount_bdt, trx_id)
+
+    if trx_exists(trx_id):
+        logger.info("Duplicate bKash notice ignored because transaction already exists: %s", trx_id)
+        return
+
+    already_saved = sms_exists(trx_id)
+    saved_new = save_sms(trx_id, amount_bdt, sender, text)
+    logger.info("bKash notice saved: %s BDT | TrxID: %s | source: %s | new: %s", amount_bdt, trx_id, sender, saved_new)
 
     pending = get_pending_order(trx_id)
     if pending:
         await complete_pending_order_from_sms(app, pending, amount_bdt)
         return
 
+    if already_saved:
+        logger.info("Duplicate bKash notice ignored because TrxID was already saved: %s", trx_id)
+        return
+
     try:
-        await app.bot.send_message(ADMIN_ID, f"💰 বিকাশ পেমেন্ট!\n\n💵 {amount_bdt} BDT\n🔑 TrxID: {trx_id}")
+        await app.bot.send_message(ADMIN_ID, f"💰 bKash payment notice!\n\n📩 Source: {sender}\n💵 {amount_bdt} BDT\n🔑 TrxID: {trx_id}")
     except Exception as exc:
         logger.error(exc)
 

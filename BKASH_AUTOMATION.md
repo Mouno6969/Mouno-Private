@@ -1,63 +1,113 @@
 # bKash automation reliability
 
-Your current automation depends on bKash SMS being forwarded to `/sms`. If bKash never sends an SMS, the bot cannot know about that payment automatically from SMS alone. There are only two reliable paths:
+Your bot can now parse both bKash SMS text and bKash app notification text, as long as your Android forwarder can send that text to the server.
 
-1. Use the official bKash Merchant/Payment Gateway API, where bKash sends/queryable payment status through API instead of personal SMS.
-2. Keep SMS automation as the fast path and use admin manual verification for orders where bKash does not send SMS.
+## Endpoints
 
-This repo now supports option 2 more safely.
-
-## What the bot now does
-
-### 1. Normal case
-
-1. User places order.
-2. User sends bKash payment.
-3. SMS Forwarder POSTs the bKash message to:
+Forward SMS messages to:
 
 ```text
 http://YOUR_SERVER:5000/sms
 ```
 
-4. User submits TrxID in the bot.
-5. Bot verifies the saved SMS and sends crypto automatically.
-
-### 2. Delayed SMS case
-
-Sometimes the user submits TrxID before the forwarded SMS arrives.
-
-The bot now stores that order as pending. When the delayed bKash SMS eventually arrives, the bot:
-
-1. Finds the pending order by TrxID.
-2. Verifies the amount matches the pending order.
-3. Sends the crypto automatically.
-4. Updates the transaction log.
-5. Deletes the pending order.
-
-No admin action is needed if the delayed SMS eventually arrives and the amount matches.
-
-### 3. No SMS from bKash
-
-If bKash never sends SMS, the bot cannot verify it automatically through SMS. Use:
+Forward app notifications to either:
 
 ```text
-/pending
+http://YOUR_SERVER:5000/notification
 ```
 
-Only admin can use this command.
+or:
 
-The bot shows all pending bKash orders with Approve/Reject buttons. Open your bKash app, verify the TrxID manually, then tap Approve. The bot sends the crypto and updates TX log.
+```text
+http://YOUR_SERVER:5000/bkash-notification
+```
 
-## Recommended production setup
+Both endpoints use the same parser and the same duplicate-protection logic.
 
-For full automation without SMS dependency, apply for official bKash Merchant/PGW API access and replace manual bKash send-money flow with a bKash checkout/payment flow. That gives you official payment status callbacks or query APIs. Personal bKash app transaction history is not a reliable automation API.
+## Duplicate protection
 
-## SMS Forwarder format
+The bot matches by TrxID.
 
-The parser expects messages like:
+- If SMS and app notification both arrive for the same TrxID, only the first one is saved/processed.
+- If the transaction was already completed, later notices with the same TrxID are ignored.
+- One TrxID cannot be used for more than one completed transaction because `transactions.trx_id` is the primary key and the bot checks `trx_exists()` before processing payment notices.
+
+## Supported text examples
+
+SMS-style:
 
 ```text
 You have received Tk 500 from 01XXXXXXXXX. TrxID ABC123XYZ at 02/05/2026 12:30
 ```
 
-Make sure your SMS forwarder sends the raw SMS text in the POST body or JSON values.
+App-notification-style examples the parser can understand:
+
+```text
+bKash Payment Received Tk 500 TrxID ABC123XYZ
+```
+
+```text
+Receive Money ৳500 from 01XXXXXXXXX TxnID ABC123XYZ
+```
+
+```text
+Cash In BDT 500 Transaction ID ABC123XYZ
+```
+
+The notification must include:
+
+1. Amount, with `Tk`, `BDT`, or `৳`
+2. Transaction ID, using `TrxID`, `TxnID`, or `Transaction ID`
+
+Sender number and date/time are optional for app notifications.
+
+## Normal flow
+
+1. User places order.
+2. User pays through bKash.
+3. SMS or app notification reaches the server.
+4. User submits TrxID in the bot.
+5. Bot verifies the saved notice and sends crypto automatically.
+
+## Delayed notification flow
+
+If the user submits TrxID before SMS/notification arrives:
+
+1. Bot stores the order as pending.
+2. When SMS or app notification later arrives, bot finds the pending order by TrxID.
+3. Bot verifies amount.
+4. Bot sends crypto automatically.
+5. Bot updates TX log and removes the pending order.
+
+## If neither SMS nor notification reaches the server
+
+No software can verify the payment automatically without receiving any payment event. Use:
+
+```text
+/pending
+```
+
+Then verify the TrxID in your bKash app manually and tap Approve/Reject.
+
+## Recommended Android setup
+
+Use a forwarder that supports both:
+
+- SMS forwarding
+- Notification forwarding / notification listener
+
+For notifications, forward the app name/title/body text together. JSON is fine; the webhook searches all JSON values.
+
+Example JSON POST:
+
+```json
+{
+  "app": "bKash",
+  "title": "Payment Received",
+  "text": "You have received Tk 500. TrxID ABC123XYZ"
+}
+```
+
+## Best long-term option
+
+For full reliability, use official bKash Merchant/Payment Gateway API access. SMS/app notifications are still phone-dependent, but forwarding both gives you redundancy.

@@ -104,16 +104,23 @@ def get_wallet(user_id):
 
 def save_sms(trx_id, amount_bdt, sender, raw_sms):
     with closing(connect()) as con:
-        con.execute(
+        cur = con.execute(
             "INSERT OR IGNORE INTO sms_log (trx_id, amount_bdt, sender, raw_sms) VALUES (?, ?, ?, ?)",
             (trx_id, amount_bdt, sender, raw_sms),
         )
         con.commit()
+        return cur.rowcount > 0
 
 
 def get_sms(trx_id):
     with closing(connect()) as con:
         return con.execute("SELECT * FROM sms_log WHERE trx_id=? AND used=0", (trx_id,)).fetchone()
+
+
+def sms_exists(trx_id):
+    with closing(connect()) as con:
+        row = con.execute("SELECT 1 FROM sms_log WHERE trx_id=?", (trx_id,)).fetchone()
+        return row is not None
 
 
 def mark_sms_used(trx_id):
