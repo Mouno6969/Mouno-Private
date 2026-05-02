@@ -77,6 +77,13 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                user_id TEXT PRIMARY KEY,
+                language TEXT DEFAULT 'bn',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
@@ -233,6 +240,29 @@ def get_pending_order(trx_id):
 def delete_pending_order(trx_id):
     with closing(connect()) as con:
         con.execute("DELETE FROM pending_orders WHERE trx_id=?", (trx_id,))
+        con.commit()
+
+
+def get_user_language(user_id):
+    with closing(connect()) as con:
+        row = con.execute("SELECT language FROM user_preferences WHERE user_id=?", (str(user_id),)).fetchone()
+        return row[0] if row else None
+
+
+def set_user_language(user_id, language):
+    if language not in {"bn", "en"}:
+        language = "bn"
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO user_preferences (user_id, language, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                language=excluded.language,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (str(user_id), language),
+        )
         con.commit()
 
 

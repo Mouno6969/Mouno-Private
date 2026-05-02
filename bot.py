@@ -41,12 +41,14 @@ from db import (
     get_pending_order,
     get_recent_transactions,
     get_sms,
+    get_user_language,
     get_wallet,
     mark_sms_used,
     save_pending_order,
     save_sms,
     save_transaction,
     save_wallet,
+    set_user_language,
     set_network_rate,
     trx_exists,
     use_code,
@@ -75,6 +77,8 @@ SEND_W_DEST = 13
 SEND_W_AMOUNT = 14
 SEND_W_PASSWORD = 15
 DEL_PASSWORD = 17
+GEN_CUSTOM_AMOUNT = 20
+GEN_CUSTOM_DURATION = 21
 
 RATE_FILE = "rate.json"
 
@@ -89,9 +93,81 @@ NETWORKS = {
     "trc20": {"name": "Tron USDT (TRC20)", "symbol": "USDT", "explorer": "https://tronscan.org/#/transaction/"},
 }
 
+LANGUAGES = {
+    "bn": "বাংলা",
+    "en": "English",
+}
+
+TEXT = {
+    "choose_language": {
+        "bn": "🌐 ভাষা নির্বাচন করুন\n\nআপনার পছন্দের ভাষা বেছে নিন।",
+        "en": "🌐 Choose your language\n\nSelect the language you prefer.",
+    },
+    "language_saved": {"bn": "✅ ভাষা সেট করা হয়েছে।", "en": "✅ Language saved."},
+    "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
+    "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
+    "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
+    "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
+    "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
+    "help": {"bn": "❓ সাহায্য", "en": "❓ Help"},
+    "wallet": {"bn": "🔐 আমার Wallet", "en": "🔐 My Wallet"},
+    "language": {"bn": "🌐 ভাষা", "en": "🌐 Language"},
+    "set_rate": {"bn": "⚙️ রেট পরিবর্তন", "en": "⚙️ Set Rates"},
+    "gen_code": {"bn": "🎟️ কোড তৈরি", "en": "🎟️ Generate Code"},
+    "disable_code": {"bn": "🚫 কোড বাতিল", "en": "🚫 Disable Code"},
+    "back": {"bn": "🔙 ফিরে যান", "en": "🔙 Back"},
+    "cancel": {"bn": "❌ বাতিল", "en": "❌ Cancel"},
+    "home_title": {"bn": "💱 Crypto Seller Bot", "en": "💱 Crypto Seller Bot"},
+    "welcome": {"bn": "স্বাগতম", "en": "Welcome"},
+    "current_rates": {"bn": "বর্তমান রেট", "en": "Current Rates"},
+    "select_action": {"bn": "নিচের মেনু থেকে শুরু করুন 👇", "en": "Choose an option below 👇"},
+    "select_network": {"bn": "💱 নেটওয়ার্ক বেছে নিন", "en": "💱 Select a network"},
+    "enter_wallet": {"bn": "আপনার {network} Wallet Address দিন", "en": "Send your {network} wallet address"},
+    "example": {"bn": "উদাহরণ", "en": "Example"},
+    "wallet_saved": {"bn": "✅ Wallet সংরক্ষিত!", "en": "✅ Wallet saved!"},
+    "enter_amount_bdt": {"bn": "কত টাকার {symbol} কিনতে চান?", "en": "How many BDT of {symbol} do you want to buy?"},
+    "numbers_only": {"bn": "শুধু সংখ্যা লিখুন (যেমন: 500)", "en": "Send numbers only (example: 500)"},
+    "invalid_wallet": {"bn": "❌ ভুল wallet address!", "en": "❌ Invalid wallet address!"},
+    "invalid_amount": {"bn": "❌ ভুল পরিমাণ! সংখ্যা লিখুন।", "en": "❌ Invalid amount. Send a number."},
+    "confirm": {"bn": "✅ কনফার্ম", "en": "✅ Confirm"},
+    "order_summary": {"bn": "📊 অর্ডার সারসংক্ষেপ", "en": "📊 Order Summary"},
+    "send_bdt": {"bn": "পাঠাবেন", "en": "You pay"},
+    "receive_crypto": {"bn": "পাবেন", "en": "You receive"},
+    "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
+    "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
+    "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
+    "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
+    "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
+    "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
+    "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
+    "enter_custom_duration": {"bn": "মিনিট লিখুন। যেমন: 60", "en": "Send minutes. Example: 60"},
+    "code_created": {"bn": "✅ গিফট কোড তৈরি হয়েছে!", "en": "✅ Gift code generated!"},
+}
+
 
 def is_admin(user_id) -> bool:
     return str(user_id) == str(ADMIN_ID)
+
+
+def user_lang(user_id) -> str:
+    return get_user_language(user_id) or "bn"
+
+
+def tr(key, lang="bn", **kwargs):
+    value = TEXT.get(key, {}).get(lang) or TEXT.get(key, {}).get("bn") or key
+    return value.format(**kwargs) if kwargs else value
+
+
+def language_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("বাংলা 🇧🇩", callback_data="set_lang_bn"), InlineKeyboardButton("English 🇺🇸", callback_data="set_lang_en")]
+        ]
+    )
+
+
+def back_keyboard(lang):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
 
 
 def get_rate(network="solana"):
@@ -129,20 +205,21 @@ def valid_wallet(network, wallet):
     return wallet.startswith("0x") and len(wallet) == 42
 
 
-def main_menu(user_id):
+def main_menu(user_id, lang=None):
+    lang = lang or user_lang(user_id)
     keyboard = [
-        [InlineKeyboardButton("💱 কিনুন / Buy", callback_data="buy"), InlineKeyboardButton("🎁 গিফট কোড", callback_data="redeem_menu")],
-        [InlineKeyboardButton("ℹ️ রেট / Rate", callback_data="rate"), InlineKeyboardButton("💰 ব্যালেন্স", callback_data="balance")],
-        [InlineKeyboardButton("📜 TX লগ", callback_data="txlog"), InlineKeyboardButton("❓ সাহায্য", callback_data="help")],
-        [InlineKeyboardButton("🔐 আমার Wallet", callback_data="my_wallet_menu")],
+        [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu")],
+        [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("balance", lang), callback_data="balance")],
+        [InlineKeyboardButton(tr("txlog", lang), callback_data="txlog"), InlineKeyboardButton(tr("help", lang), callback_data="help")],
+        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
     ]
     if is_admin(user_id):
-        keyboard.append([InlineKeyboardButton("⚙️ রেট পরিবর্তন", callback_data="setrate_menu"), InlineKeyboardButton("🎟️ কোড তৈরি", callback_data="gencode_menu")])
-        keyboard.append([InlineKeyboardButton("🚫 কোড বাতিল", callback_data="disable_code_menu")])
+        keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
+        keyboard.append([InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
     return InlineKeyboardMarkup(keyboard)
 
 
-def network_menu(prefix):
+def network_menu(prefix, lang="bn"):
     cancel_callback = {
         "network": "cancel",
         "uw": "uw_cancel",
@@ -155,7 +232,7 @@ def network_menu(prefix):
             [InlineKeyboardButton("⬡ BSC USDT", callback_data=f"{prefix}_bsc"), InlineKeyboardButton("⬡ Avax USDT", callback_data=f"{prefix}_avalanche")],
             [InlineKeyboardButton("⬡ ETH USDT", callback_data=f"{prefix}_ethereum"), InlineKeyboardButton("⬡ ETH USDC", callback_data=f"{prefix}_ethereum_usdc")],
             [InlineKeyboardButton("⬡ Base USDC", callback_data=f"{prefix}_base"), InlineKeyboardButton("⬡ TRC20 USDT", callback_data=f"{prefix}_trc20")],
-            [InlineKeyboardButton("❌ বাতিল", callback_data=cancel_callback)],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data=cancel_callback)],
         ]
     )
 
@@ -164,8 +241,9 @@ def user_network_menu():
     return network_menu("uw")
 
 
-def rates_text(title="💵 বর্তমান রেট / Current Rates:"):
+def rates_text(title=None, lang="bn"):
     rates = get_all_rates()
+    title = title if title is not None else f"💵 {tr('current_rates', lang)}:"
     return (
         f"{title}\n━━━━━━━━━━━━━━━━━━━━━\n"
         f"⬡ Solana USDC:           1 = {rates.get('solana', 0)} BDT\n"
@@ -179,20 +257,24 @@ def rates_text(title="💵 বর্তমান রেট / Current Rates:"):
     )
 
 
-def home_text(user_name=None):
-    greeting = f"👋 স্বাগতম, {user_name}!\n\n" if user_name else ""
+def home_text(user_name=None, lang="bn"):
+    greeting = f"👋 {tr('welcome', lang)}, {user_name}!\n\n" if user_name else ""
     return (
-        "╔══════════════════════╗\n"
-        "║   💱 Crypto Seller Bot  ║\n"
-        "╚══════════════════════╝\n\n"
-        f"{greeting}{rates_text()}\n━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📲 বিকাশ: {BKASH_NUMBER}\n\nনিচের মেনু থেকে শুরু করুন 👇"
+        "╭────────────────────╮\n"
+        f"   {tr('home_title', lang)}\n"
+        "╰────────────────────╯\n\n"
+        f"{greeting}{rates_text(lang=lang)}\n━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📲 bKash: {BKASH_NUMBER}\n\n{tr('select_action', lang)}"
     )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(home_text(user.first_name), reply_markup=main_menu(user.id))
+    lang = get_user_language(user.id)
+    if not lang:
+        await update.message.reply_text(tr("choose_language", "bn"), reply_markup=language_keyboard())
+        return
+    await update.message.reply_text(home_text(user.first_name, lang), reply_markup=main_menu(user.id, lang))
 
 
 async def send_crypto(network, wallet, amount):
@@ -221,15 +303,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = str(query.from_user.id)
     username = query.from_user.username or query.from_user.first_name
+    lang = user_lang(user_id)
 
-    if query.data == "rate":
+    if query.data == "language_menu":
+        await query.edit_message_text(tr("choose_language", lang), reply_markup=language_keyboard())
+
+    elif query.data.startswith("set_lang_"):
+        lang = query.data.replace("set_lang_", "", 1)
+        set_user_language(user_id, lang)
+        context.user_data["lang"] = lang
         await query.edit_message_text(
-            f"📊 বর্তমান রেট / Current Rates:\n\n{rates_text('')}\n\n📲 বিকাশ: {BKASH_NUMBER}\n⚡ ১-৩ মিনিটে পাঠানো হয়!",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]),
+            f"{tr('language_saved', lang)}\n\n{home_text(query.from_user.first_name, lang)}",
+            reply_markup=main_menu(user_id, lang),
+        )
+
+    elif query.data == "rate":
+        await query.edit_message_text(
+            f"📊 {tr('current_rates', lang)}\n\n{rates_text('', lang)}\n\n📲 bKash: {BKASH_NUMBER}\n⚡ 1-3 minutes delivery",
+            reply_markup=back_keyboard(lang),
         )
 
     elif query.data == "balance":
-        await query.edit_message_text("⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]))
+        await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
         try:
             balances, evm_addr = get_all_balances()
             msg = (
@@ -248,7 +343,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = f"❌ ব্যালেন্স লোড ব্যর্থ!\n{exc}"
         await query.edit_message_text(
             msg,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 রিফ্রেশ", callback_data="balance")], [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh" if lang == "en" else "🔄 রিফ্রেশ", callback_data="balance")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]),
         )
 
     elif query.data == "txlog":
@@ -298,10 +393,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔐 আপনার Password দিন:\n\n⚠️ Message পাঠানোর পর মুছে যাবে।")
 
     elif query.data == "back":
-        await query.edit_message_text(home_text(), reply_markup=main_menu(query.from_user.id))
+        await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(query.from_user.id, lang))
 
     elif query.data == "buy":
-        await query.edit_message_text(f"💱 নেটওয়ার্ক বেছে নিন:\n\n{rates_text('')}", reply_markup=network_menu("network"))
+        await query.edit_message_text(f"{tr('select_network', lang)}:\n\n{rates_text('', lang)}", reply_markup=network_menu("network", lang))
 
     elif query.data.startswith("network_"):
         network = query.data.replace("network_", "")
@@ -310,8 +405,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         net_info = NETWORKS[network]
         await query.edit_message_text(
             f"✅ নেটওয়ার্ক: {net_info['name']}\n💵 রেট: 1 {net_info['symbol']} = {get_rate(network)} BDT\n\n"
-            f"আপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(network)}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="cancel")]]),
+            f"{tr('enter_wallet', lang, network=net_info['name'])}:\n\n📋 {tr('example', lang)}: {wallet_hint(network)}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
         )
         return WAITING_WALLET
 
@@ -344,15 +439,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "gencode_menu":
         if not is_admin(user_id):
             return ConversationHandler.END
-        await query.edit_message_text("🎟️ কোন নেটওয়ার্কের জন্য কোড তৈরি করবেন?", reply_markup=network_menu("gencode"))
+        context.user_data.clear()
+        context.user_data["gencode_step"] = "network"
+        await query.edit_message_text(tr("code_select_network", lang), reply_markup=network_menu("gencode", lang))
 
     elif query.data.startswith("gencode_"):
         if not is_admin(user_id):
             return ConversationHandler.END
         network = query.data.replace("gencode_", "")
         context.user_data["gencode_network"] = network
+        context.user_data["gencode_step"] = "amount"
         net_info = NETWORKS[network]
-        await query.edit_message_text(f"🎟️ {net_info['name']} গিফট কোড তৈরি\n\nএই format এ লিখুন:\n/gencode <{net_info['symbol']}_amount> <minutes>\n\n📋 উদাহরণ:\n/gencode 1.5 60")
+        await query.edit_message_text(
+            f"🎟️ {net_info['name']}\n\n{tr('code_select_amount', lang, symbol=net_info['symbol'])}",
+            reply_markup=gencode_amount_keyboard(lang),
+        )
+
+    elif query.data.startswith("gc_amount_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        value = query.data.replace("gc_amount_", "")
+        if value == "custom":
+            context.user_data["gencode_step"] = "custom_amount"
+            await query.edit_message_text(tr("enter_custom_amount", lang), reply_markup=back_keyboard(lang))
+            return GEN_CUSTOM_AMOUNT
+        context.user_data["gencode_amount"] = float(value)
+        context.user_data["gencode_step"] = "duration"
+        await query.edit_message_text(tr("code_select_duration", lang), reply_markup=gencode_duration_keyboard(lang))
+
+    elif query.data.startswith("gc_duration_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        value = query.data.replace("gc_duration_", "")
+        if value == "custom":
+            context.user_data["gencode_step"] = "custom_duration"
+            await query.edit_message_text(tr("enter_custom_duration", lang), reply_markup=back_keyboard(lang))
+            return GEN_CUSTOM_DURATION
+        await create_gift_code_from_context(query, context, int(value), lang)
 
     elif query.data == "disable_code_menu":
         await show_disable_code_menu(query, user_id)
@@ -424,24 +547,82 @@ async def show_my_wallet_menu(query, user_id):
 
 
 async def confirm_buy(query, context, user_id, username):
+    lang = user_lang(user_id)
     amount_bdt = context.user_data.get("amount_bdt")
     crypto_amount = context.user_data.get("usdc_amount")
     wallet = context.user_data.get("wallet")
     network = context.user_data.get("network", "solana")
     if not all([amount_bdt, crypto_amount, wallet]):
-        await query.edit_message_text("❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
+        await query.edit_message_text("❌ Session expired. Send /start again." if lang == "en" else "❌ সেশন শেষ! /start দিয়ে আবার শুরু করুন।")
         return
     net_info = NETWORKS[network]
     context.user_data["waiting_trxid"] = True
     context.user_data["trx_deadline"] = asyncio.get_event_loop().time() + 900
     await query.edit_message_text(
-        f"🎯 অর্ডার কনফার্ম!\n\n🌐 নেটওয়ার্ক: {net_info['name']}\n💰 ঠিক {amount_bdt} BDT পাঠান:\n\n📲 বিকাশ নম্বর: {BKASH_NUMBER}\n\n⚠️ ঠিক {amount_bdt} টাকা পাঠান!\n\n✅ পাঠানোর পর TrxID লিখুন\n⏰ সময়সীমা: ১৫ মিনিট",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="cancel")]]),
+        (
+            f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n\n"
+            f"🌐 Network: {net_info['name']}\n"
+            f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {amount_bdt} BDT\n\n"
+            f"📲 bKash: {BKASH_NUMBER}\n\n"
+            f"✅ {'After payment, send your TrxID' if lang == 'en' else 'পাঠানোর পর TrxID লিখুন'}\n"
+            f"⏰ {'Time limit: 15 minutes' if lang == 'en' else 'সময়সীমা: ১৫ মিনিট'}"
+        ),
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]),
     )
     try:
         await query.get_bot().send_message(ADMIN_ID, f"🛎️ নতুন অর্ডার!\n\n👤 @{username} ({user_id})\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT\n💵 {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ TrxID অপেক্ষায়...")
     except Exception as exc:
         logger.error(exc)
+
+
+def gencode_amount_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("0.5", callback_data="gc_amount_0.5"), InlineKeyboardButton("1", callback_data="gc_amount_1")],
+            [InlineKeyboardButton("2", callback_data="gc_amount_2"), InlineKeyboardButton("5", callback_data="gc_amount_5")],
+            [InlineKeyboardButton("10", callback_data="gc_amount_10"), InlineKeyboardButton(tr("custom_amount", lang), callback_data="gc_amount_custom")],
+            [InlineKeyboardButton(tr("back", lang), callback_data="gencode_menu")],
+        ]
+    )
+
+
+def gencode_duration_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("15 min", callback_data="gc_duration_15"), InlineKeyboardButton("30 min", callback_data="gc_duration_30")],
+            [InlineKeyboardButton("1 hour", callback_data="gc_duration_60"), InlineKeyboardButton("6 hours", callback_data="gc_duration_360")],
+            [InlineKeyboardButton("24 hours", callback_data="gc_duration_1440"), InlineKeyboardButton(tr("custom_duration", lang), callback_data="gc_duration_custom")],
+            [InlineKeyboardButton(tr("back", lang), callback_data="gencode_menu")],
+        ]
+    )
+
+
+async def create_gift_code_from_context(target, context, minutes, lang):
+    network = context.user_data.get("gencode_network", "solana")
+    amount = float(context.user_data.get("gencode_amount", 0))
+    if amount <= 0 or minutes <= 0:
+        await target.edit_message_text("❌ Invalid amount or time." if lang == "en" else "❌ ভুল পরিমাণ বা সময়!")
+        return
+    code = gen_code()
+    expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    create_code(code, amount, expires_at, network)
+    net_info = NETWORKS[network]
+    hours, mins = divmod(minutes, 60)
+    time_str = f"{hours}h {mins}m" if lang == "en" and hours else (f"{mins}m" if lang == "en" else (f"{hours} ঘণ্টা {mins} মিনিট" if hours > 0 else f"{mins} মিনিট"))
+    context.user_data.clear()
+    message = (
+        f"{tr('code_created', lang)}\n\n"
+        f"🎟️ Code: `{code}`\n"
+        f"🌐 {net_info['name']}\n"
+        f"💵 {amount} {net_info['symbol']}\n"
+        f"⏰ {time_str}\n\n"
+        f"⚠️ {'Single use only.' if lang == 'en' else 'শুধুমাত্র একজন ব্যবহার করতে পারবে!'}"
+    )
+    reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu"), InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+    if hasattr(target, "edit_message_text"):
+        await target.edit_message_text(message, parse_mode="Markdown", reply_markup=reply_markup)
+    else:
+        await target.reply_text(message, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def show_disable_code_menu(query, user_id):
@@ -514,24 +695,30 @@ async def reject_order(query, user_id):
 async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wallet = update.message.text.strip()
     user_id = str(update.effective_user.id)
+    lang = user_lang(user_id)
     network = context.user_data.get("network", "solana")
     net_info = NETWORKS[network]
     if not valid_wallet(network, wallet):
-        await update.message.reply_text(f"❌ ভুল wallet address!\n\nসঠিক {net_info['name']} wallet address দিন।")
+        await update.message.reply_text(f"{tr('invalid_wallet', lang)}\n\n{tr('enter_wallet', lang, network=net_info['name'])}.")
         return WAITING_WALLET
     save_wallet(user_id, wallet)
     context.user_data["wallet"] = wallet
-    await update.message.reply_text(f"✅ Wallet সংরক্ষিত!\n\n🌐 {net_info['name']}\n👛 {wallet}\n\nকত টাকার {net_info['symbol']} কিনতে চান?\n\n💵 রেট: 1 {net_info['symbol']} = {get_rate(network)} BDT\n\nশুধু সংখ্যা লিখুন (যেমন: 500)")
+    await update.message.reply_text(
+        f"{tr('wallet_saved', lang)}\n\n🌐 {net_info['name']}\n👛 {wallet}\n\n"
+        f"{tr('enter_amount_bdt', lang, symbol=net_info['symbol'])}\n\n"
+        f"💵 Rate: 1 {net_info['symbol']} = {get_rate(network)} BDT\n\n{tr('numbers_only', lang)}"
+    )
     return WAITING_AMOUNT
 
 
 async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
     try:
         amount_bdt = float(update.message.text.strip())
         if amount_bdt <= 0:
             raise ValueError
     except Exception:
-        await update.message.reply_text("❌ ভুল পরিমাণ! সংখ্যা লিখুন।\nযেমন: 500")
+        await update.message.reply_text(f"{tr('invalid_amount', lang)}\n{tr('numbers_only', lang)}")
         return WAITING_AMOUNT
 
     network = context.user_data.get("network", "solana")
@@ -545,8 +732,16 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["amount_bdt"] = amount_bdt
     context.user_data["usdc_amount"] = crypto_amount
-    keyboard = [[InlineKeyboardButton("✅ কনফার্ম", callback_data="confirm_buy"), InlineKeyboardButton("❌ বাতিল", callback_data="cancel")]]
-    await update.message.reply_text(f"📊 অর্ডার সারসংক্ষেপ:\n━━━━━━━━━━━━━━━━━━━━━\n🌐 নেটওয়ার্ক: {net_info['name']}\n💰 পাঠাবেন: {amount_bdt} BDT\n💵 পাবেন: {crypto_amount} {net_info['symbol']}\n📈 রেট: 1 {net_info['symbol']} = {rate} BDT\n👛 Wallet: {context.user_data['wallet']}\n━━━━━━━━━━━━━━━━━━━━━\n\nনিশ্চিত করতে Confirm চাপুন 👇", reply_markup=InlineKeyboardMarkup(keyboard))
+    keyboard = [[InlineKeyboardButton(tr("confirm", lang), callback_data="confirm_buy"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]
+    await update.message.reply_text(
+        f"{tr('order_summary', lang)}\n━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 Network: {net_info['name']}\n"
+        f"💰 {tr('send_bdt', lang)}: {amount_bdt} BDT\n"
+        f"💵 {tr('receive_crypto', lang)}: {crypto_amount} {net_info['symbol']}\n"
+        f"📈 Rate: 1 {net_info['symbol']} = {rate} BDT\n"
+        f"👛 Wallet: {context.user_data['wallet']}\n━━━━━━━━━━━━━━━━━━━━━\n\n{tr('confirm_prompt', lang)}",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
     return ConversationHandler.END
 
 
@@ -570,6 +765,31 @@ async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
+    lang = user_lang(user_id)
+
+    if is_admin(user_id) and context.user_data.get("gencode_step") == "custom_amount":
+        try:
+            amount = float(update.message.text.strip())
+            if amount <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("invalid_amount", lang))
+            return GEN_CUSTOM_AMOUNT
+        context.user_data["gencode_amount"] = amount
+        context.user_data["gencode_step"] = "duration"
+        await update.message.reply_text(tr("code_select_duration", lang), reply_markup=gencode_duration_keyboard(lang))
+        return
+
+    if is_admin(user_id) and context.user_data.get("gencode_step") == "custom_duration":
+        try:
+            minutes = int(update.message.text.strip())
+            if minutes <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("enter_custom_duration", lang))
+            return GEN_CUSTOM_DURATION
+        await create_gift_code_from_context(update.message, context, minutes, lang)
+        return
 
     if context.user_data.get("redeem_step"):
         return await handle_redeem(update, context, user_id, username)
@@ -701,25 +921,10 @@ async def handle_balance_password(update, context, user_id):
 async def gencode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    if len(context.args) != 2:
-        await update.message.reply_text("❌ সঠিক format:\n/gencode <amount> <minutes>\n\nউদাহরণ:\n/gencode 1.5 60")
-        return
-    try:
-        amount = float(context.args[0])
-        minutes = int(context.args[1])
-        if amount <= 0 or minutes <= 0:
-            raise ValueError
-    except Exception:
-        await update.message.reply_text("❌ ভুল পরিমাণ বা সময়!")
-        return
-    network = context.user_data.get("gencode_network", "solana")
-    code = gen_code()
-    expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
-    create_code(code, amount, expires_at, network)
-    net_info = NETWORKS[network]
-    hours, mins = divmod(minutes, 60)
-    time_str = f"{hours} ঘণ্টা {mins} মিনিট" if hours > 0 else f"{mins} মিনিট"
-    await update.message.reply_text(f"✅ গিফট কোড তৈরি!\n\n🎟️ কোড: `{code}`\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n⏰ মেয়াদ: {time_str}\n\n⚠️ শুধুমাত্র একজন ব্যবহার করতে পারবে!", parse_mode="Markdown")
+    lang = user_lang(update.effective_user.id)
+    context.user_data.clear()
+    context.user_data["gencode_step"] = "network"
+    await update.message.reply_text(tr("code_select_network", lang), reply_markup=network_menu("gencode", lang))
 
 
 async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -5,6 +5,8 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 ## What is included
 
 - Telegram bot menu and order flow in `bot.py`
+- Bengali/English language selection with stored user preferences
+- Button-driven admin gift-code generation flow
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
 - Admin/user wallet management with encrypted private keys in `crypto_manager.py`
