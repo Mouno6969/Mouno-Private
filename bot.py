@@ -8,6 +8,7 @@ import string
 import threading
 from datetime import datetime, timedelta
 
+import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     Application,
@@ -23,7 +24,7 @@ from telegram.request import HTTPXRequest
 
 from balance import check_sufficient, get_all_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -96,6 +97,7 @@ WAITING_STAR_WALLET = 30
 WAITING_STAR_AMOUNT = 31
 ADMIN_SEND_WALLET = 40
 ADMIN_SEND_AMOUNT = 41
+AI_SUPPORT = 50
 
 RATE_FILE = "rate.json"
 
@@ -129,6 +131,7 @@ TEXT = {
     "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
     "help": {"bn": "❓ সাহায্য", "en": "❓ Help"},
     "support": {"bn": "📞 Support", "en": "📞 Support"},
+    "ai_support": {"bn": "🤖 AI Support", "en": "🤖 AI Support"},
     "terms": {"bn": "📜 Terms", "en": "📜 Terms"},
     "wallet": {"bn": "🔐 আমার Wallet", "en": "🔐 My Wallet"},
     "language": {"bn": "🌐 ভাষা", "en": "🌐 Language"},
@@ -177,6 +180,9 @@ TEXT = {
     "admin_send_done": {"bn": "✅ Admin transfer complete!", "en": "✅ Admin transfer complete!"},
     "maintenance_on": {"bn": "🛑 Maintenance mode ON", "en": "🛑 Maintenance mode ON"},
     "maintenance_off": {"bn": "✅ Maintenance mode OFF", "en": "✅ Maintenance mode OFF"},
+    "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nSend /cancel to close."},
+    "ai_unavailable": {"bn": "❌ AI Support এখন unavailable. Admin-কে জানান।", "en": "❌ AI Support is unavailable. Please contact admin."},
+    "ai_thinking": {"bn": "🤖 উত্তর তৈরি করছি...", "en": "🤖 Thinking..."},
 }
 
 
@@ -228,6 +234,40 @@ def terms_text(lang="bn"):
         "• bKash/SMS/notification delay বা mismatch হলে manual review লাগতে পারে।\n"
         "• Payment stuck হলে support-এ যোগাযোগ করুন।"
     )
+
+
+def ai_support_prompt(lang="bn"):
+    return (
+        "You are the read-only AI support assistant for a Telegram crypto seller bot. "
+        "Reply in Bengali if the user writes Bengali, otherwise reply in English. "
+        "Keep replies short, practical, and beginner-friendly. "
+        "You can explain bKash payment verification, app/SMS notification delays, Telegram Stars payments, wallet/network selection, gas fees, order IDs, pending orders, and contacting admin. "
+        "Never approve payments, never claim a transaction is paid unless the bot/admin verified it, never send crypto, never ask for private keys, never reveal secrets, and never tell users to share seed phrases/private keys. "
+        "If user reports stuck payment, ask them for TrxID/order ID and tell them admin may verify through /pending. "
+        "Support contact is @" + SUPPORT_USERNAME.lstrip("@") + "."
+    )
+
+
+def ask_ai_support(question, lang="bn"):
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    payload = {
+        "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
+        "contents": [{"role": "user", "parts": [{"text": question[:3000]}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
+    }
+    response = requests.post(url, params={"key": GEMINI_API_KEY}, json=payload, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("No AI response returned")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    text = "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise RuntimeError("Empty AI response returned")
+    return text
 
 
 def user_lang(user_id) -> str:
@@ -301,7 +341,8 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("rate", lang), callback_data="rate")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
-        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
+        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support")],
+        [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton(tr("terms", lang), callback_data="terms"), InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
     ]
     if is_admin(user_id):
@@ -419,6 +460,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "terms":
         await query.edit_message_text(terms_text(lang), reply_markup=back_keyboard(lang))
+
+    elif query.data == "ai_support":
+        context.user_data.clear()
+        context.user_data["ai_support"] = True
+        await query.edit_message_text(tr("ai_support_intro", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]))
+
+    elif query.data == "ai_support_cancel":
+        context.user_data.clear()
+        await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
 
     elif query.data == "balance":
         await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
@@ -722,6 +772,13 @@ async def txlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(txlog_text())
     except Exception as exc:
         await update.message.reply_text(f"❌ লোড ব্যর্থ!\n{exc}")
+
+
+async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
+    context.user_data.clear()
+    context.user_data["ai_support"] = True
+    await update.message.reply_text(tr("ai_support_intro", lang))
 
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1269,6 +1326,21 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
     lang = user_lang(user_id)
+
+    if context.user_data.get("ai_support"):
+        text = update.message.text.strip()
+        if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
+            context.user_data.clear()
+            await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(user_id, lang))
+            return
+        await update.message.reply_text(tr("ai_thinking", lang))
+        try:
+            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang))
+        except Exception as exc:
+            logger.error("AI support failed: %s", exc)
+            answer = tr("ai_unavailable", lang)
+        await update.message.reply_text(answer)
+        return AI_SUPPORT
 
     if is_admin(user_id) and context.user_data.get("gencode_step") == "custom_amount":
         try:
@@ -1893,6 +1965,7 @@ async def main():
     app.add_handler(CommandHandler("txlog", txlog_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
+    app.add_handler(CommandHandler("ai", ai_cmd))
     app.add_handler(buy_conv)
     app.add_handler(star_conv)
     app.add_handler(admin_send_conv)
