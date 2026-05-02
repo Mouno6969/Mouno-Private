@@ -24,6 +24,31 @@ http://YOUR_SERVER:5000/bkash-notification
 
 Both endpoints use the same parser and the same duplicate-protection logic.
 
+## Seller-specific endpoints
+
+Approved sellers get a private SMS token in `🏪 Seller Center`. Do not show this token to buyers.
+
+Forward seller bKash SMS messages to:
+
+```text
+http://YOUR_SERVER:5000/seller/<SMS_TOKEN>/sms
+```
+
+Forward seller bKash app notifications to:
+
+```text
+http://YOUR_SERVER:5000/seller/<SMS_TOKEN>/notification
+```
+
+Alternative query-token routes are also supported:
+
+```text
+http://YOUR_SERVER:5000/sms?seller_token=<SMS_TOKEN>
+http://YOUR_SERVER:5000/notification?seller_token=<SMS_TOKEN>
+```
+
+JSON payloads may include `seller_token` or `token`. If no seller token is provided, the existing admin/global flow remains unchanged.
+
 ## Duplicate protection
 
 The bot matches by TrxID.
@@ -105,6 +130,17 @@ Example JSON POST:
   "app": "bKash",
   "title": "Payment Received",
   "text": "You have received Tk 500. TrxID ABC123XYZ"
+}
+```
+
+Seller JSON example:
+
+```json
+{
+  "seller_token": "SELLER_SMS_TOKEN",
+  "app": "bKash",
+  "title": "Payment Received",
+  "text": "You have received Tk 500 from 01XXXXXXXXX. TrxID ABC123XYZ"
 }
 ```
 

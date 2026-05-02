@@ -24,20 +24,35 @@ from telegram.request import HTTPXRequest
 
 from balance import check_sufficient, get_all_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
     get_user_balance,
     get_user_wallet,
     get_wallet_address,
+    encrypt_seller_key,
     save_user_wallet,
+    send_from_seller_wallet,
     send_from_user_wallet,
 )
 from db import (
     create_code,
+    create_or_update_seller_application,
+    create_seller_order,
+    create_seller_star_ledger,
     delete_pending_order,
     disable_code,
+    disable_seller,
+    disable_seller_wallet,
+    find_waiting_seller_order_by_trx,
+    get_seller,
+    get_seller_by_sms_token,
+    get_seller_order,
+    get_seller_order_by_trx,
+    get_seller_payment_notice,
+    get_seller_rate,
+    list_approved_sellers,
     get_all_active_codes,
     get_code,
     get_network_rate,
@@ -56,11 +71,23 @@ from db import (
     get_user_star_orders,
     get_user_language,
     get_wallet,
+    list_enabled_seller_wallets,
+    list_pending_seller_orders,
+    list_pending_seller_payouts,
+    list_seller_star_ledger,
+    list_sellers_by_status,
     mark_sms_used,
+    mark_seller_payment_notice_used,
+    mark_seller_payout_status,
+    approve_seller,
+    reject_seller,
     save_pending_order,
     save_sms,
+    save_seller_payment_notice,
+    save_seller_wallet,
     save_transaction,
     save_wallet,
+    set_seller_rate,
     set_user_language,
     set_network_rate,
     set_setting,
@@ -68,6 +95,7 @@ from db import (
     trx_exists,
     save_star_order,
     update_transaction,
+    update_seller_order,
     update_star_order_status,
     use_code,
 )
@@ -103,6 +131,13 @@ WAITING_STAR_AMOUNT = 31
 ADMIN_SEND_WALLET = 40
 ADMIN_SEND_AMOUNT = 41
 AI_SUPPORT = 50
+SELLER_APP_NAME = 60
+SELLER_APP_BKASH = 61
+SELLER_APP_SUPPORT = 62
+SELLER_SETUP_KEY = 63
+SELLER_SET_RATE = 64
+SELLER_BUY_WALLET = 65
+SELLER_BUY_AMOUNT = 66
 
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
@@ -133,6 +168,8 @@ TEXT = {
     "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
     "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
     "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
+    "sellers": {"bn": "🛍️ Sellers", "en": "🛍️ Sellers"},
+    "seller_center": {"bn": "🏪 Seller Center", "en": "🏪 Seller Center"},
     "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
     "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
     "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
@@ -452,6 +489,7 @@ def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
+        [InlineKeyboardButton(tr("sellers", lang), callback_data="sellers_market"), InlineKeyboardButton(tr("seller_center", lang), callback_data="seller_center")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("rate", lang), callback_data="rate")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
         [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support")],
@@ -461,6 +499,7 @@ def main_menu(user_id, lang=None):
     if is_admin(user_id):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
+        keyboard.append([InlineKeyboardButton("🏪 Seller Admin", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Payouts", callback_data="seller_payouts")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -555,6 +594,221 @@ async def send_crypto(network, wallet, amount):
     raise ValueError(f"Unsupported network: {network}")
 
 
+SELLER_NETWORKS = ["solana", "polygon", "bsc", "avalanche", "ethereum", "ethereum_usdc", "base", "trc20"]
+
+
+def seller_network_menu(prefix, seller_id=None, lang="bn"):
+    networks = SELLER_NETWORKS
+    if seller_id:
+        networks = [row[1] for row in list_enabled_seller_wallets(seller_id) if row[5]]
+    if not networks:
+        return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+    rows = []
+    for i in range(0, len(networks), 2):
+        row = []
+        for network in networks[i:i + 2]:
+            ni = NETWORKS[network]
+            row.append(InlineKeyboardButton(ni["name"][:24], callback_data=f"{prefix}_{network}"))
+        rows.append(row)
+    rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def seller_public_name(row):
+    return row[2] or row[1] or f"Seller {row[0]}"
+
+
+def seller_guide_text(seller=None):
+    token = seller[6] if seller else "YOUR_SMS_TOKEN"
+    return (
+        "🏪 Seller Setup Guide\n\n"
+        "1️⃣ Apply করুন এবং admin approval এর জন্য অপেক্ষা করুন।\n"
+        "2️⃣ যে network sell করবেন তার আলাদা crypto wallet/private key প্রস্তুত রাখুন; gas token রাখবেন।\n"
+        "3️⃣ Bot-এর Seller Center → Delivery Wallet এ private key add/update করুন। Server master key দিয়ে encrypt হবে, message delete হবে।\n"
+        "4️⃣ Seller rate set করুন; না করলে global/admin rate ব্যবহার হবে।\n"
+        "5️⃣ Android bKash SMS/Notification forwarder install করুন।\n"
+        f"6️⃣ SMS endpoint: http://YOUR_SERVER:5000/seller/{token}/sms\n"
+        f"   Notification endpoint: http://YOUR_SERVER:5000/seller/{token}/notification\n"
+        f"   বিকল্প: /sms?seller_token={token}\n"
+        "7️⃣ bKash title/body/text raw text বা JSON হিসেবে forward করুন।\n"
+        "8️⃣ ছোট payment/order দিয়ে test করুন।\n"
+        "9️⃣ Telegram Stars seller sale ledger/manual payout: Bot API Stars seller-কে auto transfer করতে পারে না। Admin payout mark-paid করবেন।"
+    )
+
+
+def seller_rate_or_global(seller_id, network):
+    seller_rate = get_seller_rate(seller_id, network)
+    return float(seller_rate) if seller_rate else get_rate(network)
+
+
+def seller_order_summary(order):
+    order_id, seller_id, buyer_id, buyer_username, method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, _updated = order
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    return (
+        f"🧾 Order: {order_id}\n"
+        f"🏪 Seller: {seller_id}\n"
+        f"👤 Buyer: @{buyer_username or buyer_id} ({buyer_id})\n"
+        f"💳 Method: {method}\n"
+        f"🔑 TrxID: {trx_id or 'N/A'}\n"
+        f"🌐 {ni['name']}\n"
+        f"💰 {amount_bdt or 0} BDT / {stars_amount or 0} Stars\n"
+        f"💵 {amount_crypto} {ni['symbol']}\n"
+        f"👛 {short_wallet(wallet)}\n"
+        f"📌 Status: {status}\n"
+        f"🕒 {short_datetime(created_at)}"
+    )
+
+
+async def show_seller_center(target, context, user_id, username, edit=True):
+    lang = user_lang(user_id)
+    seller = get_seller(user_id)
+    if not seller:
+        text = panel("🏪 Seller Center", "Seller হিসেবে crypto sell করতে apply করুন। Admin approval দরকার।")
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📝 Apply", callback_data="seller_apply")],
+            [InlineKeyboardButton("📖 Guide", callback_data="seller_guide"), InlineKeyboardButton(tr("back", lang), callback_data="back")],
+        ])
+    else:
+        status = seller[5]
+        if status == "approved":
+            wallets = list_enabled_seller_wallets(user_id)
+            pending = list_pending_seller_orders(user_id, 5)
+            ledger = list_seller_star_ledger(user_id, "pending_payout", 20)
+            stars = sum(int(row[3] or 0) for row in ledger)
+            nets = ", ".join(NETWORKS.get(row[1], {"name": row[1]})["name"] for row in wallets) or "None"
+            text = panel(
+                "🏪 Seller Dashboard",
+                f"✅ Approved\n🏷️ {seller_public_name(seller)}\n📲 bKash: {seller[3]}\n🔐 SMS Token: `{seller[6]}`\n🌐 Networks: {nets}\n⏳ Pending/manual: {len(pending)}\n⭐ Pending Stars ledger: {stars}\n\nForwarder endpoint guide only seller can see.",
+            )
+            markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Delivery Wallet", callback_data="seller_wallet"), InlineKeyboardButton("📈 Rates", callback_data="seller_rates")],
+                [InlineKeyboardButton("🧾 Pending Orders", callback_data="seller_pending"), InlineKeyboardButton("⭐ Ledger", callback_data="seller_ledger")],
+                [InlineKeyboardButton("📖 Guide", callback_data="seller_guide"), InlineKeyboardButton(tr("back", lang), callback_data="back")],
+            ])
+        elif status == "pending":
+            text = panel("🏪 Seller Center", f"⏳ Application pending.\n🏷️ {seller_public_name(seller)}\nAdmin approve করলে dashboard চালু হবে।")
+            markup = InlineKeyboardMarkup([[InlineKeyboardButton("📖 Guide", callback_data="seller_guide")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+        else:
+            text = panel("🏪 Seller Center", f"📌 Status: {status}\nSupport/admin: @{SUPPORT_USERNAME.lstrip('@')}")
+            markup = InlineKeyboardMarkup([[InlineKeyboardButton("📖 Guide", callback_data="seller_guide")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+    if edit and hasattr(target, "edit_message_text"):
+        await target.edit_message_text(text, reply_markup=markup, parse_mode="Markdown")
+    else:
+        await target.reply_text(text, reply_markup=markup, parse_mode="Markdown")
+
+
+async def show_seller_marketplace(query, lang):
+    sellers = list_approved_sellers(20)
+    if not sellers:
+        await query.edit_message_text("🛍️ এখন কোনো approved seller নেই।", reply_markup=back_keyboard(lang))
+        return
+    keyboard = [[InlineKeyboardButton(f"🏪 {seller_public_name(s)[:28]}", callback_data=f"sellerpick_{s[0]}")] for s in sellers]
+    keyboard.append([InlineKeyboardButton(tr("back", lang), callback_data="back")])
+    await query.edit_message_text(panel("🛍️ Seller Marketplace", "Seller বেছে নিন। Payment seller-এর bKash/Stars ledger route হবে।"), reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def show_seller_rates(query, seller_id, lang):
+    wallets = list_enabled_seller_wallets(seller_id)
+    if not wallets:
+        await query.edit_message_text("প্রথমে delivery wallet add করুন।", reply_markup=back_keyboard(lang))
+        return
+    lines = []
+    keyboard = []
+    for row in wallets:
+        network = row[1]
+        ni = NETWORKS[network]
+        sr = get_seller_rate(seller_id, network)
+        lines.append(f"{ni['name']}: {sr or get_rate(network)} BDT ({'seller' if sr else 'global'})")
+        keyboard.append([InlineKeyboardButton(f"Set {ni['name'][:20]}", callback_data=f"sellerrate_{network}")])
+    keyboard.append([InlineKeyboardButton(tr("back", lang), callback_data="seller_center")])
+    await query.edit_message_text(panel("📈 Seller Rates", "\n".join(lines)), reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def show_seller_pending(query, seller_id, lang):
+    rows = list_pending_seller_orders(None if is_admin(seller_id) else seller_id, 10)
+    if not rows:
+        await query.edit_message_text("✅ Pending/manual seller order নেই।", reply_markup=back_keyboard(lang))
+        return
+    for row in rows:
+        order_id = row[0]
+        keyboard = [[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order_id}")]]
+        await query.message.reply_text(seller_order_summary(row), reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text("🧾 Pending/manual seller orders sent above.", reply_markup=back_keyboard(lang))
+
+
+async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amount=None):
+    order = get_seller_order(order_id)
+    if not order:
+        return False, "Order not found"
+    order_id, seller_id, buyer_id, buyer_username, method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, *_ = order
+    seller = get_seller(seller_id)
+    if not seller or seller[5] != "approved":
+        update_seller_order(order_id, status="failed", error="seller not approved")
+        return False, "Seller not approved"
+    if notice_amount is not None and amount_bdt and abs(float(notice_amount) - float(amount_bdt)) > 0.01:
+        update_seller_order(order_id, status="pending_manual", error="amount mismatch")
+        return False, "Amount mismatch"
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+    bot = app_or_bot.bot if hasattr(app_or_bot, "bot") else app_or_bot
+    try:
+        sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_seller_wallet(seller_id, network, wallet, float(amount_crypto)))
+        update_seller_order(order_id, status="completed", tx_sig=sig, error="")
+        if trx_id:
+            mark_seller_payment_notice_used(seller_id, trx_id)
+        save_transaction(f"SELLER-{order_id}", buyer_id, amount_bdt or 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id)
+        explorer = f"{ni.get('explorer','')}{sig}"
+        await bot.send_message(int(buyer_id), f"🎉 Seller order completed!\n\n🏪 {seller_public_name(seller)}\n🧾 {order_id}\n🌐 {ni['name']}\n💵 {amount_crypto} {ni['symbol']}\n👛 {wallet}\n🔗 {explorer}")
+        await bot.send_message(int(seller_id), f"✅ Order delivered automatically.\n\n🧾 {order_id}\n👤 Buyer: @{buyer_username or buyer_id}\n💵 {amount_crypto} {ni['symbol']}\n🔗 {explorer}")
+        if ADMIN_ID:
+            await bot.send_message(ADMIN_ID, f"✅ Seller order completed.\n\n{seller_order_summary(get_seller_order(order_id))}\n🔗 {explorer}")
+        return True, sig
+    except Exception as exc:
+        update_seller_order(order_id, status="failed", error=str(exc)[:500])
+        try:
+            await bot.send_message(int(seller_id), f"🚨 Seller order send failed.\n\n🧾 {order_id}\n❌ {exc}")
+            await bot.send_message(ADMIN_ID, f"🚨 Seller order send failed.\n\n{seller_order_summary(order)}\n❌ {exc}")
+            await bot.send_message(int(buyer_id), f"✅ Payment received but seller delivery failed. Seller/admin has been notified.\n🧾 {order_id}")
+        except Exception:
+            pass
+        return False, str(exc)
+
+
+async def handle_seller_order_trx(update, context, user_id, username):
+    order_id = context.user_data.get("seller_order_id")
+    order = get_seller_order(order_id)
+    if not order:
+        await update.message.reply_text("❌ Seller order session expired.")
+        context.user_data.clear()
+        return
+    trx_id = update.message.text.strip().upper()
+    if len(trx_id) < 4:
+        await update.message.reply_text("❌ ভুল TrxID! আবার দিন।")
+        return
+    if get_seller_order_by_trx(order[1], trx_id):
+        await update.message.reply_text("⚠️ এই seller-এর জন্য TrxID আগে ব্যবহার হয়েছে।")
+        return
+    update_seller_order(order_id, trx_id=trx_id)
+    notice = get_seller_payment_notice(order[1], trx_id)
+    if notice:
+        ok, result = await complete_seller_order(update.get_bot(), order_id, user_id, notice[2])
+        context.user_data.clear()
+        if ok:
+            await update.message.reply_text("✅ Payment notice matched. Crypto পাঠানো হয়েছে।")
+        else:
+            await update.message.reply_text(f"⏳ Seller manual verification লাগবে।\n🧾 {order_id}\nReason: {result}")
+        return
+    update_seller_order(order_id, status="pending_manual")
+    seller_id = order[1]
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order_id}")]])
+    try:
+        await update.get_bot().send_message(int(seller_id), f"⚠️ Buyer TrxID দিল কিন্তু forwarder notice মেলেনি। Manual verify করুন।\n\n{seller_order_summary(get_seller_order(order_id))}", reply_markup=keyboard)
+        await update.get_bot().send_message(ADMIN_ID, f"⚠️ Seller order manual verify.\n\n{seller_order_summary(get_seller_order(order_id))}", reply_markup=keyboard)
+    except Exception as exc:
+        logger.error(exc)
+    context.user_data.clear()
+    await update.message.reply_text(f"⏳ TrxID seller যাচাই করছেন।\n\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id}")
+
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -591,6 +845,173 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support_cancel":
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+
+    elif query.data == "sellers_market":
+        await show_seller_marketplace(query, lang)
+
+    elif query.data == "seller_center":
+        await show_seller_center(query, context, user_id, username)
+
+    elif query.data == "seller_apply":
+        context.user_data.clear()
+        context.user_data["seller_apply_step"] = "name"
+        await query.edit_message_text("🏪 Shop/display name লিখুন:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+        return SELLER_APP_NAME
+
+    elif query.data == "seller_guide":
+        await query.edit_message_text(seller_guide_text(get_seller(user_id)), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="seller_center")]]))
+
+    elif query.data == "seller_wallet":
+        seller = get_seller(user_id)
+        if not seller or seller[5] != "approved":
+            await query.edit_message_text("❌ Seller approved নয়।", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        if not SELLER_WALLET_MASTER_KEY:
+            await query.edit_message_text("❌ SELLER_WALLET_MASTER_KEY missing. Admin .env এ set করলে automated seller wallet setup চালু হবে।", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data.clear()
+        await query.edit_message_text("🔐 Seller delivery wallet network বেছে নিন।\n\n⚠️ এই wallet থেকে automated delivery হবে; gas token রাখতে হবে।", reply_markup=seller_network_menu("sellerwallet", lang=lang))
+
+    elif query.data == "seller_rates":
+        await show_seller_rates(query, user_id, lang)
+
+    elif query.data == "seller_pending":
+        await show_seller_pending(query, user_id, lang)
+
+    elif query.data == "seller_ledger":
+        rows = list_seller_star_ledger(user_id, None, 10)
+        if not rows:
+            await query.edit_message_text("⭐ Ledger empty.", reply_markup=back_keyboard(lang))
+        else:
+            msg = "⭐ Seller Stars Ledger\n\n" + "\n".join(f"{r[0]} | {r[2]} | {r[3]} Stars | {r[4]}" for r in rows)
+            await query.edit_message_text(msg, reply_markup=back_keyboard(lang))
+
+    elif query.data == "admin_sellers":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        pending = list_sellers_by_status("pending", 20)
+        if not pending:
+            await query.edit_message_text("✅ No pending seller applications.", reply_markup=back_keyboard(lang))
+        else:
+            for seller in pending:
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve", callback_data=f"sellerapp_a_{seller[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sellerapp_r_{seller[0]}")]])
+                await query.message.reply_text(f"🏪 Seller application\n\nID: {seller[0]}\n@{seller[1]}\nName: {seller[2]}\nbKash: {seller[3]}\nSupport: {seller[4]}", reply_markup=keyboard)
+            await query.edit_message_text("Pending seller applications sent above.", reply_markup=back_keyboard(lang))
+
+    elif query.data == "seller_payouts":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        rows = list_pending_seller_payouts(20)
+        if not rows:
+            await query.edit_message_text("✅ No pending seller Stars payouts.", reply_markup=back_keyboard(lang))
+        else:
+            for r in rows:
+                await query.message.reply_text(f"⭐ Pending seller payout\n\nLedger: {r[0]}\nSeller: {r[1]}\nOrder: {r[2]}\nStars: {r[3]}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Mark paid", callback_data=f"payoutpaid_{r[0]}")]]))
+            await query.edit_message_text("Pending payout entries sent above.", reply_markup=back_keyboard(lang))
+
+    elif query.data.startswith("sellerapp_a_") or query.data.startswith("sellerapp_r_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        action, seller_id = query.data.replace("sellerapp_", "", 1).split("_", 1)
+        if action == "a":
+            approve_seller(seller_id)
+            text = "✅ Seller approved."
+            notify = "🎉 আপনার seller account approved হয়েছে। Seller Center খুলুন।"
+        else:
+            reject_seller(seller_id)
+            text = "❌ Seller rejected."
+            notify = f"❌ Seller application rejected. Support: @{SUPPORT_USERNAME.lstrip('@')}"
+        await query.edit_message_text(f"{text}\nSeller: {seller_id}")
+        try:
+            await query.get_bot().send_message(int(seller_id), notify)
+        except Exception:
+            pass
+
+    elif query.data.startswith("payoutpaid_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        ledger_id = query.data.replace("payoutpaid_", "", 1)
+        mark_seller_payout_status(ledger_id, "paid_out", f"marked by {user_id}")
+        await query.edit_message_text(f"✅ Payout marked paid.\nLedger: {ledger_id}", reply_markup=back_keyboard(lang))
+
+    elif query.data.startswith("sellerpick_"):
+        seller_id = query.data.replace("sellerpick_", "", 1)
+        seller = get_seller(seller_id)
+        if not seller or seller[5] != "approved":
+            await query.edit_message_text("❌ Seller unavailable.", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        wallets = list_enabled_seller_wallets(seller_id)
+        if not wallets:
+            await query.edit_message_text("❌ এই seller এখন কোনো network enable করেননি।", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        await query.edit_message_text(
+            panel("🛍️ Seller Order", f"🏪 {seller_public_name(seller)}\n📲 bKash: {seller[3]}\n\nPayment method বেছে নিন।"),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📲 bKash", callback_data=f"sellerpay_bkash_{seller_id}"), InlineKeyboardButton("⭐ Stars", callback_data=f"sellerpay_stars_{seller_id}")],
+                [InlineKeyboardButton(tr("back", lang), callback_data="sellers_market")],
+            ]),
+        )
+
+    elif query.data.startswith("sellerpay_"):
+        parts = query.data.split("_", 2)
+        method, seller_id = parts[1], parts[2]
+        seller = get_seller(seller_id)
+        if not seller or seller[5] != "approved":
+            await query.edit_message_text("❌ Seller unavailable.", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data.update({"seller_buy_seller_id": seller_id, "seller_buy_method": method, "seller_buy_username": username})
+        await query.edit_message_text(f"🏪 {seller_public_name(seller)}\n\nNetwork বেছে নিন:", reply_markup=seller_network_menu("sellerbuy", seller_id, lang))
+
+    elif query.data.startswith("sellerbuy_"):
+        network = query.data.replace("sellerbuy_", "", 1)
+        seller_id = context.user_data.get("seller_buy_seller_id")
+        if not seller_id or network not in [row[1] for row in list_enabled_seller_wallets(seller_id)]:
+            await query.edit_message_text("❌ Seller buy session expired.", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data["seller_buy_network"] = network
+        ni = NETWORKS[network]
+        rate = seller_rate_or_global(seller_id, network)
+        await query.edit_message_text(f"🌐 {ni['name']}\n💵 Rate: 1 {ni['symbol']} = {rate} BDT\n\nBuyer destination wallet দিন:\n{wallet_hint(network)}")
+        return SELLER_BUY_WALLET
+
+    elif query.data.startswith("sellerwallet_"):
+        network = query.data.replace("sellerwallet_", "", 1)
+        seller = get_seller(user_id)
+        if not seller or seller[5] != "approved":
+            await query.edit_message_text("❌ Seller approved নয়।", reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["seller_wallet_network"] = network
+        await query.edit_message_text(f"🔐 {NETWORKS[network]['name']} delivery private key পাঠান।\n\n⚠️ Message auto-delete হবে। এই wallet থেকে seller orders auto delivery হবে। Gas token রাখবেন।")
+        return SELLER_SETUP_KEY
+
+    elif query.data.startswith("sellerrate_"):
+        network = query.data.replace("sellerrate_", "", 1)
+        context.user_data.clear()
+        context.user_data["seller_rate_network"] = network
+        await query.edit_message_text(f"📈 {NETWORKS[network]['name']} seller rate লিখুন (BDT per 1 {NETWORKS[network]['symbol']}).\n\n0 লিখলে global rate use হবে।")
+        return SELLER_SET_RATE
+
+    elif query.data.startswith("sordera_") or query.data.startswith("sorderr_"):
+        order_id = query.data.split("_", 1)[1]
+        order = get_seller_order(order_id)
+        if not order:
+            await query.edit_message_text("❌ Order not found.")
+            return ConversationHandler.END
+        if not (is_admin(user_id) or str(order[1]) == user_id):
+            return ConversationHandler.END
+        if query.data.startswith("sorderr_"):
+            update_seller_order(order_id, status="rejected")
+            await query.edit_message_text(f"❌ Seller order rejected.\n🧾 {order_id}")
+            try:
+                await query.get_bot().send_message(int(order[2]), f"❌ Seller order rejected.\n🧾 {order_id}\nSupport: @{SUPPORT_USERNAME.lstrip('@')}")
+            except Exception:
+                pass
+            return ConversationHandler.END
+        await query.edit_message_text(f"⏳ Approving seller order and sending crypto...\n🧾 {order_id}")
+        ok, result = await complete_seller_order(query.get_bot(), order_id, user_id)
+        await query.edit_message_text(("✅ Seller order completed." if ok else f"❌ Seller order failed: {result}") + f"\n🧾 {order_id}")
 
     elif query.data == "balance":
         await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
@@ -1442,6 +1863,154 @@ async def complete_admin_send(query, context, user_id, lang):
         await query.edit_message_text(f"❌ Send failed.\n\n{exc}", reply_markup=back_keyboard(lang))
 
 
+async def seller_apply_name_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name = update.message.text.strip()[:80]
+    if len(name) < 2:
+        await update.message.reply_text("Shop/display name আরেকটু স্পষ্ট লিখুন।")
+        return SELLER_APP_NAME
+    context.user_data["seller_apply_name"] = name
+    await update.message.reply_text("📲 Seller bKash number লিখুন:")
+    return SELLER_APP_BKASH
+
+
+async def seller_apply_bkash_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    number = update.message.text.strip()[:40]
+    if len(number) < 8:
+        await update.message.reply_text("সঠিক bKash number লিখুন।")
+        return SELLER_APP_BKASH
+    context.user_data["seller_apply_bkash"] = number
+    await update.message.reply_text("📞 Support contact দিন (Telegram username/phone):")
+    return SELLER_APP_SUPPORT
+
+
+async def seller_apply_support_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    support = update.message.text.strip()[:80]
+    seller = create_or_update_seller_application(user.id, user.username or user.first_name or "", context.user_data.get("seller_apply_name"), context.user_data.get("seller_apply_bkash"), support)
+    context.user_data.clear()
+    await update.message.reply_text(f"✅ Seller application জমা হয়েছে।\n\n🏷️ {seller[2]}\n📲 {seller[3]}\n⏳ Admin approval লাগবে।\n\n/seller_guide দেখে forwarder/setup প্রস্তুত রাখুন।")
+    try:
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve", callback_data=f"sellerapp_a_{seller[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sellerapp_r_{seller[0]}")]])
+        await update.get_bot().send_message(ADMIN_ID, f"🏪 New seller application\n\nID: {seller[0]}\n@{seller[1]}\nName: {seller[2]}\nbKash: {seller[3]}\nSupport: {seller[4]}", reply_markup=keyboard)
+    except Exception as exc:
+        logger.error(exc)
+    return ConversationHandler.END
+
+
+async def seller_wallet_key_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    network = context.user_data.get("seller_wallet_network")
+    private_key = update.message.text.strip()
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    if not SELLER_WALLET_MASTER_KEY:
+        await update.message.reply_text("❌ SELLER_WALLET_MASTER_KEY missing. Admin .env এ set করুন।")
+        return ConversationHandler.END
+    if not network:
+        await update.message.reply_text("❌ Session expired.")
+        return ConversationHandler.END
+    try:
+        wallet_address = get_wallet_address(network, private_key)
+        encrypted_key, salt = encrypt_seller_key(private_key)
+        save_seller_wallet(user_id, network, encrypted_key, salt, wallet_address)
+    except Exception as exc:
+        await update.message.reply_text(f"❌ Wallet key setup failed.\n{exc}\n\nআবার private key পাঠান:")
+        return SELLER_SETUP_KEY
+    context.user_data["seller_rate_network"] = network
+    context.user_data.pop("seller_wallet_network", None)
+    ni = NETWORKS[network]
+    await update.message.reply_text(f"✅ Delivery wallet saved.\n\n🌐 {ni['name']}\n👛 {wallet_address}\n\nএখন seller rate লিখুন BDT per 1 {ni['symbol']}. 0 লিখলে global rate use হবে।")
+    return SELLER_SET_RATE
+
+
+async def seller_rate_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    network = context.user_data.get("seller_rate_network")
+    if not network:
+        await update.message.reply_text("❌ Session expired.")
+        return ConversationHandler.END
+    try:
+        rate = float(update.message.text.strip())
+        if rate < 0:
+            raise ValueError
+    except Exception:
+        await update.message.reply_text("শুধু সংখ্যা লিখুন। 0 দিলে global rate।")
+        return SELLER_SET_RATE
+    set_seller_rate(user_id, network, None if rate == 0 else rate)
+    context.user_data.clear()
+    await update.message.reply_text(f"✅ Seller rate updated.\n🌐 {NETWORKS[network]['name']}\n💵 {'global/admin rate' if rate == 0 else str(rate) + ' BDT'}")
+    return ConversationHandler.END
+
+
+async def seller_buy_wallet_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    wallet = update.message.text.strip()
+    network = context.user_data.get("seller_buy_network")
+    seller_id = context.user_data.get("seller_buy_seller_id")
+    if not network or not seller_id:
+        await update.message.reply_text("❌ Session expired.")
+        return ConversationHandler.END
+    if not valid_wallet(network, wallet):
+        await update.message.reply_text(f"❌ ভুল wallet.\nExample: {wallet_hint(network)}")
+        return SELLER_BUY_WALLET
+    context.user_data["seller_buy_wallet"] = wallet
+    ni = NETWORKS[network]
+    rate = seller_rate_or_global(seller_id, network)
+    await update.message.reply_text(f"কত BDT-এর {ni['symbol']} কিনবেন?\n\nRate: 1 {ni['symbol']} = {rate} BDT")
+    return SELLER_BUY_AMOUNT
+
+
+async def seller_buy_amount_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    seller_id = context.user_data.get("seller_buy_seller_id")
+    method = context.user_data.get("seller_buy_method")
+    network = context.user_data.get("seller_buy_network")
+    wallet = context.user_data.get("seller_buy_wallet")
+    if not all([seller_id, method, network, wallet]):
+        await update.message.reply_text("❌ Session expired.")
+        return ConversationHandler.END
+    try:
+        amount_bdt = float(update.message.text.strip())
+        if amount_bdt <= 0:
+            raise ValueError
+    except Exception:
+        await update.message.reply_text("শুধু সংখ্যা লিখুন।")
+        return SELLER_BUY_AMOUNT
+    seller = get_seller(seller_id)
+    if not seller or seller[5] != "approved":
+        await update.message.reply_text("❌ Seller unavailable.")
+        return ConversationHandler.END
+    rate = seller_rate_or_global(seller_id, network)
+    amount_crypto = round(amount_bdt / rate, 6)
+    ni = NETWORKS[network]
+    order_id = gen_order_id("SO")
+    username = user.username or user.first_name or ""
+    if method == "stars":
+        stars_amount = max(1, math.ceil(amount_crypto * get_star_rate(network)))
+        create_seller_order(order_id, seller_id, user.id, username, "stars", network, wallet, amount_bdt, amount_crypto, stars_amount, status="waiting_payment")
+        await update.message.reply_invoice(
+            title="Seller Crypto Order",
+            description=f"{seller_public_name(seller)}: {amount_crypto} {ni['symbol']} on {ni['name']}",
+            payload=order_id,
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label=f"{amount_crypto} {ni['symbol']}", amount=stars_amount)],
+        )
+        await update.message.reply_text(f"⭐ Invoice sent.\n\n🧾 {order_id}\n🏪 {seller_public_name(seller)}\n💵 {amount_crypto} {ni['symbol']}\n⭐ {stars_amount} Stars\n\nSeller Stars earnings ledger/manual payout হবে।")
+        context.user_data.clear()
+        return ConversationHandler.END
+    create_seller_order(order_id, seller_id, user.id, username, "bkash", network, wallet, amount_bdt, amount_crypto, None, status="waiting_payment")
+    context.user_data.clear()
+    context.user_data.update({"waiting_seller_trxid": True, "seller_order_id": order_id, "trx_deadline": asyncio.get_event_loop().time() + 900})
+    await update.message.reply_text(f"🎯 Seller order created.\n\n🧾 Order: {order_id}\n🏪 {seller_public_name(seller)}\n📲 bKash: {seller[3]}\n💰 Send exactly: {amount_bdt} BDT\n💵 Receive: {amount_crypto} {ni['symbol']}\n👛 {wallet}\n\nPayment করার পর TrxID লিখুন।")
+    try:
+        await update.get_bot().send_message(int(seller_id), f"🛎️ New seller bKash order waiting TrxID.\n\n{seller_order_summary(get_seller_order(order_id))}")
+    except Exception:
+        pass
+    return ConversationHandler.END
+
+
 async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -1479,6 +2048,14 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             answer = tr("ai_unavailable", lang)
         await update.message.reply_text(answer)
         return AI_SUPPORT
+
+    if context.user_data.get("waiting_seller_trxid"):
+        deadline = context.user_data.get("trx_deadline", 0)
+        if asyncio.get_event_loop().time() > deadline:
+            context.user_data.clear()
+            await update.message.reply_text("⏰ Seller order time expired. আবার order করুন।")
+            return
+        return await handle_seller_order_trx(update, context, user_id, username)
 
     if is_admin(user_id) and context.user_data.get("gencode_step") == "custom_amount":
         try:
@@ -1809,7 +2386,21 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.pre_checkout_query
     order = get_star_order(query.invoice_payload)
     if not order:
-        await query.answer(ok=False, error_message="Order expired. Please create a new order.")
+        seller_order = get_seller_order(query.invoice_payload)
+        if not seller_order:
+            await query.answer(ok=False, error_message="Order expired. Please create a new order.")
+            return
+        order_id, _seller_id, buyer_id, _buyer_username, method, _trx_id, _network, _wallet, _amount_bdt, _amount_crypto, stars_amount, status, *_rest = seller_order
+        if method != "stars" or status != "waiting_payment":
+            await query.answer(ok=False, error_message="This seller order was already processed.")
+            return
+        if str(query.from_user.id) != str(buyer_id):
+            await query.answer(ok=False, error_message="This invoice belongs to another user.")
+            return
+        if query.currency != "XTR" or int(query.total_amount) != int(stars_amount):
+            await query.answer(ok=False, error_message="Payment amount mismatch.")
+            return
+        await query.answer(ok=True)
         return
     order_id, user_id, _username, _network, _wallet, _amount_crypto, stars_amount, status, *_rest = order
     if status != "pending":
@@ -1824,12 +2415,46 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer(ok=True)
 
 
+async def successful_seller_star_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, order, payment):
+    order_id, seller_id, buyer_id, buyer_username, method, _trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, *_rest = order
+    if method != "stars":
+        await update.message.reply_text("❌ Invalid seller Stars order.")
+        return
+    if status == "completed":
+        await update.message.reply_text("✅ This seller Stars order is already completed.")
+        return
+    if str(update.effective_user.id) != str(buyer_id) or int(payment.total_amount) != int(stars_amount):
+        update_seller_order(order_id, status="failed", error="seller stars verification mismatch")
+        await update.message.reply_text("❌ Payment verification mismatch. Contact admin.")
+        return
+    seller = get_seller(seller_id)
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+    update_seller_order(order_id, status="paid")
+    ledger_id = f"SL-{order_id}"
+    create_seller_star_ledger(ledger_id, seller_id, order_id, stars_amount)
+    await update.message.reply_text("✅ Stars payment received. Seller delivery শুরু হচ্ছে...")
+    ok, result = await complete_seller_order(update.get_bot(), order_id, buyer_id)
+    if ok:
+        await update.message.reply_text(f"🎉 Seller Stars order completed.\n\n🧾 {order_id}\n🏪 {seller_public_name(seller) if seller else seller_id}\n💵 {amount_crypto} {ni['symbol']}\n⭐ {stars_amount} Stars\n\nSeller earnings ledger/manual payout হিসেবে recorded।")
+    else:
+        await update.message.reply_text(f"✅ Stars payment received, but seller delivery failed/manual review needed.\n🧾 {order_id}")
+    try:
+        await update.get_bot().send_message(int(seller_id), f"⭐ Seller Stars sale recorded.\n\n🧾 {order_id}\n⭐ {stars_amount} Stars ledger pending payout\nStatus: {'completed' if ok else 'delivery failed'}")
+        await update.get_bot().send_message(ADMIN_ID, f"⭐ Seller Stars ledger pending payout.\n\nLedger: {ledger_id}\nSeller: {seller_id}\nOrder: {order_id}\nStars: {stars_amount}\nDelivery: {'ok' if ok else result}")
+    except Exception:
+        pass
+
+
 async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     if payment.currency != "XTR":
         return
     order = get_star_order(payment.invoice_payload)
     if not order:
+        seller_order = get_seller_order(payment.invoice_payload)
+        if seller_order:
+            await successful_seller_star_payment(update, context, seller_order, payment)
+            return
         await update.message.reply_text("❌ Order not found. Contact admin with your payment receipt.")
         try:
             await update.get_bot().send_message(ADMIN_ID, f"🚨 Stars payment received but order was not found.\nPayload: {payment.invoice_payload}\nCharge: {payment.telegram_payment_charge_id}")
@@ -1930,18 +2555,54 @@ async def guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(GUIDE)
 
 
+async def seller_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    await show_seller_center(update.message, context, str(user.id), user.username or user.first_name, edit=False)
+
+
+async def seller_guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(seller_guide_text(get_seller(update.effective_user.id)))
+
+
+async def sellers_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    pending = list_sellers_by_status("pending", 20)
+    if not pending:
+        await update.message.reply_text("✅ No pending seller applications.")
+        return
+    for seller in pending:
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve", callback_data=f"sellerapp_a_{seller[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sellerapp_r_{seller[0]}")]])
+        await update.message.reply_text(f"🏪 Seller application\n\nID: {seller[0]}\n@{seller[1]}\nName: {seller[2]}\nbKash: {seller[3]}\nSupport: {seller[4]}", reply_markup=keyboard)
+
+
+async def seller_payouts_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    rows = list_pending_seller_payouts(20)
+    if not rows:
+        await update.message.reply_text("✅ No pending seller Stars payouts.")
+        return
+    for r in rows:
+        await update.message.reply_text(f"⭐ Pending seller payout\n\nLedger: {r[0]}\nSeller: {r[1]}\nOrder: {r[2]}\nStars: {r[3]}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Mark paid", callback_data=f"payoutpaid_{r[0]}")]]))
+
+
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     delete_user_wallet(str(update.effective_user.id))
     await update.message.reply_text("🔄 পুরনো key মুছে দেওয়া হয়েছে!\n\nনতুন wallet setup করুন:")
     return await setup_cmd(update, context)
 
 
-async def process_bkash(app, text, sender):
+async def process_bkash(app, text, sender, metadata=None):
     parsed = parse_bkash_payment_notice(text)
     if not parsed:
         return
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
+    seller_token = (metadata or {}).get("seller_token")
+    if seller_token:
+        await process_seller_bkash(app, text, sender, seller_token, parsed)
+        return
 
     if trx_exists(trx_id):
         logger.info("Duplicate bKash notice ignored because transaction already exists: %s", trx_id)
@@ -2037,8 +2698,35 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         logger.error("Auto-complete pending order failed: %s", exc)
 
 
-def sms_handler(app, loop, text, sender):
-    asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender), loop)
+async def process_seller_bkash(app, text, sender, seller_token, parsed):
+    seller = get_seller_by_sms_token(seller_token)
+    trx_id = parsed["trx_id"]
+    amount_bdt = parsed["amount_bdt"]
+    if not seller or seller[5] != "approved":
+        logger.warning("Seller bKash notice ignored for invalid/unapproved token: %s", seller_token[:8])
+        return
+    seller_id = seller[0]
+    saved_new = save_seller_payment_notice(seller_id, trx_id, amount_bdt, parsed.get("sender"), sender, text)
+    logger.info("Seller bKash notice saved: seller=%s trx=%s amount=%s source=%s new=%s", seller_id, trx_id, amount_bdt, sender, saved_new)
+    order = find_waiting_seller_order_by_trx(seller_id, trx_id)
+    if order:
+        if order[8] and abs(float(order[8]) - float(amount_bdt)) > 0.01:
+            update_seller_order(order[0], status="pending_manual", error="amount mismatch")
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order[0]}")]])
+            await app.bot.send_message(int(seller_id), f"⚠️ bKash notice matched but amount mismatch.\n\nExpected: {order[8]} BDT\nReceived: {amount_bdt} BDT\n\n{seller_order_summary(get_seller_order(order[0]))}", reply_markup=keyboard)
+            await app.bot.send_message(ADMIN_ID, f"⚠️ Seller bKash amount mismatch.\n\n{seller_order_summary(get_seller_order(order[0]))}")
+            return
+        await complete_seller_order(app, order[0], seller_id, amount_bdt)
+        return
+    if saved_new:
+        try:
+            await app.bot.send_message(int(seller_id), f"💰 bKash notice received but no seller order matched.\n\n💵 {amount_bdt} BDT\n🔑 TrxID: {trx_id}")
+        except Exception:
+            pass
+
+
+def sms_handler(app, loop, text, sender, metadata=None):
+    asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender, metadata), loop)
 
 
 async def main():
@@ -2089,6 +2777,31 @@ async def main():
         states={DEL_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, deletekey_password)]},
         fallbacks=[CallbackQueryHandler(button_handler, pattern="^del_cancel$"), CommandHandler("start", start)],
     )
+    seller_apply_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^seller_apply$")],
+        states={
+            SELLER_APP_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_apply_name_received)],
+            SELLER_APP_BKASH: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_apply_bkash_received)],
+            SELLER_APP_SUPPORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_apply_support_received)],
+        },
+        fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
+    )
+    seller_wallet_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerwallet_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$"), CallbackQueryHandler(button_handler, pattern="^sellerrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        states={
+            SELLER_SETUP_KEY: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_wallet_key_received)],
+            SELLER_SET_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_rate_received)],
+        },
+        fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
+    )
+    seller_buy_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerbuy_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        states={
+            SELLER_BUY_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_buy_wallet_received)],
+            SELLER_BUY_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_buy_amount_received)],
+        },
+        fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
+    )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("send", send_cmd))
@@ -2104,6 +2817,10 @@ async def main():
     app.add_handler(CommandHandler("txlog", txlog_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
+    app.add_handler(CommandHandler("seller", seller_cmd))
+    app.add_handler(CommandHandler("seller_guide", seller_guide_cmd))
+    app.add_handler(CommandHandler("sellers", sellers_cmd))
+    app.add_handler(CommandHandler("seller_payouts", seller_payouts_cmd))
     app.add_handler(CommandHandler("ai", ai_cmd))
     app.add_handler(buy_conv)
     app.add_handler(star_conv)
@@ -2112,6 +2829,9 @@ async def main():
     app.add_handler(setup_conv)
     app.add_handler(send_wallet_conv)
     app.add_handler(delete_conv)
+    app.add_handler(seller_apply_conv)
+    app.add_handler(seller_wallet_conv)
+    app.add_handler(seller_buy_conv)
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_star_payment))
     app.add_handler(CallbackQueryHandler(button_handler))
@@ -2122,7 +2842,7 @@ async def main():
     await app.updater.start_polling(drop_pending_updates=True)
 
     loop = asyncio.get_running_loop()
-    set_callback(lambda txt, sndr: sms_handler(app, loop, txt, sndr))
+    set_callback(lambda txt, sndr, meta=None: sms_handler(app, loop, txt, sndr, meta))
     threading.Thread(target=run_webhook, daemon=True).start()
     logger.info("Bot started!")
 

@@ -87,12 +87,17 @@ def parse_bkash_payment_notice(text):
 def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.json or {}
+    token = request.view_args.get("token") if request.view_args else None
+    token = token or request.args.get("seller_token") or data.get("seller_token") or data.get("token")
     logger.info("Raw: %s", raw[:300])
     all_text = raw + " " + " ".join(str(v) for v in data.values())
 
     parsed = parse_bkash_payment_notice(all_text)
     if parsed and _callback:
-        _callback(all_text, source)
+        try:
+            _callback(all_text, source, {"seller_token": token} if token else {})
+        except TypeError:
+            _callback(all_text, source)
         logger.info("bKash %s parsed: %s", source, parsed)
     elif parsed:
         logger.warning("bKash %s parsed but callback is not ready: %s", source, parsed)
@@ -103,12 +108,14 @@ def handle_payment_notice(source):
 
 
 @app.route("/sms", methods=["POST"])
+@app.route("/seller/<token>/sms", methods=["POST"])
 def sms():
     return handle_payment_notice("bkash_sms")
 
 
 @app.route("/notification", methods=["POST"])
 @app.route("/bkash-notification", methods=["POST"])
+@app.route("/seller/<token>/notification", methods=["POST"])
 def notification():
     return handle_payment_notice("bkash_app_notification")
 

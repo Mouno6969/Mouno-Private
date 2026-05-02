@@ -14,6 +14,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 SOLANA_KEY = os.getenv("SOLANA_KEY")
 RATE = float(os.getenv("RATE", "137"))
 STAR_RATE = float(os.getenv("STAR_RATE", "100"))
+SELLER_WALLET_MASTER_KEY = os.getenv("SELLER_WALLET_MASTER_KEY")
 
 POLYGON_RPC = os.getenv("POLYGON_RPC")
 POLYGON_PRIVATE_KEY = os.getenv("POLYGON_PRIVATE_KEY")
