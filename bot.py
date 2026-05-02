@@ -24,7 +24,16 @@ from telegram.request import HTTPXRequest
 
 from balance import check_sufficient, get_all_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL, SELLER_WALLET_MASTER_KEY
+from ai_providers import (
+    AI_PROVIDERS,
+    ask_ai_support_fallback,
+    provider_by_id,
+    provider_model_setting_key,
+    provider_setting_key,
+    provider_statuses,
+    sanitize_ai_error,
+)
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -131,6 +140,8 @@ WAITING_STAR_AMOUNT = 31
 ADMIN_SEND_WALLET = 40
 ADMIN_SEND_AMOUNT = 41
 AI_SUPPORT = 50
+AI_SETUP_KEY = 70
+AI_SETUP_MODEL = 71
 SELLER_APP_NAME = 60
 SELLER_APP_BKASH = 61
 SELLER_APP_SUPPORT = 62
@@ -298,31 +309,7 @@ def ai_support_prompt(lang="bn"):
 
 
 def ask_ai_support(question, lang="bn", order_context=""):
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-    user_text = (
-        "READ-ONLY ORDER CONTEXT\n"
-        f"{(order_context or 'No recent order context is available.')[:4000]}\n\n"
-        "USER QUESTION\n"
-        f"{question[:3000]}"
-    )
-    payload = {
-        "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
-        "contents": [{"role": "user", "parts": [{"text": user_text}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 650},
-    }
-    response = requests.post(url, params={"key": GEMINI_API_KEY}, json=payload, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    candidates = data.get("candidates", [])
-    if not candidates:
-        raise RuntimeError("No AI response returned")
-    parts = candidates[0].get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
-        raise RuntimeError("Empty AI response returned")
-    return text
+    return ask_ai_support_fallback(question, lang, order_context, ai_support_prompt(lang), logger)
 
 
 def safe_ai_exception_summary(exc):
@@ -330,11 +317,11 @@ def safe_ai_exception_summary(exc):
     response = getattr(exc, "response", None)
     if isinstance(exc, requests.HTTPError) and response is not None:
         status = getattr(response, "status_code", None)
-        reason = getattr(response, "reason", "") or ""
-        return f"{exc_type} status={status or 'unknown'} reason={reason[:80] or 'N/A'}"
+        reason = sanitize_ai_error(getattr(response, "reason", "") or "")
+        return f"{exc_type} status={status or 'unknown'} reason={reason or 'N/A'}"
     if isinstance(exc, requests.RequestException):
-        return exc_type
-    return exc_type
+        return sanitize_ai_error(exc_type)
+    return sanitize_ai_error(exc)
 
 
 def user_lang(user_id) -> str:
@@ -411,17 +398,74 @@ def build_ai_order_context(user_id):
 
 
 def ai_setup_status():
-    api_status = "configured" if GEMINI_API_KEY else "missing"
     pending_count = get_pending_order_count()
     maintenance = "ON" if is_maintenance_enabled() else "OFF"
+    statuses = provider_statuses()
+    lines = ["🤖 AI Support Status", ""]
+    for row in statuses:
+        icon = "✅" if row["configured"] else "❌"
+        source = row["source"] if row["configured"] else "missing"
+        lines.append(f"{row['priority']}. {icon} {row['name']}: {source} | model: {row['model']}")
+    lines.extend(
+        [
+            "",
+            "Fallback priority: " + " → ".join(row["name"] for row in statuses),
+            f"Support username: @{SUPPORT_USERNAME.lstrip('@')}",
+            f"Pending bKash orders: {pending_count}",
+            f"Maintenance mode: {maintenance}",
+            "Mode: fallback enabled; read-only AI; order context is sanitized.",
+            "Status does not call external AI APIs.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def ai_setup_text():
+    lines = ["🤖 AI Setup", "", "Provider key add/update করুন। Key Telegram DB setting-এ থাকবে; .env fallback কাজ করবে।", ""]
+    for row in provider_statuses():
+        icon = "✅" if row["configured"] else "➕"
+        source = row["source"] if row["configured"] else "missing"
+        lines.append(f"{icon} {row['name']} — {source} — {row['model']}")
+    lines.append("\nFallback order: " + " → ".join(provider["name"] for provider in AI_PROVIDERS))
+    return "\n".join(lines)
+
+
+def ai_setup_keyboard():
+    rows = []
+    statuses = provider_statuses()
+    for i in range(0, len(statuses), 2):
+        row = []
+        for status in statuses[i:i + 2]:
+            icon = "✅" if status["configured"] else "➕"
+            row.append(InlineKeyboardButton(f"{icon} {status['name']}", callback_data=f"ai_provider_{status['id']}"))
+        rows.append(row)
+    rows.append([InlineKeyboardButton("📊 Status", callback_data="ai_status"), InlineKeyboardButton(tr("back", "bn"), callback_data="back")])
+    return InlineKeyboardMarkup(rows)
+
+
+def ai_provider_text(provider_id):
+    status = next((row for row in provider_statuses() if row["id"] == provider_id), None)
+    if not status:
+        return "❌ Provider not found."
+    icon = "✅ Active" if status["configured"] else "➕ Missing"
+    source = status["source"] if status["configured"] else "missing"
     return (
-        "🤖 AI Support Status\n\n"
-        f"Gemini API key: {api_status}\n"
-        f"Gemini model: {GEMINI_MODEL or 'not configured'}\n"
-        f"Support username: @{SUPPORT_USERNAME.lstrip('@')}\n"
-        f"Pending bKash orders: {pending_count}\n"
-        f"Maintenance mode: {maintenance}\n"
-        "Mode: read-only AI; order context is sanitized."
+        f"🤖 {status['name']}\n\n"
+        f"Status: {icon}\n"
+        f"Key source: {source}\n"
+        f"Model: {status['model']}\n"
+        f"Env vars: {status['key_env']}, {status['model_env']}\n\n"
+        "API key পাঠালে message auto-delete হবে। Key কখনো chat/log-এ দেখানো হবে না।"
+    )
+
+
+def ai_provider_keyboard(provider_id):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔑 Add/Update key", callback_data=f"ai_key_{provider_id}"), InlineKeyboardButton("🧹 Clear key", callback_data=f"ai_clear_{provider_id}")],
+            [InlineKeyboardButton("🧠 Set model", callback_data=f"ai_model_{provider_id}")],
+            [InlineKeyboardButton(tr("back", "bn"), callback_data="ai_setup"), InlineKeyboardButton(tr("cancel", "bn"), callback_data="ai_setup_cancel")],
+        ]
     )
 
 
@@ -500,6 +544,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Admin", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Payouts", callback_data="seller_payouts")])
+        keyboard.append([InlineKeyboardButton("🤖 AI Setup", callback_data="ai_setup"), InlineKeyboardButton("📊 AI Status", callback_data="ai_status")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -845,6 +890,65 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support_cancel":
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+
+    elif query.data == "ai_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        await query.edit_message_text(ai_setup_text(), reply_markup=ai_setup_keyboard())
+
+    elif query.data == "ai_status":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(ai_setup_status(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🤖 AI Setup", callback_data="ai_setup"), InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "ai_setup_cancel":
+        context.user_data.clear()
+        await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+        return ConversationHandler.END
+
+    elif query.data.startswith("ai_provider_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider_id = query.data.replace("ai_provider_", "", 1)
+        if not provider_by_id(provider_id):
+            await query.edit_message_text("❌ Provider not found.", reply_markup=ai_setup_keyboard())
+            return ConversationHandler.END
+        await query.edit_message_text(ai_provider_text(provider_id), reply_markup=ai_provider_keyboard(provider_id))
+
+    elif query.data.startswith("ai_key_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider_id = query.data.replace("ai_key_", "", 1)
+        provider = provider_by_id(provider_id)
+        if not provider:
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data.update({"ai_setup_provider": provider_id, "ai_setup_mode": "key"})
+        await query.edit_message_text(f"🔑 {provider['name']} API key পাঠান।\n\nMessage auto-delete হবে। /cancel বা Cancel লিখে বন্ধ করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_setup_cancel")]]))
+        return AI_SETUP_KEY
+
+    elif query.data.startswith("ai_model_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider_id = query.data.replace("ai_model_", "", 1)
+        provider = provider_by_id(provider_id)
+        if not provider:
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data.update({"ai_setup_provider": provider_id, "ai_setup_mode": "model"})
+        await query.edit_message_text(f"🧠 {provider['name']} model name লিখুন।\n\nDefault/reset করতে `default` লিখুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_setup_cancel")]]))
+        return AI_SETUP_MODEL
+
+    elif query.data.startswith("ai_clear_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider_id = query.data.replace("ai_clear_", "", 1)
+        provider = provider_by_id(provider_id)
+        if not provider:
+            return ConversationHandler.END
+        set_setting(provider_setting_key(provider_id), "")
+        await query.edit_message_text(f"✅ {provider['name']} Telegram DB key cleared. .env key থাকলে provider এখনও active থাকবে।", reply_markup=ai_provider_keyboard(provider_id))
 
     elif query.data == "sellers_market":
         await show_seller_marketplace(query, lang)
@@ -1356,6 +1460,57 @@ async def aistatus_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
     await update.message.reply_text(ai_setup_status())
+
+
+async def aisetup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    context.user_data.clear()
+    await update.message.reply_text(ai_setup_text(), reply_markup=ai_setup_keyboard())
+
+
+async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
+    context.user_data.clear()
+    await update.message.reply_text("✅ Cancelled." if lang == "en" else "✅ বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
+
+
+async def handle_ai_setup_input(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id, lang):
+    if not is_admin(user_id):
+        context.user_data.clear()
+        return
+    provider_id = context.user_data.get("ai_setup_provider")
+    mode = context.user_data.get("ai_setup_mode")
+    provider = provider_by_id(provider_id)
+    if not provider:
+        context.user_data.clear()
+        await update.message.reply_text("❌ Provider session expired.", reply_markup=ai_setup_keyboard())
+        return
+    text = update.message.text.strip()
+    if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
+        context.user_data.clear()
+        await update.message.reply_text("✅ AI setup বাতিল হয়েছে।", reply_markup=ai_setup_keyboard())
+        return
+    if mode == "key":
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        if len(text) < 8:
+            await update.get_bot().send_message(update.effective_chat.id, "❌ Key খুব ছোট মনে হচ্ছে। আবার পাঠান অথবা Cancel করুন।")
+            return AI_SETUP_KEY
+        set_setting(provider_setting_key(provider_id), text)
+        context.user_data.clear()
+        await update.get_bot().send_message(update.effective_chat.id, f"✅ {provider['name']} key saved. Provider active হলে fallback chain ব্যবহার করবে।", reply_markup=ai_provider_keyboard(provider_id))
+        return ConversationHandler.END
+    if mode == "model":
+        value = "" if text.lower() in {"default", "reset"} else text[:160]
+        set_setting(provider_model_setting_key(provider_id), value)
+        context.user_data.clear()
+        model_text = value or provider["default_model"]
+        await update.message.reply_text(f"✅ {provider['name']} model saved: {model_text}", reply_markup=ai_provider_keyboard(provider_id))
+        return ConversationHandler.END
+    context.user_data.clear()
 
 
 async def balances_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2032,6 +2187,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
     lang = user_lang(user_id)
+
+    if context.user_data.get("ai_setup_mode"):
+        return await handle_ai_setup_input(update, context, user_id, lang)
 
     if context.user_data.get("ai_support"):
         text = update.message.text.strip()
@@ -2810,6 +2968,8 @@ async def main():
     app.add_handler(CommandHandler("failed", failed_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CommandHandler("aistatus", aistatus_cmd))
+    app.add_handler(CommandHandler("aisetup", aisetup_cmd))
+    app.add_handler(CommandHandler("cancel", cancel_cmd))
     app.add_handler(CommandHandler("balances", balances_cmd))
     app.add_handler(CommandHandler("maintenance", maintenance_cmd))
     app.add_handler(CommandHandler("terms", terms_cmd))
