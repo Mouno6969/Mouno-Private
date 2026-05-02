@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.log
+.env
+mouno.db
+rate.json
+.venv/
+venv/
+.env.*
+!.env.example

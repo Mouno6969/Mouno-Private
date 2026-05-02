@@ -1,0 +1,11 @@
+python-telegram-bot==21.10
+Flask==3.1.0
+requests==2.32.3
+web3==7.6.1
+cryptography==44.0.0
+base58==2.1.1
+solders==0.23.0
+solana==0.36.1
+spl-token-client==0.1.6
+tronpy==0.5.0
+python-dotenv==1.0.1
