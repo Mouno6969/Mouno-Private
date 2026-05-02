@@ -50,6 +50,19 @@ GUIDE = """
 ৫. Confirm করুন → পাঠানো হবে!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎁 GIFT CODE তৈরি
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+My Wallet → 🎁 Gift Code তৈরি
+
+ধাপ:
+১. Amount বেছে নিন বা custom amount লিখুন
+২. Expiry duration বেছে নিন বা custom মিনিট লিখুন
+৩. Summary দেখে Confirm করুন
+৪. Wallet Password দিন → funds সঙ্গে সঙ্গে connected wallet থেকে deduct হবে
+৫. Code তৈরি হবে; যার কাছে code থাকবে সে একবার redeem করতে পারবে
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔑 KEY পরিবর্তন / মুছে ফেলা
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

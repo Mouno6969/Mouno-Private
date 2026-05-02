@@ -21,6 +21,15 @@ def parse_bkash_sms(text):
     return parse_bkash_payment_notice(text)
 
 
+def _clean_ref(value):
+    cleaned = re.sub(r"[^A-Za-z0-9-]", "", str(value).strip().rstrip(".,;:"))
+    if not cleaned:
+        return ""
+    if re.fullmatch(r"0x[a-fA-F0-9]{40,64}", cleaned) or re.fullmatch(r"[a-fA-F0-9]{64}", cleaned):
+        return ""
+    return cleaned.upper()
+
+
 def parse_bkash_payment_notice(text):
     compact = " ".join(str(text).split())
     if not re.search(r"\b(bkash|bKash)\b|বিকাশ", compact, re.IGNORECASE) and not re.search(r"\bTrxID\b|\bTxnID\b|Transaction ID", compact, re.IGNORECASE):
@@ -84,6 +93,86 @@ def parse_bkash_payment_notice(text):
     }
 
 
+def parse_nigeria_payment_notice(text):
+    compact = " ".join(str(text).split())
+    if not compact:
+        return None
+
+    has_ng_currency = re.search(r"(?:₦|\bNGN\b|\bN\s*\d|Naira)", compact, re.IGNORECASE)
+    has_payment_word = re.search(r"\b(OPay|PalmPay|Moniepoint|Kuda|GTBank|Zenith|Access Bank|UBA|First Bank|credit(?:ed)?|received|transfer|payment|bank|wallet|session)\b", compact, re.IGNORECASE)
+    if not (has_ng_currency and has_payment_word):
+        return None
+
+    amount_patterns = [
+        r"(?:₦|NGN|Naira|N)\s*([\d,]+(?:\.\d{1,2})?)",
+        r"(?:credited|credit|received|transfer(?:red)?|payment)\D{0,40}(?:₦|NGN|Naira|N)\s*([\d,]+(?:\.\d{1,2})?)",
+        r"(?:Amount|Amt)\s*[:#-]?\s*(?:₦|NGN|Naira|N)?\s*([\d,]+(?:\.\d{1,2})?)",
+    ]
+    ref_patterns = [
+        r"\b(?:Ref(?:erence)?|Txn\s*ID|Transaction\s*ID|Trans(?:action)?\s*Ref|Session\s*ID|Trx\s*ID|Receipt\s*No|RRN)\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9\-/]{3,63})",
+        r"\b(?:ref|session|txn)\s+([A-Za-z0-9][A-Za-z0-9\-/]{3,63})",
+    ]
+    sender_patterns = [
+        r"\bfrom\s+([A-Za-z][A-Za-z0-9 .'-]{2,40}|\d{6,14})",
+        r"\bSender\s*[:#-]?\s*([A-Za-z][A-Za-z0-9 .'-]{2,40}|\d{6,14})",
+        r"\bCustomer\s*[:#-]?\s*([A-Za-z][A-Za-z0-9 .'-]{2,40}|\d{6,14})",
+    ]
+    datetime_patterns = [
+        r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+\d{1,2}:\d{2}(?::\d{2})?)",
+        r"(\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(?::\d{2})?)",
+    ]
+
+    amount = None
+    for pattern in amount_patterns:
+        match = re.search(pattern, compact, re.IGNORECASE)
+        if match:
+            amount = _amount_to_float(match.group(1))
+            break
+
+    ref_id = None
+    for pattern in ref_patterns:
+        match = re.search(pattern, compact, re.IGNORECASE)
+        if match:
+            ref_id = _clean_ref(match.group(1))
+            break
+
+    if amount is None or not ref_id:
+        return None
+
+    lower = compact.lower()
+    if "opay" in lower:
+        sender = "ng_opay"
+    elif "palmpay" in lower or "palm pay" in lower:
+        sender = "ng_palm_pay"
+    elif "moniepoint" in lower:
+        sender = "ng_moniepoint"
+    elif "bank" in lower or "transfer" in lower:
+        sender = "ng_bank"
+    else:
+        sender = "ng_payment"
+    for pattern in sender_patterns:
+        match = re.search(pattern, compact, re.IGNORECASE)
+        if match:
+            sender = re.split(r"\b(?:Ref(?:erence)?|Txn|Transaction|Session|Trx|Receipt|RRN)\b", match.group(1).strip(), flags=re.IGNORECASE)[0].strip(" .,-")
+            break
+
+    notice_time = None
+    for pattern in datetime_patterns:
+        match = re.search(pattern, compact, re.IGNORECASE)
+        if match:
+            notice_time = match.group(1)
+            break
+
+    return {
+        "amount_ngn": amount,
+        "amount_bdt": amount,
+        "sender": sender,
+        "reference": ref_id,
+        "trx_id": ref_id,
+        "datetime": notice_time,
+    }
+
+
 def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.json or {}
@@ -102,6 +191,24 @@ def handle_payment_notice(source):
     return jsonify({"status": "ok"})
 
 
+def handle_nigeria_payment_notice(source):
+    raw = request.get_data(as_text=True)
+    data = request.json or {}
+    logger.info("Raw NG: %s", raw[:300])
+    all_text = raw + " " + " ".join(str(v) for v in data.values())
+
+    parsed = parse_nigeria_payment_notice(all_text)
+    if parsed and _callback:
+        _callback(all_text, source)
+        logger.info("Nigeria %s parsed: %s", source, parsed)
+    elif parsed:
+        logger.warning("Nigeria %s parsed but callback is not ready: %s", source, parsed)
+    else:
+        logger.info("Not a supported Nigeria payment notice: %s", all_text[:100])
+
+    return jsonify({"status": "ok"})
+
+
 @app.route("/sms", methods=["POST"])
 def sms():
     return handle_payment_notice("bkash_sms")
@@ -111,6 +218,17 @@ def sms():
 @app.route("/bkash-notification", methods=["POST"])
 def notification():
     return handle_payment_notice("bkash_app_notification")
+
+
+@app.route("/ng-sms", methods=["POST"])
+def ng_sms():
+    return handle_nigeria_payment_notice("ng_sms")
+
+
+@app.route("/ng-notification", methods=["POST"])
+@app.route("/nigeria-notification", methods=["POST"])
+def ng_notification():
+    return handle_nigeria_payment_notice("ng_app_notification")
 
 
 def run_webhook():

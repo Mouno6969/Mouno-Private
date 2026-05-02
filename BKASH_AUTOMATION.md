@@ -1,6 +1,8 @@
 # bKash automation reliability
 
-Your bot can now parse both bKash SMS text and bKash app notification text, as long as your Android forwarder can send that text to the server.
+Your bot can parse both bKash SMS text and bKash app notification text, as long as your Android forwarder can send that text to the server.
+
+For Nigerian OPay/PalmPay/Moniepoint/bank-transfer automation, use `NIGERIA_PAYMENT_AUTOMATION.md`.
 
 ## Endpoints
 
