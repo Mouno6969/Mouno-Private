@@ -2,16 +2,47 @@
 
 The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 
-## Configure
+## Configure providers
 
-Add your Gemini API key to `.env`:
+AI Support uses a fallback chain. It tries the first configured provider, then automatically tries the next configured provider if the current one times out, returns an HTTP/quota error, or returns an empty response.
+
+Default priority:
+
+1. Gemini
+2. Groq
+3. OpenRouter
+4. Together
+5. Hugging Face Inference
+6. Mistral
+
+Configure providers in `.env` or from Telegram as admin:
 
 ```env
 GEMINI_API_KEY=your_google_ai_studio_key
 GEMINI_MODEL=gemini-1.5-flash
+GROQ_API_KEY=your_groq_key
+GROQ_MODEL=llama-3.1-8b-instant
+OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
+HF_API_KEY=your_huggingface_key
+HF_MODEL=mistralai/Mistral-7B-Instruct-v0.3
+TOGETHER_API_KEY=your_together_key
+TOGETHER_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
+MISTRAL_API_KEY=your_mistral_key
+MISTRAL_MODEL=open-mistral-7b
 ```
 
-Do not hardcode the API key in code and do not commit `.env`.
+Do not hardcode API keys in code and do not commit `.env`.
+
+## Telegram admin setup
+
+Admins can open `/aisetup` or tap `🤖 AI Setup` in the admin menu.
+
+- Provider buttons show `✅` when a key is configured from Telegram DB or `.env`, and `➕` when missing.
+- Tap a provider to add/update the API key, clear the Telegram DB key, or set a model name.
+- When an API key is sent, the bot deletes the Telegram message after receipt and never echoes the key back.
+- Telegram-provided keys are stored raw in SQLite `app_settings` because there is no general API-key encryption layer. Protect DB backups and exported `/backup` files as secrets.
+- Clearing a key removes only the Telegram DB key. If the same provider has an `.env` key, it remains active through env fallback.
 
 ## What AI can do
 
@@ -42,4 +73,4 @@ If a secret is exposed, the AI should tell the user to delete it and rotate/chan
 
 ## Diagnostics
 
-Admins can use `/aistatus` for local AI setup diagnostics. It shows whether the Gemini API key is configured, model name, support username, pending bKash count, maintenance mode, and confirms AI context is sanitized/read-only. It does not call Gemini.
+Admins can use `/aistatus` or the `📊 AI Status` admin button for local AI setup diagnostics. It shows all providers, configured source (`env`, `telegram`, or missing), model, fallback priority, support username, pending bKash count, maintenance mode, and confirms AI context is sanitized/read-only. It does not call external AI APIs.
