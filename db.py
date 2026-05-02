@@ -237,6 +237,19 @@ def get_pending_order(trx_id):
         return con.execute("SELECT * FROM pending_orders WHERE trx_id=?", (trx_id,)).fetchone()
 
 
+def get_pending_orders(limit=20):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at
+            FROM pending_orders
+            ORDER BY datetime(created_at) DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+
 def delete_pending_order(trx_id):
     with closing(connect()) as con:
         con.execute("DELETE FROM pending_orders WHERE trx_id=?", (trx_id,))

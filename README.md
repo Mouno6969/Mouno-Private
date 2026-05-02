@@ -9,6 +9,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 - Button-driven admin gift-code generation flow
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
+- Delayed-SMS pending order recovery and `/pending` admin fallback
 - Admin/user wallet management with encrypted private keys in `crypto_manager.py`
 - Network senders for Solana, Polygon, BSC, Avalanche, Ethereum, Base, and Tron
 - Balance checks and user guide text

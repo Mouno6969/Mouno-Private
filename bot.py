@@ -39,6 +39,7 @@ from db import (
     get_code,
     get_network_rate,
     get_pending_order,
+    get_pending_orders,
     get_recent_transactions,
     get_sms,
     get_user_language,
@@ -527,6 +528,50 @@ async def show_txlog(query):
     except Exception as exc:
         msg = f"❌ লোড ব্যর্থ!\n{exc}"
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 রিফ্রেশ", callback_data="txlog")], [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")]]))
+
+
+def pending_order_keyboard(row):
+    trx_id, user_id, _amount_bdt, _amount_usdc, _wallet, network, _created_at = row
+    return [
+        InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"),
+        InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}"),
+    ]
+
+
+def pending_orders_text(rows):
+    if not rows:
+        return "✅ No pending bKash orders."
+    msg = "🧾 Pending bKash Orders\n\n"
+    for trx_id, user_id, amount_bdt, amount_usdc, wallet, network, created_at in rows:
+        net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        short_wallet = f"{wallet[:8]}...{wallet[-6:]}" if wallet else "N/A"
+        msg += (
+            f"🔑 {trx_id}\n"
+            f"👤 User: {user_id}\n"
+            f"🌐 {net_info['name']}\n"
+            f"💰 {amount_bdt} BDT → {amount_usdc} {net_info['symbol']}\n"
+            f"👛 {short_wallet}\n"
+            f"🕒 {str(created_at)[:16]}\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+    return msg
+
+
+async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    rows = get_pending_orders(10)
+    if not rows:
+        await update.message.reply_text("✅ No pending bKash orders.")
+        return
+    await update.message.reply_text(pending_orders_text(rows))
+    for row in rows:
+        trx_id, user_id, amount_bdt, amount_usdc, _wallet, network, _created_at = row
+        net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        await update.message.reply_text(
+            f"Verify in bKash app:\n\n🔑 TrxID: {trx_id}\n👤 User: {user_id}\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT\n💵 {amount_usdc} {net_info['symbol']}",
+            reply_markup=InlineKeyboardMarkup([pending_order_keyboard(row)]),
+        )
 
 
 async def show_my_wallet_menu(query, user_id):
@@ -1133,10 +1178,86 @@ async def process_bkash(app, text, sender):
     amount_bdt = parsed["amount_bdt"]
     save_sms(trx_id, amount_bdt, sender, text)
     logger.info("SMS saved: %s BDT | TrxID: %s", amount_bdt, trx_id)
+
+    pending = get_pending_order(trx_id)
+    if pending:
+        await complete_pending_order_from_sms(app, pending, amount_bdt)
+        return
+
     try:
         await app.bot.send_message(ADMIN_ID, f"💰 বিকাশ পেমেন্ট!\n\n💵 {amount_bdt} BDT\n🔑 TrxID: {trx_id}")
     except Exception as exc:
         logger.error(exc)
+
+
+async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
+    trx_id, user_id, expected_bdt, expected_crypto, wallet, network, _created_at = pending
+    net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+
+    if expected_bdt and abs(float(sms_amount_bdt) - float(expected_bdt)) > 0.01:
+        keyboard = [[
+            InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}"),
+        ]]
+        await app.bot.send_message(
+            ADMIN_ID,
+            "⚠️ bKash SMS matched a pending order, but amount is different.\n\n"
+            f"🔑 TrxID: {trx_id}\n"
+            f"👤 User: {user_id}\n"
+            f"🌐 {net_info['name']}\n"
+            f"🧾 Expected: {expected_bdt} BDT\n"
+            f"📩 SMS Received: {sms_amount_bdt} BDT\n\n"
+            "Please verify manually.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+        return
+
+    crypto_amount = expected_crypto or round(float(sms_amount_bdt) / get_rate(network), 6)
+    sufficient, current_bal = check_sufficient(network, crypto_amount)
+    if not sufficient and current_bal is not None:
+        await app.bot.send_message(
+            ADMIN_ID,
+            f"❌ Payment verified but insufficient {net_info['symbol']}.\n\n"
+            f"🔑 TrxID: {trx_id}\n"
+            f"👤 User: {user_id}\n"
+            f"💵 Need: {crypto_amount}\n"
+            f"💰 Available: {current_bal}",
+        )
+        return
+
+    try:
+        sig = await send_crypto(network, wallet, crypto_amount)
+        explorer = f"{net_info['explorer']}{sig}"
+        mark_sms_used(trx_id)
+        save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network)
+        delete_pending_order(trx_id)
+        await app.bot.send_message(
+            int(user_id),
+            f"🎉 Payment verified automatically!\n\n"
+            f"🌐 {net_info['name']}\n"
+            f"💵 {crypto_amount} {net_info['symbol']}\n"
+            f"👛 {wallet}\n"
+            f"🔗 {explorer}\n\n"
+            "Thank you!",
+        )
+        await app.bot.send_message(
+            ADMIN_ID,
+            f"✅ Auto-completed delayed bKash order.\n\n"
+            f"👤 User: {user_id}\n"
+            f"🔑 TrxID: {trx_id}\n"
+            f"🌐 {net_info['name']}\n"
+            f"💰 {sms_amount_bdt} BDT\n"
+            f"💵 {crypto_amount} {net_info['symbol']}\n"
+            f"🔗 {explorer}",
+        )
+    except Exception as exc:
+        save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network)
+        await app.bot.send_message(
+            ADMIN_ID,
+            f"🚨 Auto-complete failed after bKash SMS verification.\n\n"
+            f"👤 User: {user_id}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}\n❌ {exc}",
+        )
+        logger.error("Auto-complete pending order failed: %s", exc)
 
 
 def sms_handler(app, loop, text, sender):
@@ -1179,6 +1300,7 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
+    app.add_handler(CommandHandler("pending", pending_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(buy_conv)
