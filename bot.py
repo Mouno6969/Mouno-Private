@@ -25,7 +25,20 @@ from telegram.request import HTTPXRequest
 
 from balance import check_sufficient, get_all_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL
+from config import (
+    ADMIN_ID,
+    BKASH_NUMBER,
+    BOT_TOKEN,
+    RATE,
+    STAR_RATE,
+    SUPPORT_USERNAME,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    BSC_PRIVATE_KEY,
+    POLYGON_PRIVATE_KEY,
+    SOLANA_KEY,
+    TRON_PRIVATE_KEY,
+)
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -71,7 +84,7 @@ from db import (
 from evm_sender import send_evm_token
 from polygon_sender import send_polygon_usdc
 from sender import send_usdc
-from ton_sender import send_ton
+from ton_sender import get_ton_address, send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
 from webhook import parse_bkash_payment_notice, parse_bkash_sms, parse_nigeria_payment_notice, run_webhook, set_callback
@@ -565,6 +578,31 @@ async def send_crypto(network, wallet, amount):
     raise ValueError(f"Unsupported network: {network}")
 
 
+def get_admin_escrow_wallet(network):
+    try:
+        if network == "solana":
+            if not SOLANA_KEY:
+                return None, "SOLANA_KEY is not configured"
+            return get_wallet_address("solana", SOLANA_KEY), None
+        if network == "polygon":
+            if not POLYGON_PRIVATE_KEY:
+                return None, "POLYGON_PRIVATE_KEY is not configured"
+            return get_wallet_address("polygon", POLYGON_PRIVATE_KEY), None
+        if network in {"bsc", "avalanche", "ethereum", "ethereum_usdc", "base"}:
+            if not BSC_PRIVATE_KEY:
+                return None, "BSC_PRIVATE_KEY is not configured"
+            return get_wallet_address(network, BSC_PRIVATE_KEY), None
+        if network == "trc20":
+            if not TRON_PRIVATE_KEY:
+                return None, "TRON_PRIVATE_KEY is not configured"
+            return get_wallet_address("trc20", TRON_PRIVATE_KEY), None
+        if network == "ton":
+            return get_ton_address(), None
+        return None, f"Unsupported network: {network}"
+    except Exception as exc:
+        return None, str(exc)
+
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -739,6 +777,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         net_info = NETWORKS.get(network, {"name": network})
         await query.edit_message_text(f"💸 Crypto পাঠানো\n\n🌐 Network: {net_info['name']}\n👛 আপনার address: {row[3]}\n\nDestination wallet address দিন:\n📋 উদাহরণ: {wallet_hint(network)}")
         return SEND_W_DEST
+
+    elif query.data == "uw_gencode_menu":
+        await start_user_gencode(query, context, user_id, username, lang)
+
+    elif query.data.startswith("uw_gc_amount_"):
+        await select_user_gencode_amount(query, context, user_id, lang)
+
+    elif query.data.startswith("uw_gc_duration_"):
+        await select_user_gencode_duration(query, context, user_id, lang)
+
+    elif query.data == "uw_gc_back_amount":
+        await show_user_gencode_amount_step(query, context, user_id, lang)
+
+    elif query.data == "uw_gc_confirm":
+        await ask_user_gencode_password(query, context, user_id, lang)
+
+    elif query.data == "uw_gc_cancel":
+        context.user_data.clear()
+        await query.edit_message_text("❌ Gift code creation cancelled." if lang == "en" else "❌ Gift code তৈরি বাতিল হয়েছে।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
 
     elif query.data == "mw_delete":
         await query.edit_message_text(
@@ -1163,6 +1220,7 @@ async def show_my_wallet_menu(query, user_id):
         net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
         keyboard = [
             [InlineKeyboardButton("💰 আমার Balance", callback_data="check_mybal"), InlineKeyboardButton("💸 Crypto পাঠাও", callback_data="mw_send")],
+            [InlineKeyboardButton("🎁 Gift Code তৈরি", callback_data="uw_gencode_menu")],
             [InlineKeyboardButton("🔄 Wallet পরিবর্তন", callback_data="mw_change"), InlineKeyboardButton("🗑️ Wallet মুছো", callback_data="mw_delete")],
             [InlineKeyboardButton("📖 ব্যবহার গাইড", callback_data="show_guide")],
             [InlineKeyboardButton("🔙 ফিরে যান", callback_data="back")],
@@ -1306,6 +1364,239 @@ def gencode_duration_keyboard(lang):
             [InlineKeyboardButton(tr("back", lang), callback_data="gencode_menu")],
         ]
     )
+
+
+def user_gencode_amount_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("0.5", callback_data="uw_gc_amount_0.5"), InlineKeyboardButton("1", callback_data="uw_gc_amount_1")],
+            [InlineKeyboardButton("2", callback_data="uw_gc_amount_2"), InlineKeyboardButton("5", callback_data="uw_gc_amount_5")],
+            [InlineKeyboardButton("10", callback_data="uw_gc_amount_10"), InlineKeyboardButton(tr("custom_amount", lang), callback_data="uw_gc_amount_custom")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel"), InlineKeyboardButton(tr("back", lang), callback_data="my_wallet_menu")],
+        ]
+    )
+
+
+def user_gencode_duration_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("15 min", callback_data="uw_gc_duration_15"), InlineKeyboardButton("30 min", callback_data="uw_gc_duration_30")],
+            [InlineKeyboardButton("1 hour", callback_data="uw_gc_duration_60"), InlineKeyboardButton("6 hours", callback_data="uw_gc_duration_360")],
+            [InlineKeyboardButton("24 hours", callback_data="uw_gc_duration_1440"), InlineKeyboardButton(tr("custom_duration", lang), callback_data="uw_gc_duration_custom")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel"), InlineKeyboardButton(tr("back", lang), callback_data="uw_gc_back_amount")],
+        ]
+    )
+
+
+def gift_duration_text(minutes, lang="bn"):
+    hours, mins = divmod(int(minutes), 60)
+    if lang == "en":
+        return f"{hours}h {mins}m" if hours else f"{mins}m"
+    return f"{hours} ঘণ্টা {mins} মিনিট" if hours else f"{mins} মিনিট"
+
+
+async def start_user_gencode(query, context, user_id, username, lang):
+    row = get_user_wallet(user_id)
+    if not row:
+        context.user_data.clear()
+        await query.edit_message_text("❌ Connected wallet নেই। আগে wallet connect করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔐 Wallet সংযুক্ত করুন", callback_data="mw_setup")]]))
+        return
+    network = row[2]
+    source_wallet = row[3]
+    escrow_wallet, escrow_error = get_admin_escrow_wallet(network)
+    if not escrow_wallet:
+        context.user_data.clear()
+        net_info = NETWORKS.get(network, {"name": network})
+        await query.edit_message_text("⚠️ এই network-এর gift code funding এখন unavailable. Admin setup শেষ হলে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        try:
+            await query.get_bot().send_message(ADMIN_ID, f"⚠️ User gift-code escrow unavailable\n\n👤 @{username} ({user_id})\n🌐 {net_info['name']}\n👛 Source: {source_wallet}\nError: {escrow_error}")
+        except Exception as exc:
+            logger.error("Escrow unavailable admin notify failed: %s", exc)
+        return
+    context.user_data.clear()
+    context.user_data.update(
+        {
+            "uw_gencode_step": "amount",
+            "uw_gencode_network": network,
+            "uw_gencode_source_wallet": source_wallet,
+            "uw_gencode_escrow_wallet": escrow_wallet,
+            "uw_gencode_username": username,
+        }
+    )
+    await show_user_gencode_amount_step(query, context, user_id, lang)
+
+
+async def show_user_gencode_amount_step(query, context, user_id, lang):
+    row = get_user_wallet(user_id)
+    network = context.user_data.get("uw_gencode_network") or (row[2] if row else None)
+    if not row or not network:
+        context.user_data.clear()
+        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        return
+    net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    context.user_data["uw_gencode_step"] = "amount"
+    await query.edit_message_text(
+        f"🎁 Gift Code তৈরি\n\n🌐 Network: {net_info['name']}\n👛 Connected wallet: `{short_wallet(row[3])}`\n\nকত {net_info['symbol']} gift code করবেন?",
+        parse_mode="Markdown",
+        reply_markup=user_gencode_amount_keyboard(lang),
+    )
+
+
+async def select_user_gencode_amount(query, context, user_id, lang):
+    row = get_user_wallet(user_id)
+    if not row or not context.user_data.get("uw_gencode_network"):
+        context.user_data.clear()
+        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        return
+    value = query.data.replace("uw_gc_amount_", "", 1)
+    if value == "custom":
+        context.user_data["uw_gencode_step"] = "custom_amount"
+        await query.edit_message_text("💵 Custom amount লিখুন:\n\nশুধু সংখ্যা (যেমন: 3.5)", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+        return
+    context.user_data["uw_gencode_amount"] = float(value)
+    context.user_data["uw_gencode_step"] = "duration"
+    await query.edit_message_text("⏰ Gift code কতক্ষণ valid থাকবে?", reply_markup=user_gencode_duration_keyboard(lang))
+
+
+async def select_user_gencode_duration(query, context, user_id, lang):
+    if not get_user_wallet(user_id) or not context.user_data.get("uw_gencode_amount"):
+        context.user_data.clear()
+        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        return
+    value = query.data.replace("uw_gc_duration_", "", 1)
+    if value == "custom":
+        context.user_data["uw_gencode_step"] = "custom_duration"
+        await query.edit_message_text("⏰ Custom duration মিনিটে লিখুন:\n\nযেমন: 45", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+        return
+    context.user_data["uw_gencode_minutes"] = int(value)
+    context.user_data["uw_gencode_step"] = "summary"
+    await show_user_gencode_summary(query, context, lang)
+
+
+async def show_user_gencode_summary(target, context, lang):
+    network = context.user_data.get("uw_gencode_network")
+    amount = context.user_data.get("uw_gencode_amount")
+    minutes = context.user_data.get("uw_gencode_minutes")
+    source_wallet = context.user_data.get("uw_gencode_source_wallet")
+    escrow_wallet = context.user_data.get("uw_gencode_escrow_wallet")
+    net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    message = (
+        f"📊 Gift Code Summary\n\n"
+        f"👛 Connected wallet: `{source_wallet}`\n"
+        f"🌐 Network: {net_info['name']}\n"
+        f"💵 Amount: {amount} {net_info['symbol']}\n"
+        f"⏰ Expiry: {gift_duration_text(minutes, lang)}\n"
+        f"🏦 Escrow: `{short_wallet(escrow_wallet)}`\n\n"
+        f"⚠️ Confirm করলে আপনার connected wallet থেকে asset deduct হয়ে bot escrow-তে যাবে।\n"
+        f"🎟️ এরপর code তৈরি হবে এবং যার কাছে code থাকবে সে একবার redeem করতে পারবে।\n\n"
+        f"নিশ্চিত?"
+    )
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Confirm", callback_data="uw_gc_confirm"), InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")], [InlineKeyboardButton(tr("back", lang), callback_data="uw_gc_back_amount")]])
+    if hasattr(target, "edit_message_text"):
+        await target.edit_message_text(message, parse_mode="Markdown", reply_markup=keyboard)
+    else:
+        await target.reply_text(message, parse_mode="Markdown", reply_markup=keyboard)
+
+
+async def ask_user_gencode_password(query, context, user_id, lang):
+    if not get_user_wallet(user_id) or not all(context.user_data.get(key) for key in ["uw_gencode_network", "uw_gencode_amount", "uw_gencode_minutes", "uw_gencode_escrow_wallet"]):
+        context.user_data.clear()
+        await query.edit_message_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ফিরে যান", callback_data="my_wallet_menu")]]))
+        return
+    context.user_data["uw_gencode_step"] = "password"
+    await query.edit_message_text("🔐 Wallet Password দিন:\n\nConfirm funding করতে একবার password লাগবে।\n⚠️ Message পাঠানোর পর মুছে যাবে।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="uw_gc_cancel")]]))
+
+
+async def handle_user_gencode_text(update, context, user_id, username, lang):
+    step = context.user_data.get("uw_gencode_step")
+    if step == "custom_amount":
+        try:
+            amount = float(update.message.text.strip())
+            if amount <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("invalid_amount", lang))
+            return
+        context.user_data["uw_gencode_amount"] = amount
+        context.user_data["uw_gencode_step"] = "duration"
+        await update.message.reply_text("⏰ Gift code কতক্ষণ valid থাকবে?", reply_markup=user_gencode_duration_keyboard(lang))
+        return
+    if step == "custom_duration":
+        try:
+            minutes = int(update.message.text.strip())
+            if minutes <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("enter_custom_duration", lang))
+            return
+        context.user_data["uw_gencode_minutes"] = minutes
+        context.user_data["uw_gencode_step"] = "summary"
+        await show_user_gencode_summary(update.message, context, lang)
+        return
+    if step == "password":
+        await complete_user_gift_code(update, context, user_id, username, lang)
+
+
+async def complete_user_gift_code(update, context, user_id, username, lang):
+    password = update.message.text.strip()
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    row = get_user_wallet(user_id)
+    if not row:
+        context.user_data.clear()
+        await update.message.reply_text("❌ Wallet নেই। আবার setup করুন।")
+        return
+    network = context.user_data.get("uw_gencode_network")
+    amount = float(context.user_data.get("uw_gencode_amount", 0))
+    minutes = int(context.user_data.get("uw_gencode_minutes", 0))
+    escrow_wallet = context.user_data.get("uw_gencode_escrow_wallet")
+    source_wallet = context.user_data.get("uw_gencode_source_wallet") or row[3]
+    if not all([network, amount > 0, minutes > 0, escrow_wallet]):
+        context.user_data.clear()
+        await update.message.reply_text("❌ Session expired. Wallet menu থেকে আবার চেষ্টা করুন।")
+        return
+    net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+    code = gen_code()
+    while get_code(code):
+        code = gen_code()
+    await update.message.reply_text(f"⏳ Funding gift code...\n\n💵 {amount} {net_info['symbol']}\n🏦 Escrow: `{short_wallet(escrow_wallet)}`", parse_mode="Markdown")
+    try:
+        sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, escrow_wallet, amount))
+    except Exception as exc:
+        if "ভুল password" in str(exc) or "wrong" in str(exc).lower():
+            await update.message.reply_text("❌ ভুল Password! আবার password দিন:\n\nCode এখনো তৈরি হয়নি।")
+            context.user_data["uw_gencode_step"] = "password"
+            return
+        context.user_data.clear()
+        logger.error("User gift-code funding failed: %s", exc)
+        await update.message.reply_text(f"❌ Gift code funding ব্যর্থ!\n\n{exc}\n\nCode তৈরি হয়নি।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]))
+        return
+    expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    create_code(code, amount, expires_at, network)
+    save_transaction(f"UGIFT-FUND-{code}", user_id, 0, amount, escrow_wallet, sig, "completed", network)
+    context.user_data.clear()
+    explorer = f"{net_info.get('explorer', '')}{sig}"
+    expiry_text = gift_duration_text(minutes, lang)
+    await update.message.reply_text(
+        f"🎉 Gift code তৈরি হয়েছে!\n\n"
+        f"🎟️ Code: `{code}`\n"
+        f"🌐 Network: {net_info['name']}\n"
+        f"💵 Amount: {amount} {net_info['symbol']}\n"
+        f"⏰ Expiry: {expiry_text}\n"
+        f"🔗 Funding TX: {explorer}\n\n"
+        f"⚠️ যার কাছে এই code থাকবে সে একবার redeem করতে পারবে।",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🎁 আরেকটি তৈরি", callback_data="uw_gencode_menu"), InlineKeyboardButton("🔙 Wallet Menu", callback_data="my_wallet_menu")]]),
+    )
+    try:
+        await update.get_bot().send_message(
+            ADMIN_ID,
+            f"🎁 User-funded gift code created\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 Source: {source_wallet}\n🏦 Escrow: {escrow_wallet}\n🔗 Funding TX: {explorer}",
+        )
+    except Exception as exc:
+        logger.error("User gift-code admin notify failed: %s", exc)
 
 
 async def create_gift_code_from_context(target, context, minutes, lang):
@@ -1706,6 +1997,8 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await handle_redeem(update, context, user_id, username)
     if context.user_data.get("uw_waiting_bal_password"):
         return await handle_balance_password(update, context, user_id)
+    if context.user_data.get("uw_gencode_step") in {"custom_amount", "custom_duration", "password"}:
+        return await handle_user_gencode_text(update, context, user_id, username, lang)
     if not context.user_data.get("waiting_trxid"):
         return
 
