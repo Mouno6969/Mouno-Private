@@ -168,6 +168,87 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sellers (
+                seller_id TEXT PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                bkash_number TEXT,
+                support_contact TEXT,
+                status TEXT DEFAULT 'pending',
+                sms_token TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS seller_wallets (
+                seller_id TEXT,
+                network TEXT,
+                encrypted_key TEXT,
+                salt TEXT,
+                wallet_address TEXT,
+                enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (seller_id, network)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS seller_rates (
+                seller_id TEXT,
+                network TEXT,
+                rate REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (seller_id, network)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS seller_payment_notices (
+                seller_id TEXT,
+                trx_id TEXT,
+                amount_bdt REAL,
+                sender TEXT,
+                source TEXT,
+                raw_notice TEXT,
+                used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (seller_id, trx_id)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS seller_orders (
+                order_id TEXT PRIMARY KEY,
+                seller_id TEXT,
+                buyer_id TEXT,
+                buyer_username TEXT,
+                payment_method TEXT,
+                trx_id TEXT,
+                network TEXT,
+                wallet TEXT,
+                amount_bdt REAL,
+                amount_crypto REAL,
+                stars_amount INTEGER,
+                status TEXT,
+                tx_sig TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS seller_star_ledger (
+                ledger_id TEXT PRIMARY KEY,
+                seller_id TEXT,
+                order_id TEXT,
+                stars_amount INTEGER,
+                status TEXT DEFAULT 'pending_payout',
+                admin_note TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "transactions", "order_id", "TEXT")
         ensure_column(con, "transactions", "updated_at", "TIMESTAMP")
@@ -1003,6 +1084,262 @@ def dashboard_snapshot(limit=20):
             "profit_daily": get_profit_summary("daily"),
             "profit_weekly": get_profit_summary("weekly"),
         }
+
+
+
+def create_or_update_seller_application(seller_id, username, display_name, bkash_number, support_contact, sms_token=None):
+    seller_id = str(seller_id)
+    sms_token = sms_token or gen_order_id("ST").replace("-", "")
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO sellers (seller_id, username, display_name, bkash_number, support_contact, status, sms_token, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(seller_id) DO UPDATE SET
+                username=excluded.username,
+                display_name=excluded.display_name,
+                bkash_number=excluded.bkash_number,
+                support_contact=excluded.support_contact,
+                status=CASE WHEN sellers.status='approved' THEN sellers.status ELSE 'pending' END,
+                sms_token=COALESCE(sellers.sms_token, excluded.sms_token),
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (seller_id, username or "", display_name, bkash_number, support_contact, sms_token),
+        )
+        con.commit()
+    return get_seller(seller_id)
+
+
+def get_seller(seller_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, username, display_name, bkash_number, support_contact, status, sms_token, created_at, updated_at FROM sellers WHERE seller_id=?", (str(seller_id),)).fetchone()
+
+
+def get_seller_by_sms_token(sms_token):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, username, display_name, bkash_number, support_contact, status, sms_token, created_at, updated_at FROM sellers WHERE sms_token=?", (str(sms_token),)).fetchone()
+
+
+def list_sellers_by_status(status, limit=20):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, username, display_name, bkash_number, support_contact, status, sms_token, created_at, updated_at FROM sellers WHERE status=? ORDER BY datetime(updated_at) DESC LIMIT ?", (status, limit)).fetchall()
+
+
+def list_approved_sellers(limit=30):
+    return list_sellers_by_status("approved", limit)
+
+
+def _update_market_seller_status(seller_id, status):
+    with closing(connect()) as con:
+        con.execute("UPDATE sellers SET status=?, updated_at=CURRENT_TIMESTAMP WHERE seller_id=?", (status, str(seller_id)))
+        con.commit()
+
+
+def approve_seller(seller_id):
+    _update_market_seller_status(seller_id, "approved")
+
+
+def reject_seller(seller_id):
+    _update_market_seller_status(seller_id, "rejected")
+
+
+def disable_seller(seller_id):
+    _update_market_seller_status(seller_id, "disabled")
+
+
+def save_seller_wallet(seller_id, network, encrypted_key, salt, wallet_address):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO seller_wallets (seller_id, network, encrypted_key, salt, wallet_address, enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ON CONFLICT(seller_id, network) DO UPDATE SET
+                encrypted_key=excluded.encrypted_key,
+                salt=excluded.salt,
+                wallet_address=excluded.wallet_address,
+                enabled=1,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (str(seller_id), network, encrypted_key, salt, wallet_address),
+        )
+        con.commit()
+
+
+def get_seller_wallet(seller_id, network):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, network, encrypted_key, salt, wallet_address, enabled, created_at, updated_at FROM seller_wallets WHERE seller_id=? AND network=?", (str(seller_id), network)).fetchone()
+
+
+def list_seller_wallets(seller_id, enabled_only=False):
+    sql = "SELECT seller_id, network, encrypted_key, salt, wallet_address, enabled, created_at, updated_at FROM seller_wallets WHERE seller_id=?"
+    params = [str(seller_id)]
+    if enabled_only:
+        sql += " AND enabled=1"
+    sql += " ORDER BY network"
+    with closing(connect()) as con:
+        return con.execute(sql, params).fetchall()
+
+
+def list_enabled_seller_wallets(seller_id):
+    return list_seller_wallets(seller_id, True)
+
+
+def disable_seller_wallet(seller_id, network):
+    with closing(connect()) as con:
+        con.execute("UPDATE seller_wallets SET enabled=0, updated_at=CURRENT_TIMESTAMP WHERE seller_id=? AND network=?", (str(seller_id), network))
+        con.commit()
+
+
+def set_seller_rate(seller_id, network, rate):
+    with closing(connect()) as con:
+        if rate is None:
+            con.execute("DELETE FROM seller_rates WHERE seller_id=? AND network=?", (str(seller_id), network))
+        else:
+            con.execute(
+                """
+                INSERT INTO seller_rates (seller_id, network, rate, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(seller_id, network) DO UPDATE SET rate=excluded.rate, updated_at=CURRENT_TIMESTAMP
+                """,
+                (str(seller_id), network, float(rate)),
+            )
+        con.commit()
+
+
+def get_seller_rate(seller_id, network):
+    with closing(connect()) as con:
+        row = con.execute("SELECT rate FROM seller_rates WHERE seller_id=? AND network=?", (str(seller_id), network)).fetchone()
+        return row[0] if row else None
+
+
+def list_seller_rates(seller_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, network, rate, created_at, updated_at FROM seller_rates WHERE seller_id=? ORDER BY network", (str(seller_id),)).fetchall()
+
+
+def save_seller_payment_notice(seller_id, trx_id, amount_bdt, sender, source, raw_notice):
+    with closing(connect()) as con:
+        cur = con.execute(
+            """
+            INSERT OR IGNORE INTO seller_payment_notices
+            (seller_id, trx_id, amount_bdt, sender, source, raw_notice)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (str(seller_id), str(trx_id), amount_bdt, sender or "", source or "", raw_notice),
+        )
+        con.commit()
+        return cur.rowcount > 0
+
+
+def get_seller_payment_notice(seller_id, trx_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT seller_id, trx_id, amount_bdt, sender, source, raw_notice, used, created_at FROM seller_payment_notices WHERE seller_id=? AND trx_id=? AND used=0", (str(seller_id), str(trx_id))).fetchone()
+
+
+def mark_seller_payment_notice_used(seller_id, trx_id):
+    with closing(connect()) as con:
+        con.execute("UPDATE seller_payment_notices SET used=1 WHERE seller_id=? AND trx_id=?", (str(seller_id), str(trx_id)))
+        con.commit()
+
+
+def create_seller_order(order_id, seller_id, buyer_id, buyer_username, payment_method, network, wallet, amount_bdt, amount_crypto, stars_amount=None, status="waiting_payment", trx_id=None):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO seller_orders
+            (order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (order_id, str(seller_id), str(buyer_id), buyer_username or "", payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status),
+        )
+        con.commit()
+
+
+def get_seller_order(order_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE order_id=?", (order_id,)).fetchone()
+
+
+def get_seller_order_by_trx(seller_id, trx_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE seller_id=? AND trx_id=? ORDER BY datetime(created_at) DESC LIMIT 1", (str(seller_id), str(trx_id))).fetchone()
+
+
+def find_waiting_seller_order_by_trx(seller_id, trx_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE seller_id=? AND trx_id=? AND status IN ('waiting_payment','pending_manual','paid') ORDER BY datetime(created_at) DESC LIMIT 1", (str(seller_id), str(trx_id))).fetchone()
+
+
+def list_seller_orders(seller_id, statuses=None, limit=10):
+    params = [str(seller_id)]
+    sql = "SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE seller_id=?"
+    if statuses:
+        sql += " AND status IN (%s)" % ",".join("?" for _ in statuses)
+        params.extend(statuses)
+    sql += " ORDER BY datetime(updated_at) DESC, rowid DESC LIMIT ?"
+    params.append(limit)
+    with closing(connect()) as con:
+        return con.execute(sql, params).fetchall()
+
+
+def list_pending_seller_orders(seller_id=None, limit=20):
+    statuses = ["waiting_payment", "pending_manual", "failed"]
+    if seller_id:
+        return list_seller_orders(seller_id, statuses, limit)
+    with closing(connect()) as con:
+        return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE status IN ('waiting_payment','pending_manual','failed') ORDER BY datetime(updated_at) DESC LIMIT ?", (limit,)).fetchall()
+
+
+def update_seller_order(order_id, **fields):
+    allowed = {"trx_id", "status", "tx_sig", "error", "stars_amount", "amount_bdt", "amount_crypto"}
+    updates = []
+    values = []
+    for key, value in fields.items():
+        if key in allowed:
+            updates.append(f"{key}=?")
+            values.append(value)
+    if not updates:
+        return
+    updates.append("updated_at=CURRENT_TIMESTAMP")
+    values.append(order_id)
+    with closing(connect()) as con:
+        con.execute(f"UPDATE seller_orders SET {', '.join(updates)} WHERE order_id=?", values)
+        con.commit()
+
+
+def create_seller_star_ledger(ledger_id, seller_id, order_id, stars_amount):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT OR IGNORE INTO seller_star_ledger (ledger_id, seller_id, order_id, stars_amount, status, updated_at)
+            VALUES (?, ?, ?, ?, 'pending_payout', CURRENT_TIMESTAMP)
+            """,
+            (ledger_id, str(seller_id), order_id, int(stars_amount)),
+        )
+        con.commit()
+
+
+def list_pending_seller_payouts(limit=20):
+    with closing(connect()) as con:
+        return con.execute("SELECT ledger_id, seller_id, order_id, stars_amount, status, admin_note, created_at, updated_at FROM seller_star_ledger WHERE status='pending_payout' ORDER BY datetime(created_at) LIMIT ?", (limit,)).fetchall()
+
+
+def list_seller_star_ledger(seller_id, status=None, limit=20):
+    params = [str(seller_id)]
+    sql = "SELECT ledger_id, seller_id, order_id, stars_amount, status, admin_note, created_at, updated_at FROM seller_star_ledger WHERE seller_id=?"
+    if status:
+        sql += " AND status=?"
+        params.append(status)
+    sql += " ORDER BY datetime(created_at) DESC LIMIT ?"
+    params.append(limit)
+    with closing(connect()) as con:
+        return con.execute(sql, params).fetchall()
+
+
+def mark_seller_payout_status(ledger_id, status, admin_note=""):
+    with closing(connect()) as con:
+        con.execute("UPDATE seller_star_ledger SET status=?, admin_note=?, updated_at=CURRENT_TIMESTAMP WHERE ledger_id=?", (status, admin_note or "", ledger_id))
+        con.commit()
 
 
 init_db()
