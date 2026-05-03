@@ -24,7 +24,7 @@ from telegram.request import HTTPXRequest
 
 from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -320,6 +320,9 @@ AI_PROVIDER_LABELS = {
     "gemini": "Gemini",
     "groq": "Groq",
     "openrouter": "OpenRouter",
+    "huggingface": "Hugging Face",
+    "cohere": "Cohere",
+    "mistral": "Mistral",
 }
 
 
@@ -337,6 +340,20 @@ def ai_provider_keys():
         "gemini": GEMINI_API_KEY,
         "groq": GROQ_API_KEY,
         "openrouter": OPENROUTER_API_KEY,
+        "huggingface": HUGGINGFACE_API_KEY,
+        "cohere": COHERE_API_KEY,
+        "mistral": MISTRAL_API_KEY,
+    }
+
+
+def ai_provider_models():
+    return {
+        "gemini": GEMINI_MODEL,
+        "groq": GROQ_MODEL,
+        "openrouter": OPENROUTER_MODEL,
+        "huggingface": HUGGINGFACE_MODEL,
+        "cohere": COHERE_MODEL,
+        "mistral": MISTRAL_MODEL,
     }
 
 
@@ -426,6 +443,47 @@ def _ask_openrouter(question, lang="bn"):
     )
 
 
+def _ask_huggingface(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://router.huggingface.co/v1/chat/completions",
+        HUGGINGFACE_API_KEY,
+        HUGGINGFACE_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_cohere(question, lang="bn"):
+    headers = {"Authorization": f"Bearer {COHERE_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": COHERE_MODEL,
+        "messages": [
+            {"role": "system", "content": ai_support_prompt(lang)},
+            {"role": "user", "content": question[:3000]},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 500,
+    }
+    response = requests.post("https://api.cohere.com/v2/chat", headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    content = data.get("message", {}).get("content", [])
+    text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+    if not text:
+        raise RuntimeError("Empty AI response returned")
+    return text
+
+
+def _ask_mistral(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://api.mistral.ai/v1/chat/completions",
+        MISTRAL_API_KEY,
+        MISTRAL_MODEL,
+        question,
+        lang,
+    )
+
+
 def ask_ai_support(question, lang="bn"):
     providers = configured_ai_providers()
     if not providers:
@@ -436,30 +494,29 @@ def ask_ai_support(question, lang="bn"):
         "gemini": _ask_gemini,
         "groq": _ask_groq,
         "openrouter": _ask_openrouter,
+        "huggingface": _ask_huggingface,
+        "cohere": _ask_cohere,
+        "mistral": _ask_mistral,
     }
     tried = []
     for provider in providers:
-        tried.append(provider)
+        tried.append(AI_PROVIDER_LABELS[provider])
         try:
             return askers[provider](question, lang)
         except Exception as exc:
-            logger.warning("AI provider %s failed: %s", provider, _safe_ai_error(exc))
+            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], _safe_ai_error(exc))
     raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
 
 
 def ai_status_text():
     keys = ai_provider_keys()
-    models = {
-        "gemini": GEMINI_MODEL,
-        "groq": GROQ_MODEL,
-        "openrouter": OPENROUTER_MODEL,
-    }
+    models = ai_provider_models()
     order = ai_provider_order()
     lines = [
-        "Provider order: " + (" → ".join(order) if order else "none"),
-        "Fallback: first configured provider that succeeds",
+        "Provider order: " + (" → ".join(AI_PROVIDER_LABELS[p] for p in order) if order else "none"),
+        "Fallback: tries next configured provider if one fails/empty",
     ]
-    for provider in ("gemini", "groq", "openrouter"):
+    for provider in AI_PROVIDER_LABELS:
         status = "✅ Configured" if keys.get(provider) else "❌ Missing"
         lines.append(f"{AI_PROVIDER_LABELS[provider]}: {status} | model: {models[provider]}")
     lines.extend([
@@ -475,17 +532,23 @@ def ai_setup_text():
     return panel(
         "⚙️ AI Setup",
         "1. Edit .env\n"
-        "2. Set one or more free/free-tier keys:\n"
+        "2. Set one or more free/free-tier/trial keys (not unlimited):\n"
         "   GEMINI_API_KEY=...\n"
         "   GROQ_API_KEY=...\n"
         "   OPENROUTER_API_KEY=...\n"
+        "   HUGGINGFACE_API_KEY=... (or HF_TOKEN)\n"
+        "   COHERE_API_KEY=...\n"
+        "   MISTRAL_API_KEY=...\n"
         "3. Optional models:\n"
         "   GEMINI_MODEL=gemini-1.5-flash\n"
         f"   GROQ_MODEL={GROQ_MODEL}\n"
         f"   OPENROUTER_MODEL={OPENROUTER_MODEL}\n"
+        f"   HUGGINGFACE_MODEL={HUGGINGFACE_MODEL}\n"
+        f"   COHERE_MODEL={COHERE_MODEL}\n"
+        f"   MISTRAL_MODEL={MISTRAL_MODEL}\n"
         "4. Fallback order:\n"
-        "   AI_PROVIDER_ORDER=gemini,groq,openrouter\n"
-        "5. Restart bot. If one fails, next configured provider answers.\n\n"
+        "   AI_PROVIDER_ORDER=gemini,groq,openrouter,huggingface,cohere,mistral\n"
+        "5. Restart bot. If one fails/empty, next configured provider answers.\n\n"
         "Public user button: 🤖 AI Support\n"
         "Admin diagnostic: /aiadmin ...",
     )
