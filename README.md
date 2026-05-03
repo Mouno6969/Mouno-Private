@@ -10,7 +10,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 - Button-driven admin gift-code generation flow
 - Button-driven admin asset send flow across supported networks
 - Admin dashboard commands, backup, maintenance mode, failed-send retry, order IDs, reservations, profit tracking, audit log, gas monitor, terms/support, and gas warnings
-- AI Support button using Gemini, Groq, OpenRouter, Hugging Face, Cohere, or Mistral API keys with automatic provider fallback
+- AI Support button using Gemini, Groq, OpenRouter, Hugging Face, Cohere, or Mistral API keys with automatic provider fallback; admins can configure keys/models/order from `⚙️ AI Setup` in Telegram or via optional `.env`
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
 - Delayed-SMS pending order recovery and `/pending` admin fallback
