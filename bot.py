@@ -24,7 +24,7 @@ from telegram.request import HTTPXRequest
 
 from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -316,9 +316,58 @@ def ai_support_prompt(lang="bn"):
     )
 
 
-def ask_ai_support(question, lang="bn"):
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
+AI_PROVIDER_LABELS = {
+    "gemini": "Gemini",
+    "groq": "Groq",
+    "openrouter": "OpenRouter",
+}
+
+
+def ai_provider_order():
+    order = []
+    for provider in AI_PROVIDER_ORDER.split(","):
+        provider = provider.strip().lower()
+        if provider in AI_PROVIDER_LABELS and provider not in order:
+            order.append(provider)
+    return order
+
+
+def ai_provider_keys():
+    return {
+        "gemini": GEMINI_API_KEY,
+        "groq": GROQ_API_KEY,
+        "openrouter": OPENROUTER_API_KEY,
+    }
+
+
+def configured_ai_providers():
+    keys = ai_provider_keys()
+    return [provider for provider in ai_provider_order() if keys.get(provider)]
+
+
+def _safe_ai_error(exc):
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        return f"{type(exc).__name__} status={exc.response.status_code}"
+    if isinstance(exc, requests.RequestException):
+        return type(exc).__name__
+    return type(exc).__name__
+
+
+def _extract_openai_chat_text(data):
+    choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError("No AI response returned")
+    content = choices[0].get("message", {}).get("content", "")
+    if isinstance(content, list):
+        text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+    else:
+        text = str(content).strip()
+    if not text:
+        raise RuntimeError("Empty AI response returned")
+    return text
+
+
+def _ask_gemini(question, lang="bn"):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
     payload = {
         "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
@@ -338,16 +387,87 @@ def ask_ai_support(question, lang="bn"):
     return text
 
 
+def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None):
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    if extra_headers:
+        headers.update(extra_headers)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": ai_support_prompt(lang)},
+            {"role": "user", "content": question[:3000]},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 500,
+    }
+    response = requests.post(endpoint, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    return _extract_openai_chat_text(response.json())
+
+
+def _ask_groq(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://api.groq.com/openai/v1/chat/completions",
+        GROQ_API_KEY,
+        GROQ_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_openrouter(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://openrouter.ai/api/v1/chat/completions",
+        OPENROUTER_API_KEY,
+        OPENROUTER_MODEL,
+        question,
+        lang,
+        {"HTTP-Referer": "https://t.me/", "X-Title": "Mouno Private Telegram Bot"},
+    )
+
+
+def ask_ai_support(question, lang="bn"):
+    providers = configured_ai_providers()
+    if not providers:
+        if not any(ai_provider_keys().values()):
+            raise RuntimeError("No AI provider API key is configured")
+        raise RuntimeError("No configured AI provider is enabled in AI_PROVIDER_ORDER")
+    askers = {
+        "gemini": _ask_gemini,
+        "groq": _ask_groq,
+        "openrouter": _ask_openrouter,
+    }
+    tried = []
+    for provider in providers:
+        tried.append(provider)
+        try:
+            return askers[provider](question, lang)
+        except Exception as exc:
+            logger.warning("AI provider %s failed: %s", provider, _safe_ai_error(exc))
+    raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
+
+
 def ai_status_text():
-    key_status = "✅ Configured" if GEMINI_API_KEY else "❌ Missing"
+    keys = ai_provider_keys()
+    models = {
+        "gemini": GEMINI_MODEL,
+        "groq": GROQ_MODEL,
+        "openrouter": OPENROUTER_MODEL,
+    }
+    order = ai_provider_order()
     lines = [
-        f"GEMINI_API_KEY: {key_status}",
-        f"GEMINI_MODEL: {GEMINI_MODEL}",
+        "Provider order: " + (" → ".join(order) if order else "none"),
+        "Fallback: first configured provider that succeeds",
+    ]
+    for provider in ("gemini", "groq", "openrouter"):
+        status = "✅ Configured" if keys.get(provider) else "❌ Missing"
+        lines.append(f"{AI_PROVIDER_LABELS[provider]}: {status} | model: {models[provider]}")
+    lines.extend([
         "User AI Support button: ✅ Enabled",
         "Admin diagnostic: /aiadmin why order failed ORD-XXXXXX",
-    ]
-    if not GEMINI_API_KEY:
-        lines.append("Add GEMINI_API_KEY to .env and restart the bot.")
+    ])
+    if not any(keys.values()):
+        lines.append("Add one provider API key to .env and restart the bot.")
     return panel("🤖 AI Status", "\n".join(lines))
 
 
@@ -355,9 +475,17 @@ def ai_setup_text():
     return panel(
         "⚙️ AI Setup",
         "1. Edit .env\n"
-        "2. Set GEMINI_API_KEY=...\n"
-        "3. Optional: GEMINI_MODEL=gemini-1.5-flash\n"
-        "4. Restart the bot\n\n"
+        "2. Set one or more free/free-tier keys:\n"
+        "   GEMINI_API_KEY=...\n"
+        "   GROQ_API_KEY=...\n"
+        "   OPENROUTER_API_KEY=...\n"
+        "3. Optional models:\n"
+        "   GEMINI_MODEL=gemini-1.5-flash\n"
+        f"   GROQ_MODEL={GROQ_MODEL}\n"
+        f"   OPENROUTER_MODEL={OPENROUTER_MODEL}\n"
+        "4. Fallback order:\n"
+        "   AI_PROVIDER_ORDER=gemini,groq,openrouter\n"
+        "5. Restart bot. If one fails, next configured provider answers.\n\n"
         "Public user button: 🤖 AI Support\n"
         "Admin diagnostic: /aiadmin ...",
     )
@@ -2011,7 +2139,7 @@ async def aiadmin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     identifier = next((arg for arg in reversed(context.args) if arg.upper().startswith(("ORD", "STAR", "TEST", "PAY")) or len(arg) >= 6), context.args[-1])
     local = explain_order_failure(identifier)
-    if GEMINI_API_KEY:
+    if configured_ai_providers():
         try:
             prompt = f"Read-only admin diagnostic. Explain likely failure and next safe checks. DB context: {local}. User asked: {' '.join(context.args)}"
             local = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(prompt, "en"))
