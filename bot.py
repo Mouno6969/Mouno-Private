@@ -556,18 +556,23 @@ def record_ai_provider_result_safe(provider, success, error=None):
         logger.warning("AI stats recording failed for %s: %s", provider, type(exc).__name__)
 
 
+def _validate_ai_response_text(text):
+    text = "" if text is None else str(text).strip()
+    if not text or text.lower() in {"none", "null", "undefined", "nil", "[]", "{}"}:
+        raise RuntimeError("Empty AI response returned")
+    return text
+
+
 def _extract_openai_chat_text(data):
     choices = data.get("choices", [])
     if not choices:
         raise RuntimeError("No AI response returned")
     content = choices[0].get("message", {}).get("content", "")
     if isinstance(content, list):
-        text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+        text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
     else:
-        text = str(content).strip()
-    if not text:
-        raise RuntimeError("Empty AI response returned")
-    return text
+        text = content
+    return _validate_ai_response_text(text)
 
 
 AI_USER_MESSAGE_LIMIT = 6000
@@ -740,10 +745,8 @@ def _ask_gemini(question, lang="bn"):
     if not candidates:
         raise RuntimeError("No AI response returned")
     parts = candidates[0].get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
-        raise RuntimeError("Empty AI response returned")
-    return text
+    text = "".join(part.get("text", "") for part in parts)
+    return _validate_ai_response_text(text)
 
 
 def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None, extra_payload=None):
@@ -893,10 +896,8 @@ def _ask_cohere(question, lang="bn"):
     response.raise_for_status()
     data = response.json()
     content = data.get("message", {}).get("content", [])
-    text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
-    if not text:
-        raise RuntimeError("Empty AI response returned")
-    return text
+    text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+    return _validate_ai_response_text(text)
 
 
 def _ask_mistral(question, lang="bn"):
