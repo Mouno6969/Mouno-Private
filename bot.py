@@ -24,7 +24,7 @@ from telegram.request import HTTPXRequest
 
 from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, NVIDIA_DEEPSEEK_API_KEY, NVIDIA_DEEPSEEK_MODEL, NVIDIA_GEMMA_API_KEY, NVIDIA_GEMMA_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -317,6 +317,8 @@ def ai_support_prompt(lang="bn"):
 
 
 AI_PROVIDER_LABELS = {
+    "nvidia_deepseek": "NVIDIA DeepSeek V4 Pro",
+    "nvidia_gemma": "NVIDIA Gemma 4 31B",
     "gemini": "Gemini",
     "groq": "Groq",
     "openrouter": "OpenRouter",
@@ -326,6 +328,8 @@ AI_PROVIDER_LABELS = {
 }
 
 AI_PROVIDER_SETTING_KEYS = {
+    "nvidia_deepseek": "ai_nvidia_deepseek_api_key",
+    "nvidia_gemma": "ai_nvidia_gemma_api_key",
     "gemini": "ai_gemini_api_key",
     "groq": "ai_groq_api_key",
     "openrouter": "ai_openrouter_api_key",
@@ -341,7 +345,7 @@ def _clean_ai_key(value):
 
 
 def ai_provider_order():
-    order = []
+    order = ["nvidia_deepseek", "nvidia_gemma"]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
         if provider in AI_PROVIDER_LABELS and provider not in order:
@@ -351,6 +355,8 @@ def ai_provider_order():
 
 def ai_provider_env_keys():
     return {
+        "nvidia_deepseek": NVIDIA_DEEPSEEK_API_KEY,
+        "nvidia_gemma": NVIDIA_GEMMA_API_KEY,
         "gemini": GEMINI_API_KEY,
         "groq": GROQ_API_KEY,
         "openrouter": OPENROUTER_API_KEY,
@@ -385,6 +391,8 @@ def ai_provider_key(provider):
 
 def ai_provider_models():
     return {
+        "nvidia_deepseek": NVIDIA_DEEPSEEK_MODEL,
+        "nvidia_gemma": NVIDIA_GEMMA_MODEL,
         "gemini": GEMINI_MODEL,
         "groq": GROQ_MODEL,
         "openrouter": OPENROUTER_MODEL,
@@ -469,6 +477,26 @@ def _ask_groq(question, lang="bn"):
     )
 
 
+def _ask_nvidia_deepseek(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_deepseek"),
+        NVIDIA_DEEPSEEK_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_gemma(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_gemma"),
+        NVIDIA_GEMMA_MODEL,
+        question,
+        lang,
+    )
+
+
 def _ask_openrouter(question, lang="bn"):
     return _ask_openai_compatible(
         "https://openrouter.ai/api/v1/chat/completions",
@@ -528,6 +556,8 @@ def ask_ai_support(question, lang="bn"):
             raise RuntimeError("No AI provider API key is configured")
         raise RuntimeError("No configured AI provider is enabled in AI_PROVIDER_ORDER")
     askers = {
+        "nvidia_deepseek": _ask_nvidia_deepseek,
+        "nvidia_gemma": _ask_nvidia_gemma,
         "gemini": _ask_gemini,
         "groq": _ask_groq,
         "openrouter": _ask_openrouter,
