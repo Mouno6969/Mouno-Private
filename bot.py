@@ -24,7 +24,47 @@ from telegram.request import HTTPXRequest
 
 from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, NVIDIA_KIMI_API_KEY, NVIDIA_KIMI_MODEL, NVIDIA_DEEPSEEK_API_KEY, NVIDIA_DEEPSEEK_MODEL, NVIDIA_GEMMA_API_KEY, NVIDIA_GEMMA_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
+from config import (
+    ADMIN_ID,
+    AI_PROVIDER_ORDER,
+    BACKUP_UPLOAD_URL,
+    BKASH_NUMBER,
+    BOT_TOKEN,
+    COHERE_API_KEY,
+    COHERE_MODEL,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    HUGGINGFACE_API_KEY,
+    HUGGINGFACE_MODEL,
+    LOW_BALANCE_THRESHOLD,
+    MISTRAL_API_KEY,
+    MISTRAL_MODEL,
+    NVIDIA_DEEPSEEK_API_KEY,
+    NVIDIA_DEEPSEEK_MODEL,
+    NVIDIA_GEMMA_API_KEY,
+    NVIDIA_GEMMA_MODEL,
+    NVIDIA_KIMI_API_KEY,
+    NVIDIA_KIMI_MODEL,
+    NVIDIA_LLAMA4_SCOUT_API_KEY,
+    NVIDIA_LLAMA4_SCOUT_MODEL,
+    NVIDIA_LLAMA_8B_API_KEY,
+    NVIDIA_LLAMA_8B_MODEL,
+    NVIDIA_MISTRAL_SMALL_API_KEY,
+    NVIDIA_MISTRAL_SMALL_MODEL,
+    NVIDIA_NEMOTRON_NANO_API_KEY,
+    NVIDIA_NEMOTRON_NANO_MODEL,
+    NVIDIA_QWEN_7B_API_KEY,
+    NVIDIA_QWEN_7B_MODEL,
+    OPENROUTER_API_KEY,
+    OPENROUTER_MODEL,
+    RATE,
+    SELLER_WALLET_MASTER_KEY,
+    STAR_RATE,
+    SUPPORT_USERNAME,
+    WEBHOOK_STALE_MINUTES,
+)
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -319,28 +359,42 @@ def ai_support_prompt(lang="bn"):
 
 
 AI_PROVIDER_LABELS = {
-    "nvidia_kimi": "NVIDIA Kimi K2.6",
-    "nvidia_deepseek": "NVIDIA DeepSeek V4 Pro",
-    "nvidia_gemma": "NVIDIA Gemma 4 31B",
-    "gemini": "Gemini",
+    "nvidia_llama_8b": "NVIDIA Llama 3.1 8B",
+    "nvidia_qwen_7b": "NVIDIA Qwen2 7B",
+    "nvidia_mistral_small": "NVIDIA Mistral Small 24B",
+    "nvidia_nemotron_nano": "NVIDIA Nemotron Nano 8B",
+    "nvidia_llama4_scout": "NVIDIA Llama 4 Scout",
     "groq": "Groq",
     "openrouter": "OpenRouter",
+    "gemini": "Gemini",
     "huggingface": "Hugging Face",
     "cohere": "Cohere",
     "mistral": "Mistral",
+    "nvidia_kimi": "NVIDIA Kimi K2.6",
+    "nvidia_deepseek": "NVIDIA DeepSeek V4 Pro",
+    "nvidia_gemma": "NVIDIA Gemma 4 31B",
 }
 
 AI_PROVIDER_SETTING_KEYS = {
-    "nvidia_kimi": "ai_nvidia_kimi_api_key",
-    "nvidia_deepseek": "ai_nvidia_deepseek_api_key",
-    "nvidia_gemma": "ai_nvidia_gemma_api_key",
-    "gemini": "ai_gemini_api_key",
+    "nvidia_llama_8b": "ai_nvidia_llama_8b_api_key",
+    "nvidia_qwen_7b": "ai_nvidia_qwen_7b_api_key",
+    "nvidia_mistral_small": "ai_nvidia_mistral_small_api_key",
+    "nvidia_nemotron_nano": "ai_nvidia_nemotron_nano_api_key",
+    "nvidia_llama4_scout": "ai_nvidia_llama4_scout_api_key",
     "groq": "ai_groq_api_key",
     "openrouter": "ai_openrouter_api_key",
+    "gemini": "ai_gemini_api_key",
     "huggingface": "ai_huggingface_api_key",
     "cohere": "ai_cohere_api_key",
     "mistral": "ai_mistral_api_key",
+    "nvidia_kimi": "ai_nvidia_kimi_api_key",
+    "nvidia_deepseek": "ai_nvidia_deepseek_api_key",
+    "nvidia_gemma": "ai_nvidia_gemma_api_key",
 }
+
+FAST_NVIDIA_PROVIDER_ORDER = ["nvidia_llama_8b", "nvidia_qwen_7b", "nvidia_mistral_small", "nvidia_nemotron_nano", "nvidia_llama4_scout"]
+STANDARD_PROVIDER_ORDER = ["groq", "openrouter", "gemini", "huggingface", "cohere", "mistral"]
+SLOW_NVIDIA_PROVIDER_ORDER = ["nvidia_kimi", "nvidia_deepseek", "nvidia_gemma"]
 
 
 def _clean_ai_key(value):
@@ -349,9 +403,13 @@ def _clean_ai_key(value):
 
 
 def ai_provider_order():
-    order = ["nvidia_kimi", "nvidia_deepseek", "nvidia_gemma"]
+    base_order = FAST_NVIDIA_PROVIDER_ORDER + STANDARD_PROVIDER_ORDER
+    order = [provider for provider in base_order if provider in AI_PROVIDER_LABELS]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
+        if provider in AI_PROVIDER_LABELS and provider not in order and provider not in SLOW_NVIDIA_PROVIDER_ORDER:
+            order.append(provider)
+    for provider in SLOW_NVIDIA_PROVIDER_ORDER:
         if provider in AI_PROVIDER_LABELS and provider not in order:
             order.append(provider)
     return order
@@ -359,15 +417,20 @@ def ai_provider_order():
 
 def ai_provider_env_keys():
     return {
-        "nvidia_kimi": NVIDIA_KIMI_API_KEY,
-        "nvidia_deepseek": NVIDIA_DEEPSEEK_API_KEY,
-        "nvidia_gemma": NVIDIA_GEMMA_API_KEY,
-        "gemini": GEMINI_API_KEY,
+        "nvidia_llama_8b": NVIDIA_LLAMA_8B_API_KEY,
+        "nvidia_qwen_7b": NVIDIA_QWEN_7B_API_KEY,
+        "nvidia_mistral_small": NVIDIA_MISTRAL_SMALL_API_KEY,
+        "nvidia_nemotron_nano": NVIDIA_NEMOTRON_NANO_API_KEY,
+        "nvidia_llama4_scout": NVIDIA_LLAMA4_SCOUT_API_KEY,
         "groq": GROQ_API_KEY,
         "openrouter": OPENROUTER_API_KEY,
+        "gemini": GEMINI_API_KEY,
         "huggingface": HUGGINGFACE_API_KEY,
         "cohere": COHERE_API_KEY,
         "mistral": MISTRAL_API_KEY,
+        "nvidia_kimi": NVIDIA_KIMI_API_KEY,
+        "nvidia_deepseek": NVIDIA_DEEPSEEK_API_KEY,
+        "nvidia_gemma": NVIDIA_GEMMA_API_KEY,
     }
 
 
@@ -396,15 +459,20 @@ def ai_provider_key(provider):
 
 def ai_provider_models():
     return {
-        "nvidia_kimi": NVIDIA_KIMI_MODEL,
-        "nvidia_deepseek": NVIDIA_DEEPSEEK_MODEL,
-        "nvidia_gemma": NVIDIA_GEMMA_MODEL,
-        "gemini": GEMINI_MODEL,
+        "nvidia_llama_8b": NVIDIA_LLAMA_8B_MODEL,
+        "nvidia_qwen_7b": NVIDIA_QWEN_7B_MODEL,
+        "nvidia_mistral_small": NVIDIA_MISTRAL_SMALL_MODEL,
+        "nvidia_nemotron_nano": NVIDIA_NEMOTRON_NANO_MODEL,
+        "nvidia_llama4_scout": NVIDIA_LLAMA4_SCOUT_MODEL,
         "groq": GROQ_MODEL,
         "openrouter": OPENROUTER_MODEL,
+        "gemini": GEMINI_MODEL,
         "huggingface": HUGGINGFACE_MODEL,
         "cohere": COHERE_MODEL,
         "mistral": MISTRAL_MODEL,
+        "nvidia_kimi": NVIDIA_KIMI_MODEL,
+        "nvidia_deepseek": NVIDIA_DEEPSEEK_MODEL,
+        "nvidia_gemma": NVIDIA_GEMMA_MODEL,
     }
 
 
@@ -487,6 +555,56 @@ def _ask_groq(question, lang="bn"):
         "https://api.groq.com/openai/v1/chat/completions",
         ai_provider_key("groq"),
         GROQ_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_llama_8b(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_llama_8b"),
+        NVIDIA_LLAMA_8B_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_qwen_7b(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_qwen_7b"),
+        NVIDIA_QWEN_7B_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_mistral_small(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_mistral_small"),
+        NVIDIA_MISTRAL_SMALL_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_nemotron_nano(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_nemotron_nano"),
+        NVIDIA_NEMOTRON_NANO_MODEL,
+        question,
+        lang,
+    )
+
+
+def _ask_nvidia_llama4_scout(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_llama4_scout"),
+        NVIDIA_LLAMA4_SCOUT_MODEL,
         question,
         lang,
     )
@@ -582,15 +700,20 @@ def ask_ai_support(question, lang="bn"):
             raise RuntimeError("No AI provider API key is configured")
         raise RuntimeError("No configured AI provider is enabled in AI_PROVIDER_ORDER")
     askers = {
-        "nvidia_kimi": _ask_nvidia_kimi,
-        "nvidia_deepseek": _ask_nvidia_deepseek,
-        "nvidia_gemma": _ask_nvidia_gemma,
-        "gemini": _ask_gemini,
+        "nvidia_llama_8b": _ask_nvidia_llama_8b,
+        "nvidia_qwen_7b": _ask_nvidia_qwen_7b,
+        "nvidia_mistral_small": _ask_nvidia_mistral_small,
+        "nvidia_nemotron_nano": _ask_nvidia_nemotron_nano,
+        "nvidia_llama4_scout": _ask_nvidia_llama4_scout,
         "groq": _ask_groq,
         "openrouter": _ask_openrouter,
+        "gemini": _ask_gemini,
         "huggingface": _ask_huggingface,
         "cohere": _ask_cohere,
         "mistral": _ask_mistral,
+        "nvidia_kimi": _ask_nvidia_kimi,
+        "nvidia_deepseek": _ask_nvidia_deepseek,
+        "nvidia_gemma": _ask_nvidia_gemma,
     }
     tried = []
     for provider in providers:
