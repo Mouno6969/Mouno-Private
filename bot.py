@@ -325,6 +325,20 @@ AI_PROVIDER_LABELS = {
     "mistral": "Mistral",
 }
 
+AI_PROVIDER_SETTING_KEYS = {
+    "gemini": "ai_gemini_api_key",
+    "groq": "ai_groq_api_key",
+    "openrouter": "ai_openrouter_api_key",
+    "huggingface": "ai_huggingface_api_key",
+    "cohere": "ai_cohere_api_key",
+    "mistral": "ai_mistral_api_key",
+}
+
+
+def _clean_ai_key(value):
+    value = str(value or "").strip()
+    return value or None
+
 
 def ai_provider_order():
     order = []
@@ -335,7 +349,7 @@ def ai_provider_order():
     return order
 
 
-def ai_provider_keys():
+def ai_provider_env_keys():
     return {
         "gemini": GEMINI_API_KEY,
         "groq": GROQ_API_KEY,
@@ -344,6 +358,29 @@ def ai_provider_keys():
         "cohere": COHERE_API_KEY,
         "mistral": MISTRAL_API_KEY,
     }
+
+
+def ai_provider_key_sources():
+    env_keys = ai_provider_env_keys()
+    sources = {}
+    for provider, setting_key in AI_PROVIDER_SETTING_KEYS.items():
+        db_key = _clean_ai_key(get_setting(setting_key))
+        env_key = _clean_ai_key(env_keys.get(provider))
+        if db_key:
+            sources[provider] = (db_key, "bot")
+        elif env_key:
+            sources[provider] = (env_key, "env")
+        else:
+            sources[provider] = (None, None)
+    return sources
+
+
+def ai_provider_keys():
+    return {provider: key for provider, (key, _source) in ai_provider_key_sources().items()}
+
+
+def ai_provider_key(provider):
+    return ai_provider_keys().get(provider)
 
 
 def ai_provider_models():
@@ -391,7 +428,7 @@ def _ask_gemini(question, lang="bn"):
         "contents": [{"role": "user", "parts": [{"text": question[:3000]}]}],
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
     }
-    response = requests.post(url, params={"key": GEMINI_API_KEY}, json=payload, timeout=30)
+    response = requests.post(url, params={"key": ai_provider_key("gemini")}, json=payload, timeout=30)
     response.raise_for_status()
     data = response.json()
     candidates = data.get("candidates", [])
@@ -425,7 +462,7 @@ def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_
 def _ask_groq(question, lang="bn"):
     return _ask_openai_compatible(
         "https://api.groq.com/openai/v1/chat/completions",
-        GROQ_API_KEY,
+        ai_provider_key("groq"),
         GROQ_MODEL,
         question,
         lang,
@@ -435,7 +472,7 @@ def _ask_groq(question, lang="bn"):
 def _ask_openrouter(question, lang="bn"):
     return _ask_openai_compatible(
         "https://openrouter.ai/api/v1/chat/completions",
-        OPENROUTER_API_KEY,
+        ai_provider_key("openrouter"),
         OPENROUTER_MODEL,
         question,
         lang,
@@ -446,7 +483,7 @@ def _ask_openrouter(question, lang="bn"):
 def _ask_huggingface(question, lang="bn"):
     return _ask_openai_compatible(
         "https://router.huggingface.co/v1/chat/completions",
-        HUGGINGFACE_API_KEY,
+        ai_provider_key("huggingface"),
         HUGGINGFACE_MODEL,
         question,
         lang,
@@ -454,7 +491,7 @@ def _ask_huggingface(question, lang="bn"):
 
 
 def _ask_cohere(question, lang="bn"):
-    headers = {"Authorization": f"Bearer {COHERE_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {ai_provider_key('cohere')}", "Content-Type": "application/json"}
     payload = {
         "model": COHERE_MODEL,
         "messages": [
@@ -477,7 +514,7 @@ def _ask_cohere(question, lang="bn"):
 def _ask_mistral(question, lang="bn"):
     return _ask_openai_compatible(
         "https://api.mistral.ai/v1/chat/completions",
-        MISTRAL_API_KEY,
+        ai_provider_key("mistral"),
         MISTRAL_MODEL,
         question,
         lang,
@@ -508,50 +545,68 @@ def ask_ai_support(question, lang="bn"):
     raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
 
 
+def ai_status_lines():
+    sources = ai_provider_key_sources()
+    models = ai_provider_models()
+    lines = []
+    for provider in AI_PROVIDER_LABELS:
+        _key, source = sources[provider]
+        if source == "bot":
+            status = "✅ Bot setup"
+        elif source == "env":
+            status = "✅ .env"
+        else:
+            status = "❌ Missing"
+        lines.append(f"{AI_PROVIDER_LABELS[provider]}: {status} | model: {models[provider]}")
+    return lines
+
+
 def ai_status_text():
     keys = ai_provider_keys()
-    models = ai_provider_models()
     order = ai_provider_order()
     lines = [
         "Provider order: " + (" → ".join(AI_PROVIDER_LABELS[p] for p in order) if order else "none"),
         "Fallback: tries next configured provider if one fails/empty",
-    ]
-    for provider in AI_PROVIDER_LABELS:
-        status = "✅ Configured" if keys.get(provider) else "❌ Missing"
-        lines.append(f"{AI_PROVIDER_LABELS[provider]}: {status} | model: {models[provider]}")
-    lines.extend([
+        *ai_status_lines(),
         "User AI Support button: ✅ Enabled",
         "Admin diagnostic: /aiadmin why order failed ORD-XXXXXX",
-    ])
+    ]
     if not any(keys.values()):
-        lines.append("Add one provider API key to .env and restart the bot.")
+        lines.append("Admin Menu → ⚙️ AI Setup থেকে key দিন, অথবা .env key সেট করে restart করুন।")
     return panel("🤖 AI Status", "\n".join(lines))
 
 
 def ai_setup_text():
-    return panel(
-        "⚙️ AI Setup",
-        "1. Edit .env\n"
-        "2. Set one or more free/free-tier/trial keys (not unlimited):\n"
-        "   GEMINI_API_KEY=...\n"
-        "   GROQ_API_KEY=...\n"
-        "   OPENROUTER_API_KEY=...\n"
-        "   HUGGINGFACE_API_KEY=... (or HF_TOKEN)\n"
-        "   COHERE_API_KEY=...\n"
-        "   MISTRAL_API_KEY=...\n"
-        "3. Optional models:\n"
-        "   GEMINI_MODEL=gemini-1.5-flash\n"
-        f"   GROQ_MODEL={GROQ_MODEL}\n"
-        f"   OPENROUTER_MODEL={OPENROUTER_MODEL}\n"
-        f"   HUGGINGFACE_MODEL={HUGGINGFACE_MODEL}\n"
-        f"   COHERE_MODEL={COHERE_MODEL}\n"
-        f"   MISTRAL_MODEL={MISTRAL_MODEL}\n"
-        "4. Fallback order:\n"
-        "   AI_PROVIDER_ORDER=gemini,groq,openrouter,huggingface,cohere,mistral\n"
-        "5. Restart bot. If one fails/empty, next configured provider answers.\n\n"
-        "Public user button: 🤖 AI Support\n"
-        "Admin diagnostic: /aiadmin ...",
-    )
+    order = ai_provider_order()
+    lines = [
+        "Provider button চাপুন, তারপর শুধু API key পাঠান।",
+        "Bot setup key সাথে সাথে SQLite-এ save হবে; restart লাগবে না।",
+        ".env key এখনও কাজ করবে; Bot setup key থাকলে সেটাই আগে ব্যবহার হবে।",
+        "Full key কখনো status-এ দেখানো হবে না।",
+        "",
+        "Current status:",
+        *ai_status_lines(),
+        "",
+        "Fallback order: " + (" → ".join(AI_PROVIDER_LABELS[p] for p in order) if order else "none"),
+    ]
+    return panel("⚙️ AI Setup", "\n".join(lines))
+
+
+def ai_setup_keyboard(lang="bn"):
+    providers = list(AI_PROVIDER_LABELS.items())
+    keyboard = []
+    for idx in range(0, len(providers), 2):
+        keyboard.append([
+            InlineKeyboardButton(label, callback_data=f"ai_setup_{provider}")
+            for provider, label in providers[idx:idx + 2]
+        ])
+    keyboard.append([InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="ai_setup_cancel"), InlineKeyboardButton(tr("back", lang), callback_data="back")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def ai_setup_provider_prompt(provider):
+    label = AI_PROVIDER_LABELS[provider]
+    return panel("🔑 AI API Key", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।")
 
 
 def user_lang(user_id) -> str:
@@ -1521,7 +1576,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_setup":
         if not is_admin(user_id):
             return ConversationHandler.END
-        await query.edit_message_text(ai_setup_text(), reply_markup=back_keyboard(lang))
+        context.user_data.pop("ai_setup_provider", None)
+        await query.edit_message_text(ai_setup_text(), reply_markup=ai_setup_keyboard(lang))
+
+    elif query.data.startswith("ai_setup_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider = query.data.replace("ai_setup_", "", 1)
+        if provider == "cancel":
+            context.user_data.pop("ai_setup_provider", None)
+            await query.edit_message_text(ai_setup_text(), reply_markup=ai_setup_keyboard(lang))
+            return ConversationHandler.END
+        if provider not in AI_PROVIDER_LABELS:
+            return ConversationHandler.END
+        context.user_data["ai_setup_provider"] = provider
+        await query.edit_message_text(ai_setup_provider_prompt(provider), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="ai_setup_cancel")]]))
 
     elif query.data == "admin_payouts":
         if not is_admin(user_id):
@@ -1876,6 +1945,20 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     context.user_data["ai_support"] = True
     await update.message.reply_text(tr("ai_support_intro", lang))
+
+
+async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
+    if context.user_data.get("ai_setup_provider"):
+        context.user_data.pop("ai_setup_provider", None)
+        await update.message.reply_text("✅ AI Setup cancelled." if lang == "en" else "✅ AI Setup বাতিল হয়েছে।", reply_markup=ai_setup_keyboard(lang))
+        return ConversationHandler.END
+    if context.user_data.get("ai_support"):
+        context.user_data.clear()
+        await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
+        return ConversationHandler.END
+    await update.message.reply_text("✅ Cancelled." if lang == "en" else "✅ বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
+    return ConversationHandler.END
 
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2933,6 +3016,34 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await create_payout_from_text(update, user_id, incoming_text)
         return
 
+    setup_provider = context.user_data.get("ai_setup_provider")
+    if setup_provider:
+        if not is_admin(user_id):
+            context.user_data.pop("ai_setup_provider", None)
+            return
+        text = incoming_text.strip()
+        if text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+            context.user_data.pop("ai_setup_provider", None)
+            await update.message.reply_text("✅ AI Setup cancelled." if lang == "en" else "✅ AI Setup বাতিল হয়েছে।", reply_markup=ai_setup_keyboard(lang))
+            return
+        if setup_provider not in AI_PROVIDER_SETTING_KEYS:
+            context.user_data.pop("ai_setup_provider", None)
+            await update.message.reply_text("❌ Invalid AI provider.", reply_markup=ai_setup_keyboard(lang))
+            return
+        api_key = _clean_ai_key(text)
+        if not api_key or len(api_key) < 12:
+            await update.message.reply_text("❌ API key খুব ছোট/খালি। সঠিক key পাঠান, অথবা /cancel লিখুন।", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="ai_setup_cancel")]]))
+            return
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        set_setting(AI_PROVIDER_SETTING_KEYS[setup_provider], api_key)
+        context.user_data.pop("ai_setup_provider", None)
+        add_audit(user_id, "ai_api_key_updated", "ai_provider", setup_provider, "configured via bot setup")
+        await update.message.reply_text(f"✅ {AI_PROVIDER_LABELS[setup_provider]} API key saved. Restart লাগবে না।\n\n{ai_setup_text()}", reply_markup=ai_setup_keyboard(lang))
+        return
+
     if context.user_data.get("ai_support"):
         text = incoming_text
         if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
@@ -3713,6 +3824,7 @@ async def main():
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_star_payment))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid))
+    app.add_handler(CommandHandler("cancel", cancel_cmd), group=1)
 
     await app.initialize()
     await app.start()

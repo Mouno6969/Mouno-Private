@@ -11,6 +11,7 @@ Organized Python source for a Telegram crypto seller bot recovered from Termux `
 - Button-driven admin asset send flow across supported networks
 - Admin dashboard commands, backup, maintenance mode, failed-send retry, order IDs, reservations, profit tracking, audit log, gas monitor, terms/support, and gas warnings
 - AI Support button using Gemini, Groq, OpenRouter, Hugging Face, Cohere, or Mistral API keys with automatic provider fallback
+- Admin Menu → ⚙️ AI Setup can save AI API keys at runtime from inside Telegram; useful for Termux/main branch runs without editing `.env` or restarting
 - SQLite persistence in `db.py`
 - bKash SMS webhook parser in `webhook.py`
 - Delayed-SMS pending order recovery and `/pending` admin fallback
@@ -50,5 +51,6 @@ The bot starts Telegram polling and a Flask webhook on port `5000` for `/sms`.
 - `LOW_BALANCE_THRESHOLD` and optional `LOW_BALANCE_THRESHOLD_NETWORK` values control low-stock warnings. `LOW_GAS_THRESHOLD_*` controls gas monitor thresholds. `WEBHOOK_STALE_MINUTES` controls bKash webhook health.
 - Flask `/admin` and `/dashboard` provide a minimal protected dashboard when `DASHBOARD_TOKEN` or `ADMIN_WEB_TOKEN` is set. Pass the token with `?token=` or `X-Dashboard-Token`.
 - Daily admin report and database backup are sent near local midnight. Optional `BACKUP_UPLOAD_URL` can receive the backup file; no Google OAuth flow is bundled.
+- Admins can configure AI API keys from Admin Menu → ⚙️ AI Setup; keys saved this way are stored in local SQLite `mouno.db` and take effect immediately. `.env` AI keys remain supported as fallback/configuration.
 - Runtime files such as `mouno.db`, `bot.log`, `rate.json`, and `.env` are ignored.
 - Obvious Termux copy/paste formatting issues were corrected while preserving the project structure and behavior.
