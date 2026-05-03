@@ -421,6 +421,13 @@ def _safe_ai_error(exc):
     return type(exc).__name__
 
 
+def record_ai_provider_result_safe(provider, success, error=None):
+    try:
+        record_ai_provider_result(provider, success, error)
+    except Exception as exc:
+        logger.warning("AI stats recording failed for %s: %s", provider, type(exc).__name__)
+
+
 def _extract_openai_chat_text(data):
     choices = data.get("choices", [])
     if not choices:
@@ -590,11 +597,12 @@ def ask_ai_support(question, lang="bn"):
         tried.append(AI_PROVIDER_LABELS[provider])
         try:
             answer = askers[provider](question, lang)
-            record_ai_provider_result(provider, True)
+            record_ai_provider_result_safe(provider, True)
             return answer
         except Exception as exc:
-            record_ai_provider_result(provider, False, _safe_ai_error(exc))
-            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], _safe_ai_error(exc))
+            safe_error = _safe_ai_error(exc)
+            record_ai_provider_result_safe(provider, False, safe_error)
+            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
     raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
 
 
