@@ -577,6 +577,7 @@ def _extract_openai_chat_text(data):
 
 AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
+AI_PROVIDER_TIMEOUT_SECONDS = 1.5
 
 
 def sanitize_diagnostic_text(value):
@@ -738,7 +739,7 @@ def _ask_gemini(question, lang="bn"):
         "contents": [{"role": "user", "parts": [{"text": question[:AI_USER_MESSAGE_LIMIT]}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 850},
     }
-    response = requests.post(url, params={"key": ai_provider_key("gemini")}, json=payload, timeout=30)
+    response = requests.post(url, params={"key": ai_provider_key("gemini")}, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
     response.raise_for_status()
     data = response.json()
     candidates = data.get("candidates", [])
@@ -764,7 +765,7 @@ def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_
     }
     if extra_payload:
         payload.update(extra_payload)
-    response = requests.post(endpoint, headers=headers, json=payload, timeout=30)
+    response = requests.post(endpoint, headers=headers, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
     response.raise_for_status()
     return _extract_openai_chat_text(response.json())
 
@@ -892,7 +893,7 @@ def _ask_cohere(question, lang="bn"):
         "temperature": 0.2,
         "max_tokens": 850,
     }
-    response = requests.post("https://api.cohere.com/v2/chat", headers=headers, json=payload, timeout=30)
+    response = requests.post("https://api.cohere.com/v2/chat", headers=headers, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
     response.raise_for_status()
     data = response.json()
     content = data.get("message", {}).get("content", [])
@@ -945,6 +946,30 @@ def ask_ai_support(question, lang="bn", context=None):
             record_ai_provider_result_safe(provider, False, safe_error)
             logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
     raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
+
+
+async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending_token, user_data):
+    try:
+        loop = asyncio.get_running_loop()
+        answer = await loop.run_in_executor(
+            None,
+            lambda: ask_ai_support(
+                question,
+                lang,
+                build_ai_support_context(question, user_id, lang, admin=is_admin(user_id)),
+            ),
+        )
+    except Exception as exc:
+        logger.error("AI support failed: %s", exc)
+        answer = tr("ai_unavailable", lang)
+    try:
+        if user_data.get("ai_support") and user_data.get("ai_support_pending") == pending_token:
+            await bot.send_message(chat_id=chat_id, text=answer)
+    except Exception as exc:
+        logger.error("AI support answer send failed: %s", exc)
+    finally:
+        if user_data.get("ai_support_pending") == pending_token:
+            user_data.pop("ai_support_pending", None)
 
 
 def ai_status_lines():
@@ -3701,14 +3726,20 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.clear()
             await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(user_id, lang))
             return
+        if context.user_data.get("ai_support_pending"):
+            await update.message.reply_text(
+                "⏳ Previous AI answer is still being prepared. Please wait a moment."
+                if lang == "en"
+                else "⏳ আগের AI উত্তর এখনও তৈরি হচ্ছে। একটু অপেক্ষা করুন।"
+            )
+            return AI_SUPPORT
+        pending_token = secrets.token_hex(8)
+        context.user_data["ai_support_pending"] = pending_token
         await update.message.reply_text(tr("ai_thinking", lang))
-        try:
-            ai_context = build_ai_support_context(text, user_id, lang, admin=is_admin(user_id))
-            answer = await asyncio.get_running_loop().run_in_executor(None, lambda: ask_ai_support(text, lang, ai_context))
-        except Exception as exc:
-            logger.error("AI support failed: %s", exc)
-            answer = tr("ai_unavailable", lang)
-        await update.message.reply_text(answer)
+        chat_id = update.effective_chat.id if update.effective_chat else update.message.chat_id
+        context.application.create_task(
+            _send_ai_support_answer(context.bot, chat_id, user_id, text, lang, pending_token, context.user_data)
+        )
         return AI_SUPPORT
 
     if context.user_data.get("waiting_seller_trxid"):
