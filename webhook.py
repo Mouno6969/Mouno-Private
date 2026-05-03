@@ -4,7 +4,7 @@ from html import escape
 
 from flask import Flask, jsonify, request
 
-from balance import get_all_balances
+from balance import get_all_balances, get_native_gas_balances
 from config import DASHBOARD_TOKEN
 from db import dashboard_snapshot, get_webhook_health, touch_webhook_notice
 
@@ -137,6 +137,10 @@ def dashboard():
         balances, _evm = get_all_balances()
     except Exception as exc:
         balances = {"error": str(exc)}
+    try:
+        gas_balances = get_native_gas_balances()
+    except Exception as exc:
+        gas_balances = {"error": str(exc)}
 
     def table(headers, rows):
         body = "".join("<tr>" + "".join(f"<td>{escape(str(cell))}</td>" for cell in row) + "</tr>" for row in rows)
@@ -149,8 +153,12 @@ def dashboard():
     <h1>Mouno Admin Dashboard</h1>
     <div class='card'><h2>Webhook</h2><p>Last notice: <code>{escape(str(health.get('last_notice_at')))}</code> Source: <code>{escape(str(health.get('source')))}</code> TrxID: <code>{escape(str(health.get('trx_id')))}</code></p></div>
     <div class='card'><h2>Balances</h2><pre>{escape(str(balances))}</pre></div>
-    <h2>Recent Orders</h2>{table(['trx_id','order_id','user_id','bdt','crypto','network','status','created'], snap['transactions'])}
+    <div class='card'><h2>Gas</h2><pre>{escape(str(gas_balances))}</pre></div>
+    <div class='card'><h2>Profit</h2><pre>Daily: {escape(str(snap['profit_daily']['overall']))}\nWeekly: {escape(str(snap['profit_weekly']['overall']))}</pre></div>
+    <h2>Recent Orders</h2>{table(['trx_id','order_id','user_id','bdt','crypto','network','status','profit','source','created'], snap['transactions'])}
     <h2>Pending Orders</h2>{table(['trx_id','user_id','bdt','crypto','wallet','network','created','order_id'], snap['pending'])}
+    <h2>Reservations</h2>{table(['id','order_id','trx_id','user_id','seller_id','network','crypto','status','reason','created','expires','updated'], snap['reservations'])}
+    <h2>Audit Log</h2>{table(['id','actor','action','target_type','target_id','details','created'], snap['audit'])}
     <h2>Sellers</h2>{table(['user_id','status','updated'], snap['sellers'])}
     <h2>Payouts</h2>{table(['id','order_id','user_id','amount','method','details','status','note','created','updated'], snap['payouts'])}
     </body></html>
