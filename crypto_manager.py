@@ -10,6 +10,14 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 DB_PATH = os.path.join(os.path.dirname(__file__), "mouno.db")
 
 
+def _seller_master_key():
+    from config import SELLER_WALLET_MASTER_KEY
+
+    if not SELLER_WALLET_MASTER_KEY:
+        raise RuntimeError("SELLER_WALLET_MASTER_KEY is not configured. Admin must set it in .env before seller automated delivery can be enabled.")
+    return SELLER_WALLET_MASTER_KEY
+
+
 def init_user_wallets():
     with closing(sqlite3.connect(DB_PATH)) as con:
         con.execute(
@@ -43,6 +51,14 @@ def decrypt_key(encrypted_key: str, salt: str, password: str) -> str:
     salt_bytes = base64.b64decode(salt)
     enc_bytes = base64.b64decode(encrypted_key)
     return make_fernet(password, salt_bytes).decrypt(enc_bytes).decode()
+
+
+def encrypt_seller_key(private_key: str) -> tuple[str, str]:
+    return encrypt_key(private_key, _seller_master_key())
+
+
+def decrypt_seller_key(encrypted_key: str, salt: str) -> str:
+    return decrypt_key(encrypted_key, salt, _seller_master_key())
 
 
 def save_user_wallet(user_id, encrypted_key, salt, network, wallet_address):
@@ -132,6 +148,27 @@ def send_from_user_wallet(user_id, password, dest_wallet, amount):
     if network == "trc20":
         return _send_trc20_usdt(private_key, dest_wallet, amount)
     return _send_evm_token(private_key, network, dest_wallet, amount)
+
+
+def send_with_private_key(network, private_key, dest_wallet, amount):
+    if network == "solana":
+        return _send_solana_usdc(private_key, dest_wallet, amount)
+    if network == "trc20":
+        return _send_trc20_usdt(private_key, dest_wallet, amount)
+    if network == "ton":
+        raise RuntimeError("TON seller automated delivery is not supported by private-key helper yet.")
+    return _send_evm_token(private_key, network, dest_wallet, amount)
+
+
+def send_from_seller_wallet(seller_id, network, dest_wallet, amount):
+    from db import get_seller_wallet
+
+    row = get_seller_wallet(seller_id, network)
+    if not row or not row[5]:
+        raise RuntimeError("Seller delivery wallet is not enabled for this network.")
+    _seller_id, _network, encrypted_key, salt, _wallet_address, _enabled, *_rest = row
+    private_key = decrypt_seller_key(encrypted_key, salt)
+    return send_with_private_key(network, private_key, dest_wallet, amount)
 
 
 def _send_solana_usdc(private_key, dest_wallet, amount):
