@@ -7,8 +7,10 @@ The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 Set one or more free/free-tier provider keys in `.env`:
 
 ```env
-AI_PROVIDER_ORDER=nvidia_deepseek,nvidia_gemma,gemini,groq,openrouter,huggingface,cohere,mistral
+AI_PROVIDER_ORDER=nvidia_kimi,nvidia_deepseek,nvidia_gemma,gemini,groq,openrouter,huggingface,cohere,mistral
 NVIDIA_API_KEY=your_nvidia_build_nim_key
+NVIDIA_KIMI_API_KEY=
+NVIDIA_KIMI_MODEL=moonshotai/kimi-k2.6
 NVIDIA_DEEPSEEK_API_KEY=
 NVIDIA_DEEPSEEK_MODEL=deepseek-ai/deepseek-v4-pro
 NVIDIA_GEMMA_API_KEY=
@@ -27,7 +29,7 @@ MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-small-latest
 ```
 
-You can set only one key, or multiple keys. The bot supports NVIDIA Build/NIM DeepSeek V4 Pro, NVIDIA Build/NIM Gemma 4 31B, Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. NVIDIA providers are always first priority when configured: the bot tries `nvidia_deepseek`, then `nvidia_gemma`, then the remaining configured providers in `AI_PROVIDER_ORDER` with duplicates removed. It automatically falls back to the next configured provider if one fails or returns an empty answer. Use `NVIDIA_API_KEY` as a shared NVIDIA key, or `NVIDIA_DEEPSEEK_API_KEY` / `NVIDIA_GEMMA_API_KEY` for per-model keys. Restart the bot after editing `.env`.
+You can set only one key, or multiple keys. The bot supports NVIDIA Build/NIM Kimi K2.6, DeepSeek V4 Pro, Gemma 4 31B, Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. NVIDIA providers are always first priority when configured: the bot tries `nvidia_kimi`, then `nvidia_deepseek`, then `nvidia_gemma`, then the remaining configured providers in `AI_PROVIDER_ORDER` with duplicates removed. It automatically falls back to the next configured provider if one fails or returns an empty answer. Use `NVIDIA_API_KEY` as a shared NVIDIA key, or `NVIDIA_KIMI_API_KEY` / `NVIDIA_DEEPSEEK_API_KEY` / `NVIDIA_GEMMA_API_KEY` for per-model keys. Admins can view model success/failure counts from Admin Menu → 📊 AI Usage or `/ai_usage`. Restart the bot after editing `.env`.
 
 These are free/free-tier/trial options where available; provider quotas and availability are not guaranteed unlimited.
 

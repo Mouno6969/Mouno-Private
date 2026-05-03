@@ -96,6 +96,17 @@ def init_db():
             )
         """)
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_provider_stats (
+                provider TEXT PRIMARY KEY,
+                success_count INTEGER DEFAULT 0,
+                failure_count INTEGER DEFAULT 0,
+                last_success_at TIMESTAMP,
+                last_failure_at TIMESTAMP,
+                last_error TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS user_preferences (
                 user_id TEXT PRIMARY KEY,
                 language TEXT DEFAULT 'bn',
@@ -779,6 +790,62 @@ def set_setting(key, value):
             (key, str(value)),
         )
         con.commit()
+
+
+def _sanitize_ai_error(error):
+    if not error:
+        return None
+    if isinstance(error, BaseException):
+        return type(error).__name__[:80]
+    value = " ".join(str(error).replace("\r", " ").replace("\n", " ").split())
+    if not value:
+        return None
+    parts = value.split()
+    label = parts[0][:80]
+    status = next((part for part in parts[1:] if part.startswith("status=") and part[7:].isdigit()), None)
+    if status:
+        return f"{label} {status}"[:120]
+    return label
+
+
+def record_ai_provider_result(provider, success, error=None):
+    safe_error = None if success else _sanitize_ai_error(error)
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO ai_provider_stats (
+                provider, success_count, failure_count, last_success_at,
+                last_failure_at, last_error, updated_at
+            )
+            VALUES (
+                ?, ?, ?,
+                CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,
+                CASE WHEN ? THEN NULL ELSE CURRENT_TIMESTAMP END,
+                ?, CURRENT_TIMESTAMP
+            )
+            ON CONFLICT(provider) DO UPDATE SET
+                success_count=success_count + excluded.success_count,
+                failure_count=failure_count + excluded.failure_count,
+                last_success_at=CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE last_success_at END,
+                last_failure_at=CASE WHEN ? THEN last_failure_at ELSE CURRENT_TIMESTAMP END,
+                last_error=CASE WHEN ? THEN last_error ELSE excluded.last_error END,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (provider, 1 if success else 0, 0 if success else 1, success, success, safe_error, success, success, success),
+        )
+        con.commit()
+
+
+def list_ai_provider_stats():
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT provider, success_count, failure_count, last_success_at,
+                   last_failure_at, last_error, updated_at
+            FROM ai_provider_stats
+            ORDER BY success_count DESC, provider
+            """
+        ).fetchall()
 
 
 def add_audit(actor_id, action, target_type=None, target_id=None, details=None):
