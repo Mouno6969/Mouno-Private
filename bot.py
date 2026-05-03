@@ -22,7 +22,7 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
+from balance import GAS_META, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
 from config import (
     ADMIN_ID,
@@ -1011,13 +1011,11 @@ def gas_status_text():
     balances = get_native_gas_balances()
     lines = ["⛽ Gas Monitor", DIVIDER]
     for network, info in NETWORKS.items():
-        symbol, threshold = GAS_META.get(network, ("native", 0))
+        symbol, _threshold = GAS_META.get(network, ("native", 0))
         balance = balances.get(network)
-        ok = True if balance is None else float(balance) >= float(threshold)
         label = info["name"]
-        status = "✅" if ok else "⚠️ LOW"
         value = "N/A" if balance is None else balance
-        lines.append(f"{status} {label}: {value} {symbol} (min {threshold})")
+        lines.append(f"ℹ️ {label}: {value} {symbol}")
     return "\n".join(lines)
 
 
@@ -1170,19 +1168,16 @@ def bot_health_text():
         lines.append(f"📦 Stock: ❌ {type(exc).__name__}")
     try:
         gas_balances = get_native_gas_balances()
-        gas_warnings = []
+        gas_lines = []
         for network, info in NETWORKS.items():
-            symbol, threshold = GAS_META.get(network, ("native", 0))
+            symbol, _threshold = GAS_META.get(network, ("native", 0))
             balance = gas_balances.get(network)
-            if balance is not None and float(balance) < float(threshold):
-                gas_warnings.append(f"⚠️ {info['name']}: {balance} {symbol} (min {threshold})")
-        if gas_warnings:
-            lines.append(f"⛽ Gas: ⚠️ {len(gas_warnings)} warning(s)")
-            lines.extend(gas_warnings[:5])
-            if len(gas_warnings) > 5:
-                lines.append(f"…+{len(gas_warnings) - 5} more")
-        else:
-            lines.append("⛽ Gas: ✅ Gas OK")
+            value = "N/A" if balance is None else balance
+            gas_lines.append(f"{info['name']}: {value} {symbol}")
+        lines.append("⛽ Gas: info only")
+        lines.extend(gas_lines[:5])
+        if len(gas_lines) > 5:
+            lines.append(f"…+{len(gas_lines) - 5} more")
     except Exception as exc:
         lines.append(f"⛽ Gas: ❌ {type(exc).__name__}")
     return "\n".join(lines)
@@ -1378,12 +1373,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_crypto(network, wallet, amount):
-    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
-    if not gas_ok and gas_bal is not None:
-        raise RuntimeError(f"Low gas: {gas_bal} {gas_symbol} available, minimum {gas_threshold} required")
-    if gas_bal is None:
-        logger.warning("Gas balance could not be checked for %s", network)
-        add_audit("system", "gas_check_unknown", "network", network, "send not blocked")
     loop = asyncio.get_running_loop()
     if network == "solana":
         return await loop.run_in_executor(None, lambda: send_usdc(wallet, amount))
@@ -2867,13 +2856,6 @@ async def confirm_buy(query, context, user_id, username):
             reply_markup=back_keyboard(lang),
         )
         return
-    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
-    if not gas_ok and gas_bal is not None:
-        await query.edit_message_text(
-            f"⛽ Network gas low. New orders paused for {net_info['name']}.\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}",
-            reply_markup=back_keyboard(lang),
-        )
-        return
     order_id = context.user_data.get("order_id") or f"ORD-{gen_code(6)}"
     _res_id, order_id = create_stock_reservation(order_id, user_id, network, crypto_amount, ttl_minutes=15, reason="bkash_order")
     context.user_data["order_id"] = order_id
@@ -3069,11 +3051,6 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not sufficient and current_bal is not None:
         await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n{stock_detail(network, crypto_amount, current_bal)}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno")
         return ConversationHandler.END
-    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
-    if not gas_ok and gas_bal is not None:
-        await update.message.reply_text(f"⛽ {net_info['name']} gas low. নতুন order সাময়িক বন্ধ।\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}")
-        return ConversationHandler.END
-
     context.user_data["amount_bdt"] = amount_bdt
     context.user_data["usdc_amount"] = crypto_amount
     keyboard = [[InlineKeyboardButton(tr("confirm", lang), callback_data="confirm_buy"), InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]
@@ -3134,11 +3111,6 @@ async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
             else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\n{stock_detail(network, amount_crypto, current_bal)}"
         )
         return ConversationHandler.END
-    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
-    if not gas_ok and gas_bal is not None:
-        await update.message.reply_text(f"⛽ {net_info['name']} gas low. নতুন Stars order সাময়িক বন্ধ।\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}")
-        return ConversationHandler.END
-
     order_id = gen_order_id("STAR")
     create_stock_reservation(order_id, user.id, network, amount_crypto, ttl_minutes=30, reason="stars_invoice")
     username = user.username or user.first_name or ""
@@ -3204,10 +3176,6 @@ async def admin_send_amount_received(update: Update, context: ContextTypes.DEFAU
     net_info = NETWORKS[network]
     context.user_data["admin_send_amount"] = amount
     sufficient, current_bal = check_sufficient(network, amount)
-    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
-    if not gas_ok and gas_bal is not None:
-        await update.message.reply_text(f"⛽ Low gas: {gas_bal} {gas_symbol} available, minimum {gas_threshold} required.")
-        return ConversationHandler.END
     stock_line = ""
     if current_bal is not None:
         stock_line = f"\n💰 Available: {current_bal} {net_info['symbol']}"
