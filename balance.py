@@ -232,11 +232,7 @@ def get_native_gas_balances():
 
 def check_gas_sufficient(network):
     symbol, threshold = GAS_META.get(network, ("native", 0))
-    balances = get_native_gas_balances()
-    balance = balances.get(network)
-    if balance is None:
-        return True, None, threshold, symbol
-    return float(balance) >= float(threshold), balance, threshold, symbol
+    return True, None, threshold, symbol
 
 
 def check_sufficient(network, amount, exclude_order_id=None, exclude_trx_id=None):
