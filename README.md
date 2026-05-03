@@ -41,5 +41,10 @@ The bot starts Telegram polling and a Flask webhook on port `5000` for `/sms`.
 
 - No private keys or bot tokens are committed. Use environment variables only.
 - `STAR_RATE` controls how many Telegram Stars equal 1 USDC/USDT. Use `STAR_RATE_SOLANA`, `STAR_RATE_TRC20`, etc. for per-network overrides.
+- New order/admin tools: `/order ORD-XXXXXX`, `/status TRXID_OR_ORDERID`, `/receipt ORD_OR_TRX`, `/seller USER_ID`, `/seller_badge USER_ID new|verified|trusted`, `/seller_dashboard`, `/report [weekly]`, `/payout`, `/payouts`, `/webhook_health`, `/test_sms`, `/test_seller_sms`, `/aiadmin why order failed ORD-123`.
+- Seller/admin menu buttons include order status lookup, seller dashboard with low-balance and webhook-health warnings, reports, payout review, seller badges, test tools, and backup now.
+- `LOW_BALANCE_THRESHOLD` and optional `LOW_BALANCE_THRESHOLD_NETWORK` values control low-stock warnings. `WEBHOOK_STALE_MINUTES` controls bKash webhook health.
+- Flask `/admin` and `/dashboard` provide a minimal protected dashboard when `DASHBOARD_TOKEN` or `ADMIN_WEB_TOKEN` is set. Pass the token with `?token=` or `X-Dashboard-Token`.
+- Daily admin report and database backup are sent near local midnight. Optional `BACKUP_UPLOAD_URL` can receive the backup file; no Google OAuth flow is bundled.
 - Runtime files such as `mouno.db`, `bot.log`, `rate.json`, and `.env` are ignored.
 - Obvious Termux copy/paste formatting issues were corrected while preserving the project structure and behavior.
