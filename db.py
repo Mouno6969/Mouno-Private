@@ -279,6 +279,51 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS referral_links (
+                user_id TEXT PRIMARY KEY,
+                code TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS referral_relationships (
+                referred_user_id TEXT PRIMARY KEY,
+                referrer_id TEXT,
+                code TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS referral_ledger (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                type TEXT,
+                amount_usd REAL,
+                source_type TEXT,
+                source_id TEXT,
+                referred_user_id TEXT,
+                status TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(source_type, source_id, user_id, type)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS referral_withdrawals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                amount_usd REAL,
+                network TEXT,
+                wallet TEXT,
+                tx_sig TEXT,
+                status TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "transactions", "order_id", "TEXT")
         ensure_column(con, "transactions", "updated_at", "TIMESTAMP")
@@ -305,6 +350,9 @@ def init_db():
         cur.execute("UPDATE pending_orders SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
         cur.execute("UPDATE star_orders SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
         cur.execute("UPDATE stock_reservations SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
+        cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_enabled', 'off')")
+        cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_percent', '0')")
+        cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_min_withdraw_usd', '1')")
         con.commit()
 
 
@@ -470,7 +518,7 @@ def get_transaction(trx_id):
     with closing(connect()) as con:
         return con.execute(
             """
-            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig
+            SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id, user_id, sig, source
             FROM transactions WHERE trx_id=?
             """,
             (trx_id,),
@@ -1007,6 +1055,278 @@ def set_setting(key, value):
         con.commit()
 
 
+def _referral_code():
+    chars = string.ascii_letters + string.digits
+    return "".join(secrets.choice(chars) for _ in range(10))
+
+
+def get_or_create_referral_code(user_id):
+    user_id = str(user_id)
+    with closing(connect()) as con:
+        row = con.execute("SELECT code FROM referral_links WHERE user_id=?", (user_id,)).fetchone()
+        if row:
+            return row[0]
+        for _ in range(20):
+            code = _referral_code()
+            try:
+                con.execute("INSERT INTO referral_links (user_id, code) VALUES (?, ?)", (user_id, code))
+                con.commit()
+                return code
+            except sqlite3.IntegrityError:
+                continue
+        raise RuntimeError("could not generate referral code")
+
+
+def get_referrer_for_user(user_id):
+    with closing(connect()) as con:
+        row = con.execute("SELECT referrer_id FROM referral_relationships WHERE referred_user_id=?", (str(user_id),)).fetchone()
+        return row[0] if row else None
+
+
+def bind_referral(referred_user_id, referrer_code):
+    referred_user_id = str(referred_user_id)
+    code = str(referrer_code or "").strip()
+    if code.startswith("ref_"):
+        code = code[4:]
+    if not code:
+        return "invalid"
+    with closing(connect()) as con:
+        row = con.execute("SELECT user_id, code FROM referral_links WHERE code=?", (code,)).fetchone()
+        if not row:
+            return "invalid"
+        referrer_id, saved_code = str(row[0]), row[1]
+        if referrer_id == referred_user_id:
+            return "self"
+        exists = con.execute("SELECT referrer_id FROM referral_relationships WHERE referred_user_id=?", (referred_user_id,)).fetchone()
+        if exists:
+            return "exists"
+        try:
+            con.execute(
+                "INSERT INTO referral_relationships (referred_user_id, referrer_id, code) VALUES (?, ?, ?)",
+                (referred_user_id, referrer_id, saved_code),
+            )
+            con.commit()
+            return "bound"
+        except sqlite3.IntegrityError:
+            return "exists"
+
+
+def referral_balance(user_id):
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT COALESCE(SUM(amount_usd), 0) FROM referral_ledger WHERE user_id=? AND status='completed'",
+            (str(user_id),),
+        ).fetchone()
+        return float(row[0] or 0)
+
+
+def referral_available_balance(user_id):
+    with closing(connect()) as con:
+        row = con.execute(
+            """
+            SELECT COALESCE(SUM(amount_usd), 0) FROM referral_ledger
+            WHERE user_id=? AND (status='completed' OR (type='withdrawal' AND status='pending'))
+            """,
+            (str(user_id),),
+        ).fetchone()
+        return float(row[0] or 0)
+
+
+def list_referral_ledger(user_id, limit=10):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT id, type, amount_usd, source_type, source_id, referred_user_id, status, details, created_at
+            FROM referral_ledger WHERE user_id=?
+            ORDER BY datetime(created_at) DESC, rowid DESC LIMIT ?
+            """,
+            (str(user_id), int(limit)),
+        ).fetchall()
+
+
+def referral_stats(user_id):
+    user_id = str(user_id)
+    with closing(connect()) as con:
+        count = con.execute("SELECT COUNT(*) FROM referral_relationships WHERE referrer_id=?", (user_id,)).fetchone()[0]
+        earned = con.execute(
+            "SELECT COALESCE(SUM(amount_usd), 0) FROM referral_ledger WHERE user_id=? AND type='credit' AND status='completed'",
+            (user_id,),
+        ).fetchone()[0]
+        withdrawn = con.execute(
+            "SELECT COALESCE(SUM(-amount_usd), 0) FROM referral_ledger WHERE user_id=? AND type='withdrawal' AND status='completed'",
+            (user_id,),
+        ).fetchone()[0]
+        balance = con.execute(
+            "SELECT COALESCE(SUM(amount_usd), 0) FROM referral_ledger WHERE user_id=? AND status='completed'",
+            (user_id,),
+        ).fetchone()[0]
+        return {"referral_count": int(count or 0), "total_earned": float(earned or 0), "total_withdrawn": float(withdrawn or 0), "balance": float(balance or 0)}
+
+
+def credit_referral_reward(referred_user_id, source_type, source_id, amount_usd, percent, details=None):
+    try:
+        amount_usd = float(amount_usd or 0)
+        percent = float(percent or 0)
+    except Exception:
+        return None
+    if amount_usd <= 0 or percent <= 0:
+        return None
+    referred_user_id = str(referred_user_id)
+    referrer_id = get_referrer_for_user(referred_user_id)
+    if not referrer_id or str(referrer_id) == referred_user_id:
+        return None
+    reward = round(amount_usd * percent / 100, 6)
+    if reward <= 0:
+        return None
+    ledger_id = f"REF-{source_type}-{source_id}-{referrer_id}-credit"[:120]
+    with closing(connect()) as con:
+        cur = con.execute(
+            """
+            INSERT OR IGNORE INTO referral_ledger
+            (id, user_id, type, amount_usd, source_type, source_id, referred_user_id, status, details)
+            VALUES (?, ?, 'credit', ?, ?, ?, ?, 'completed', ?)
+            """,
+            (ledger_id, str(referrer_id), reward, str(source_type), str(source_id), referred_user_id, details),
+        )
+        con.commit()
+        if cur.rowcount <= 0:
+            return None
+        return {"id": ledger_id, "user_id": str(referrer_id), "amount_usd": reward}
+
+
+def create_referral_withdrawal(user_id, amount_usd, network, wallet, status="pending", error=None):
+    withdrawal_id = gen_order_id("RWD")
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO referral_withdrawals (id, user_id, amount_usd, network, wallet, status, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (withdrawal_id, str(user_id), float(amount_usd), network, wallet, status, error),
+        )
+        con.commit()
+        return withdrawal_id
+
+
+def mark_referral_withdrawal(withdrawal_id, status, tx_sig=None, error=None):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            UPDATE referral_withdrawals
+            SET status=?, tx_sig=COALESCE(?, tx_sig), error=COALESCE(?, error), updated_at=CURRENT_TIMESTAMP
+            WHERE id=?
+            """,
+            (status, tx_sig, error, withdrawal_id),
+        )
+        con.commit()
+
+
+def reserve_referral_withdrawal(user_id, withdrawal_id, amount_usd, network, wallet):
+    user_id = str(user_id)
+    amount_usd = float(amount_usd)
+    if amount_usd <= 0:
+        return False
+    with closing(connect()) as con:
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            row = con.execute(
+                """
+                SELECT COALESCE(SUM(amount_usd), 0) FROM referral_ledger
+                WHERE user_id=? AND (status='completed' OR (type='withdrawal' AND status='pending'))
+                """,
+                (user_id,),
+            ).fetchone()
+            if float(row[0] or 0) + 1e-9 < amount_usd:
+                con.rollback()
+                return False
+            cur = con.execute(
+                """
+                INSERT OR IGNORE INTO referral_ledger
+                (id, user_id, type, amount_usd, source_type, source_id, referred_user_id, status, details)
+                VALUES (?, ?, 'withdrawal', ?, 'referral_withdrawal', ?, NULL, 'pending', ?)
+                """,
+                (f"REFWD-{withdrawal_id}", user_id, -amount_usd, withdrawal_id, f"network={network} wallet={wallet}"),
+            )
+            if cur.rowcount <= 0:
+                con.rollback()
+                return False
+            wd_cur = con.execute(
+                "UPDATE referral_withdrawals SET status='sending', updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",
+                (withdrawal_id, user_id),
+            )
+            if wd_cur.rowcount <= 0:
+                con.rollback()
+                return False
+            con.commit()
+            return True
+        except Exception:
+            con.rollback()
+            raise
+
+
+def complete_referral_withdrawal(withdrawal_id, tx_sig):
+    with closing(connect()) as con:
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            con.execute(
+                "UPDATE referral_ledger SET status='completed', details=COALESCE(details, '') || ?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND type='withdrawal' AND status='pending'",
+                (f" tx={tx_sig}", f"REFWD-{withdrawal_id}"),
+            )
+            con.execute(
+                "UPDATE referral_withdrawals SET status='completed', tx_sig=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (tx_sig, withdrawal_id),
+            )
+            con.commit()
+        except Exception:
+            con.rollback()
+            raise
+
+
+def fail_referral_withdrawal(withdrawal_id, error=None, tx_sig=None):
+    with closing(connect()) as con:
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            con.execute(
+                "UPDATE referral_ledger SET status='failed', details=COALESCE(details, '') || ?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND type='withdrawal' AND status='pending'",
+                (f" error={str(error or '')[:200]}", f"REFWD-{withdrawal_id}"),
+            )
+            con.execute(
+                """
+                UPDATE referral_withdrawals
+                SET status='failed', tx_sig=COALESCE(?, tx_sig), error=COALESCE(?, error), updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+                """,
+                (tx_sig, str(error)[:500] if error is not None else None, withdrawal_id),
+            )
+            con.commit()
+        except Exception:
+            con.rollback()
+            raise
+
+
+def debit_referral_withdrawal(user_id, withdrawal_id, amount_usd, network, wallet, tx_sig):
+    if not reserve_referral_withdrawal(user_id, withdrawal_id, amount_usd, network, wallet):
+        return False
+    complete_referral_withdrawal(withdrawal_id, tx_sig)
+    return True
+
+
+def referral_admin_stats():
+    with closing(connect()) as con:
+        row = con.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN type='credit' AND status='completed' THEN amount_usd ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN type='withdrawal' AND status='completed' THEN -amount_usd ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usd ELSE 0 END), 0)
+            FROM referral_ledger
+            """
+        ).fetchone()
+        failed = con.execute("SELECT COUNT(*) FROM referral_withdrawals WHERE status='failed'").fetchone()[0]
+        rels = con.execute("SELECT COUNT(*) FROM referral_relationships").fetchone()[0]
+        return {"credited": float(row[0] or 0), "withdrawn": float(row[1] or 0), "liability": float(row[2] or 0), "failed_withdrawals": int(failed or 0), "relationships": int(rels or 0)}
+
+
 def _sanitize_ai_error(error):
     if not error:
         return None
@@ -1304,7 +1624,17 @@ def get_report_stats(period="daily"):
         pending = con.execute("SELECT COUNT(*) FROM pending_orders").fetchone()[0]
         stars_pending = con.execute("SELECT COUNT(*), COALESCE(SUM(stars_amount), 0) FROM star_orders WHERE status IN ('pending','paid')").fetchone()
         payouts_pending = con.execute("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM payout_requests WHERE status='pending'").fetchone()
-        return {"period": period, "transactions": tx, "top_networks": top_networks, "pending_orders": pending, "stars_pending": stars_pending, "payouts_pending": payouts_pending}
+        ref = con.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN type='credit' AND status='completed' THEN amount_usd ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN type='withdrawal' AND status='completed' THEN -amount_usd ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usd ELSE 0 END), 0)
+            FROM referral_ledger
+            """
+        ).fetchone()
+        ref_failed = con.execute("SELECT COUNT(*) FROM referral_withdrawals WHERE status='failed'").fetchone()[0]
+        return {"period": period, "transactions": tx, "top_networks": top_networks, "pending_orders": pending, "stars_pending": stars_pending, "payouts_pending": payouts_pending, "referrals": ref, "referral_failed_withdrawals": ref_failed}
 
 
 def get_seller_public_stats(user_id):
