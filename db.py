@@ -71,6 +71,25 @@ def init_db():
             )
         """)
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS giveaway_sessions (
+                session_id TEXT PRIMARY KEY,
+                creator_id TEXT,
+                source TEXT CHECK(source IN ('admin_stock', 'user_wallet')),
+                network TEXT,
+                base_amount REAL,
+                recipient_count INTEGER,
+                early_bonus_count INTEGER DEFAULT 0,
+                early_bonus_amount REAL DEFAULT 0,
+                claimed_count INTEGER DEFAULT 0,
+                expires_at TEXT,
+                encrypted_key TEXT,
+                salt TEXT,
+                wallet_address TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS network_rates (
                 network TEXT PRIMARY KEY,
                 rate REAL
@@ -271,6 +290,10 @@ def init_db():
         ensure_column(con, "transactions", "seller_id", "TEXT")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
+        ensure_column(con, "gift_codes", "giveaway_id", "TEXT")
+        ensure_column(con, "gift_codes", "creator_id", "TEXT")
+        ensure_column(con, "gift_codes", "claim_number", "INTEGER")
+        ensure_column(con, "gift_codes", "claimed_amount", "REAL")
         ensure_column(con, "pending_orders", "order_id", "TEXT")
         ensure_column(con, "pending_orders", "updated_at", "TIMESTAMP")
         ensure_column(con, "pending_orders", "seller_id", "TEXT")
@@ -522,14 +545,15 @@ def get_profit_summary(period="daily"):
         return {"period": period, "overall": overall, "by_network": by_network}
 
 
-def create_code(code, amount_usdc, expires_at, network="solana"):
+def create_code(code, amount_usdc, expires_at, network="solana", giveaway_id=None, creator_id=None):
     with closing(connect()) as con:
         con.execute(
             """
-            INSERT OR REPLACE INTO gift_codes (code, amount_usdc, amount, expires_at, network)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO gift_codes
+            (code, amount_usdc, amount, expires_at, network, giveaway_id, creator_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (code, amount_usdc, amount_usdc, expires_at, network),
+            (code, amount_usdc, amount_usdc, expires_at, network, giveaway_id, creator_id),
         )
         con.commit()
 
@@ -537,15 +561,206 @@ def create_code(code, amount_usdc, expires_at, network="solana"):
 def get_code(code):
     with closing(connect()) as con:
         return con.execute(
-            "SELECT code, amount_usdc, expires_at, used, used_by, created_at, network FROM gift_codes WHERE code=?",
+            """
+            SELECT code, amount_usdc, expires_at, used, used_by, created_at, network,
+                   giveaway_id, creator_id, claim_number, claimed_amount
+            FROM gift_codes WHERE code=?
+            """,
             (code,),
         ).fetchone()
+
+
+def use_code_if_available(code, user_id):
+    with closing(connect()) as con:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute(
+            """
+            SELECT code, amount_usdc, expires_at, used, used_by, created_at, network,
+                   giveaway_id, creator_id, claim_number, claimed_amount
+            FROM gift_codes WHERE code=?
+            """,
+            (code,),
+        ).fetchone()
+        if not row:
+            con.rollback()
+            return None, "not_found"
+        if row[3]:
+            con.rollback()
+            return row, "used"
+        try:
+            expired = datetime.now() > datetime.fromisoformat(row[2])
+        except Exception:
+            expired = True
+        if expired:
+            con.rollback()
+            return row, "expired"
+        con.execute("UPDATE gift_codes SET used=1, used_by=? WHERE code=? AND used=0", (str(user_id), code))
+        if con.total_changes < 1:
+            con.rollback()
+            return row, "used"
+        con.commit()
+        return get_code(code), None
 
 
 def use_code(code, user_id):
     with closing(connect()) as con:
         con.execute("UPDATE gift_codes SET used=1, used_by=? WHERE code=?", (user_id, code))
         con.commit()
+
+
+def create_giveaway_session(
+    session_id,
+    creator_id,
+    source,
+    network,
+    base_amount,
+    recipient_count,
+    early_bonus_count,
+    early_bonus_amount,
+    expires_at,
+    encrypted_key=None,
+    salt=None,
+    wallet_address=None,
+):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO giveaway_sessions
+            (session_id, creator_id, source, network, base_amount, recipient_count,
+             early_bonus_count, early_bonus_amount, expires_at, encrypted_key, salt, wallet_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                str(creator_id),
+                source,
+                network,
+                float(base_amount),
+                int(recipient_count),
+                int(early_bonus_count or 0),
+                float(early_bonus_amount or 0),
+                expires_at,
+                encrypted_key,
+                salt,
+                wallet_address,
+            ),
+        )
+        con.commit()
+
+
+def create_giveaway_codes(session_id, codes):
+    with closing(connect()) as con:
+        session = con.execute("SELECT creator_id, network, expires_at, base_amount FROM giveaway_sessions WHERE session_id=?", (session_id,)).fetchone()
+        if not session:
+            raise ValueError("giveaway session not found")
+        creator_id, network, expires_at, base_amount = session
+        con.executemany(
+            """
+            INSERT INTO gift_codes (code, amount_usdc, amount, expires_at, network, giveaway_id, creator_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [(code, base_amount, base_amount, expires_at, network, session_id, creator_id) for code in codes],
+        )
+        con.commit()
+
+
+def get_giveaway_session(session_id):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT session_id, creator_id, source, network, base_amount, recipient_count,
+                   early_bonus_count, early_bonus_amount, claimed_count, expires_at,
+                   encrypted_key, salt, wallet_address, created_at, updated_at
+            FROM giveaway_sessions WHERE session_id=?
+            """,
+            (session_id,),
+        ).fetchone()
+
+
+def claim_giveaway_code(code, user_id):
+    with closing(connect()) as con:
+        con.execute("BEGIN IMMEDIATE")
+        code_row = con.execute(
+            """
+            SELECT code, amount_usdc, expires_at, used, used_by, created_at, network,
+                   giveaway_id, creator_id, claim_number, claimed_amount
+            FROM gift_codes WHERE code=?
+            """,
+            (code,),
+        ).fetchone()
+        if not code_row:
+            con.rollback()
+            return {"ok": False, "reason": "not_found"}
+        if not code_row[7]:
+            con.rollback()
+            return {"ok": False, "reason": "not_giveaway", "code": code_row}
+        if code_row[3]:
+            con.rollback()
+            return {"ok": False, "reason": "used", "code": code_row}
+        try:
+            expired = datetime.now() > datetime.fromisoformat(code_row[2])
+        except Exception:
+            expired = True
+        if expired:
+            con.rollback()
+            return {"ok": False, "reason": "expired", "code": code_row}
+
+        session = con.execute(
+            """
+            SELECT session_id, creator_id, source, network, base_amount, recipient_count,
+                   early_bonus_count, early_bonus_amount, claimed_count, expires_at,
+                   encrypted_key, salt, wallet_address, created_at, updated_at
+            FROM giveaway_sessions WHERE session_id=?
+            """,
+            (code_row[7],),
+        ).fetchone()
+        if not session:
+            con.rollback()
+            return {"ok": False, "reason": "session_not_found", "code": code_row}
+        if int(session[8] or 0) >= int(session[5] or 0):
+            con.rollback()
+            return {"ok": False, "reason": "fully_claimed", "code": code_row, "session": session}
+
+        claim_number = int(session[8] or 0) + 1
+        bonus = float(session[7] or 0) if claim_number <= int(session[6] or 0) else 0.0
+        amount = round(float(session[4] or 0) + bonus, 8)
+        con.execute(
+            """
+            UPDATE gift_codes
+            SET used=1, used_by=?, claim_number=?, claimed_amount=?
+            WHERE code=? AND used=0
+            """,
+            (str(user_id), claim_number, amount, code),
+        )
+        if con.total_changes < 1:
+            con.rollback()
+            return {"ok": False, "reason": "used", "code": code_row}
+        con.execute(
+            """
+            UPDATE giveaway_sessions
+            SET claimed_count=?, updated_at=CURRENT_TIMESTAMP
+            WHERE session_id=?
+            """,
+            (claim_number, session[0]),
+        )
+        con.commit()
+        return {
+            "ok": True,
+            "code": code,
+            "session_id": session[0],
+            "creator_id": session[1],
+            "source": session[2],
+            "network": session[3],
+            "amount": amount,
+            "claim_number": claim_number,
+            "recipient_count": session[5],
+            "early_bonus_count": session[6],
+            "early_bonus_amount": session[7],
+            "encrypted_key": session[10],
+            "salt": session[11],
+            "wallet_address": session[12],
+            "expires_at": session[9],
+        }
 
 
 def disable_code(code):
