@@ -7,16 +7,24 @@ The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 Set one or more free/free-tier provider keys in `.env`:
 
 ```env
-AI_PROVIDER_ORDER=gemini,groq,openrouter
+AI_PROVIDER_ORDER=gemini,groq,openrouter,huggingface,cohere,mistral
 GEMINI_API_KEY=your_google_ai_studio_key
 GEMINI_MODEL=gemini-1.5-flash
 GROQ_API_KEY=your_groq_key
 GROQ_MODEL=llama-3.1-8b-instant
 OPENROUTER_API_KEY=your_openrouter_key
 OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
+HUGGINGFACE_API_KEY=your_huggingface_token
+HUGGINGFACE_MODEL=HuggingFaceH4/zephyr-7b-beta
+COHERE_API_KEY=your_cohere_key
+COHERE_MODEL=command-r
+MISTRAL_API_KEY=your_mistral_key
+MISTRAL_MODEL=mistral-small-latest
 ```
 
-You can set only one key, or multiple keys. The bot tries the first configured provider in `AI_PROVIDER_ORDER` and automatically falls back to the next configured provider if one fails. Restart the bot after editing `.env`.
+You can set only one key, or multiple keys. The bot supports Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. It tries the first configured provider in `AI_PROVIDER_ORDER` and automatically falls back to the next configured provider if one fails or returns an empty answer. Restart the bot after editing `.env`.
+
+These are free/free-tier/trial options where available; provider quotas and availability are not guaranteed unlimited.
 
 Do not hardcode the API key in code and do not commit `.env`.
 
