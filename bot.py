@@ -338,6 +338,31 @@ def ask_ai_support(question, lang="bn"):
     return text
 
 
+def ai_status_text():
+    key_status = "✅ Configured" if GEMINI_API_KEY else "❌ Missing"
+    lines = [
+        f"GEMINI_API_KEY: {key_status}",
+        f"GEMINI_MODEL: {GEMINI_MODEL}",
+        "User AI Support button: ✅ Enabled",
+        "Admin diagnostic: /aiadmin why order failed ORD-XXXXXX",
+    ]
+    if not GEMINI_API_KEY:
+        lines.append("Add GEMINI_API_KEY to .env and restart the bot.")
+    return panel("🤖 AI Status", "\n".join(lines))
+
+
+def ai_setup_text():
+    return panel(
+        "⚙️ AI Setup",
+        "1. Edit .env\n"
+        "2. Set GEMINI_API_KEY=...\n"
+        "3. Optional: GEMINI_MODEL=gemini-1.5-flash\n"
+        "4. Restart the bot\n\n"
+        "Public user button: 🤖 AI Support\n"
+        "Admin diagnostic: /aiadmin ...",
+    )
+
+
 def user_lang(user_id) -> str:
     return get_user_language(user_id) or "bn"
 
@@ -662,6 +687,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("📦 Reserves", callback_data="admin_reservations"), InlineKeyboardButton("💹 Profit", callback_data="admin_profit")])
         keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
+        keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
         keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
@@ -1295,6 +1321,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin(user_id):
             return ConversationHandler.END
         await query.edit_message_text("🤖 AI Admin\n\nUsage:\n/aiadmin why order failed ORD-123\n/aiadmin TRXID\n\nRead-only diagnostics only.", reply_markup=back_keyboard(lang))
+
+    elif query.data == "ai_status":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(ai_status_text(), reply_markup=back_keyboard(lang))
+
+    elif query.data == "ai_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(ai_setup_text(), reply_markup=back_keyboard(lang))
 
     elif query.data == "admin_payouts":
         if not is_admin(user_id):
