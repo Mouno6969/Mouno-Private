@@ -68,6 +68,8 @@ from config import (
 )
 from crypto_manager import (
     delete_user_wallet,
+    decrypt_key,
+    decrypt_seller_key,
     encrypt_key,
     encrypt_seller_key,
     get_user_balance,
@@ -76,17 +78,22 @@ from crypto_manager import (
     save_user_wallet,
     send_from_seller_wallet,
     send_from_user_wallet,
+    send_with_private_key,
 )
 from db import (
+    claim_giveaway_code,
     create_code,
     add_audit,
     bind_stock_reservation_trx,
     consume_stock_reservation,
+    create_giveaway_codes,
+    create_giveaway_session,
     create_stock_reservation,
     delete_pending_order,
     disable_code,
     get_all_active_codes,
     get_code,
+    get_giveaway_session,
     get_network_rate,
     get_active_reserved_amount,
     get_all_cost_rates,
@@ -231,6 +238,7 @@ TEXT = {
     "language_saved": {"bn": "✅ ভাষা সেট করা হয়েছে।", "en": "✅ Language saved."},
     "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
     "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
+    "giveaway": {"bn": "🎉 Giveaway", "en": "🎉 Giveaway"},
     "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
     "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
     "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
@@ -1524,9 +1532,10 @@ def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
-        [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("rate", lang), callback_data="rate")],
+        [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu")],
+        [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
-        [InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu"), InlineKeyboardButton(tr("order_status", lang), callback_data="order_status")],
+        [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status")],
         [InlineKeyboardButton(tr("sellers", lang), callback_data="sellers_market"), InlineKeyboardButton(tr("seller_center", lang), callback_data="seller_center")],
         [InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support"), InlineKeyboardButton(tr("seller_dashboard", lang), callback_data="seller_dashboard")],
         [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
@@ -1554,6 +1563,7 @@ def network_menu(prefix, lang="bn"):
         "uw": "uw_cancel",
         "setrate": "back",
         "gencode": "back",
+        "giveaway": "cancel",
         "star_network": "back",
         "admin_send_network": "back",
     }.get(prefix, "back")
@@ -2440,6 +2450,47 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["redeem_step"] = "code"
         await query.edit_message_text(ltext(lang, "🎁 Redeem Gift Code\n\nEnter your gift code:\n\n📋 Example: ABC12345", "🎁 গিফট কোড রিডিম\n\nআপনার গিফট কোড লিখুন:\n\n📋 উদাহরণ: ABC12345"))
 
+    elif query.data == "giveaway_menu":
+        if is_maintenance_enabled() and not is_admin(user_id):
+            await query.edit_message_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        await start_giveaway_flow(query, context, user_id, lang, edit=True)
+
+    elif query.data.startswith("giveaway_"):
+        if query.data.startswith("giveaway_duration_"):
+            value = query.data.replace("giveaway_duration_", "", 1)
+            if value == "custom":
+                context.user_data["giveaway_step"] = "custom_duration"
+                await query.edit_message_text(tr("enter_custom_duration", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+                return
+            minutes = int(value)
+            if context.user_data.get("giveaway_source") == "user_wallet":
+                context.user_data["giveaway_minutes"] = minutes
+                context.user_data["giveaway_step"] = "password"
+                await query.edit_message_text(ltext(lang, "🔐 Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password দিন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
+                return
+            await create_giveaway_from_context(query, context, user_id, lang, minutes)
+            return
+        if query.data.startswith("giveaway_bonus_"):
+            value = query.data.replace("giveaway_bonus_", "", 1)
+            if value == "no":
+                context.user_data["giveaway_bonus_count"] = 0
+                context.user_data["giveaway_bonus_amount"] = 0
+                context.user_data["giveaway_step"] = "duration"
+                await query.edit_message_text(ltext(lang, "⏰ Choose giveaway duration:", "⏰ Giveaway মেয়াদ বেছে নিন:"), reply_markup=giveaway_duration_keyboard(lang))
+                return
+            context.user_data["giveaway_step"] = "bonus_count"
+            await query.edit_message_text(ltext(lang, "🎯 How many early successful claimers get a bonus?", "🎯 প্রথম কতজন successful claimer bonus পাবে?"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+            return
+        network = query.data.replace("giveaway_", "", 1)
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        if network not in NETWORKS:
+            await query.edit_message_text("❌ Invalid network.", reply_markup=back_keyboard(lang))
+            return
+        context.user_data.update({"giveaway_step": "count", "giveaway_source": "admin_stock", "giveaway_network": network})
+        await query.edit_message_text(ltext(lang, f"🎉 Giveaway on {NETWORKS[network]['name']}\n\nHow many recipients? Max 100.", f"🎉 {NETWORKS[network]['name']} Giveaway\n\nকতজন recipient? Max 100।"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+
     elif query.data == "gencode_menu":
         if not is_admin(user_id):
             return ConversationHandler.END
@@ -3185,6 +3236,178 @@ async def create_gift_code_from_context(target, context, minutes, lang):
         await target.reply_text(message, parse_mode="Markdown", reply_markup=reply_markup)
 
 
+def giveaway_duration_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("15 min", callback_data="giveaway_duration_15"), InlineKeyboardButton("30 min", callback_data="giveaway_duration_30")],
+            [InlineKeyboardButton("1 hour", callback_data="giveaway_duration_60"), InlineKeyboardButton("6 hours", callback_data="giveaway_duration_360")],
+            [InlineKeyboardButton("24 hours", callback_data="giveaway_duration_1440"), InlineKeyboardButton(tr("custom_duration", lang), callback_data="giveaway_duration_custom")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")],
+        ]
+    )
+
+
+def giveaway_bonus_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(ltext(lang, "No bonus", "Bonus নেই"), callback_data="giveaway_bonus_no"), InlineKeyboardButton(ltext(lang, "Set bonus", "Bonus সেট করুন"), callback_data="giveaway_bonus_set")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")],
+        ]
+    )
+
+
+def giveaway_total_max(recipient_count, base_amount, early_bonus_count=0, early_bonus_amount=0):
+    return round((int(recipient_count) * float(base_amount)) + (min(int(recipient_count), int(early_bonus_count or 0)) * float(early_bonus_amount or 0)), 8)
+
+
+def giveaway_summary_text(lang, session_id, network, recipient_count, base_amount, early_bonus_count, early_bonus_amount, minutes, total_max, codes):
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    expires_at = (datetime.now() + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M")
+    bonus_line = ltext(lang, "No early bonus.", "Early bonus নেই।")
+    if int(early_bonus_count or 0) > 0 and float(early_bonus_amount or 0) > 0:
+        bonus_line = ltext(lang, f"First {early_bonus_count} successful claimers get +{early_bonus_amount} {ni['symbol']} extra.", f"প্রথম {early_bonus_count} জন successful claimer +{early_bonus_amount} {ni['symbol']} extra পাবে।")
+    code_lines = "\n".join(f"{i}. `{code}`" for i, code in enumerate(codes, 1))
+    return (
+        f"✅ {tr('giveaway', lang)} {ltext(lang, 'created!', 'তৈরি হয়েছে!')}\n{DIVIDER}\n"
+        f"🧾 Session: `{session_id}`\n"
+        f"🌐 {ni['name']}\n"
+        f"👥 {ltext(lang, 'Recipients', 'প্রাপক')}: {recipient_count}\n"
+        f"💵 {ltext(lang, 'Base', 'Base')}: {base_amount} {ni['symbol']}\n"
+        f"🎯 {bonus_line}\n"
+        f"⏰ {ltext(lang, 'Expires', 'মেয়াদ')}: {expires_at}\n"
+        f"💰 {ltext(lang, 'Max payout', 'সর্বোচ্চ payout')}: {total_max} {ni['symbol']}\n{DIVIDER}\n"
+        f"🎟️ Codes:\n{code_lines}"
+    )
+
+
+async def send_giveaway_summary(target, context, lang, text):
+    chunks = []
+    while len(text) > 3900:
+        split_at = text.rfind("\n", 0, 3900)
+        if split_at < 1:
+            split_at = 3900
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip()
+    chunks.append(text)
+    reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu"), InlineKeyboardButton(tr("back", lang), callback_data="back")]])
+    first = True
+    for chunk in chunks:
+        if first and hasattr(target, "edit_message_text"):
+            await target.edit_message_text(chunk, parse_mode="Markdown", reply_markup=reply_markup if len(chunks) == 1 else None)
+        else:
+            await context.bot.send_message(chat_id=target.message.chat_id if hasattr(target, "message") else target.chat_id, text=chunk, parse_mode="Markdown", reply_markup=reply_markup if chunk == chunks[-1] else None)
+        first = False
+
+
+async def giveaway_target_text(target, text, reply_markup=None):
+    if hasattr(target, "edit_message_text"):
+        await target.edit_message_text(text, reply_markup=reply_markup)
+    else:
+        await target.reply_text(text, reply_markup=reply_markup)
+
+
+async def start_giveaway_flow(target, context, user_id, lang, edit=False):
+    context.user_data.clear()
+    if is_admin(user_id):
+        context.user_data.update({"giveaway_step": "network", "giveaway_source": "admin_stock"})
+        text = ltext(lang, "🎉 Giveaway\n\nSelect payout network. Admin giveaways use bot/admin stock.", "🎉 Giveaway\n\nPayout network বেছে নিন। Admin giveaway bot/admin stock থেকে যাবে।")
+        if edit:
+            await target.edit_message_text(text, reply_markup=network_menu("giveaway", lang))
+        else:
+            await target.reply_text(text, reply_markup=network_menu("giveaway", lang))
+        return
+    row = get_user_wallet(user_id)
+    if not row:
+        text = ltext(lang, "❌ Connect your wallet first via /setup or My Wallet. Non-admin giveaways are funded only from your connected wallet.", "❌ আগে /setup বা My Wallet থেকে wallet connect করুন। Non-admin giveaway শুধু আপনার connected wallet থেকে fund হবে।")
+        if edit:
+            await target.edit_message_text(text, reply_markup=back_keyboard(lang))
+        else:
+            await target.reply_text(text, reply_markup=back_keyboard(lang))
+        return
+    network = row[2]
+    if network == "ton":
+        text = ltext(lang, "❌ TON wallet-funded giveaways are not available yet because automatic private-key sending is not supported for TON.", "❌ TON wallet-funded giveaway এখন available নয়, কারণ TON private-key auto-send এখনও support করে না।")
+        if edit:
+            await target.edit_message_text(text, reply_markup=back_keyboard(lang))
+        else:
+            await target.reply_text(text, reply_markup=back_keyboard(lang))
+        return
+    if not SELLER_WALLET_MASTER_KEY:
+        text = ltext(lang, "❌ Wallet-funded giveaways are temporarily unavailable. Admin must configure SELLER_WALLET_MASTER_KEY.", "❌ Wallet-funded giveaway আপাতত unavailable। Admin-কে SELLER_WALLET_MASTER_KEY configure করতে হবে।")
+        if edit:
+            await target.edit_message_text(text, reply_markup=back_keyboard(lang))
+        else:
+            await target.reply_text(text, reply_markup=back_keyboard(lang))
+        return
+    context.user_data.update({"giveaway_step": "count", "giveaway_source": "user_wallet", "giveaway_network": network})
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    text = ltext(lang, f"🎉 Giveaway\n\nFunding source: your connected wallet\n🌐 {ni['name']}\n👛 {row[3]}\n\nHow many recipients? Max 100.", f"🎉 Giveaway\n\nFunding source: আপনার connected wallet\n🌐 {ni['name']}\n👛 {row[3]}\n\nকতজন recipient? Max 100।")
+    if edit:
+        await target.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+    else:
+        await target.reply_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="cancel")]]))
+
+
+async def create_giveaway_from_context(target, context, user_id, lang, minutes, password=None):
+    network = context.user_data.get("giveaway_network")
+    source = context.user_data.get("giveaway_source")
+    recipient_count = int(context.user_data.get("giveaway_count", 0))
+    base_amount = float(context.user_data.get("giveaway_base_amount", 0))
+    early_bonus_count = int(context.user_data.get("giveaway_bonus_count", 0) or 0)
+    early_bonus_amount = float(context.user_data.get("giveaway_bonus_amount", 0) or 0)
+    total_max = giveaway_total_max(recipient_count, base_amount, early_bonus_count, early_bonus_amount)
+    if not network or source not in {"admin_stock", "user_wallet"} or recipient_count <= 0 or recipient_count > 100 or base_amount <= 0 or minutes <= 0:
+        await giveaway_target_text(target, ltext(lang, "❌ Giveaway session invalid. Start again with /giveaway.", "❌ Giveaway session invalid। /giveaway দিয়ে আবার শুরু করুন।"))
+        context.user_data.clear()
+        return
+    encrypted_key = salt = wallet_address = None
+    if source == "admin_stock":
+        sufficient, current_bal = check_sufficient(network, total_max)
+        if not sufficient and current_bal is not None:
+            await giveaway_target_text(target, ltext(lang, f"❌ Insufficient admin stock for max payout.\n\n{stock_detail(network, total_max, current_bal)}", f"❌ Max payout এর জন্য admin stock পর্যাপ্ত নয়।\n\n{stock_detail(network, total_max, current_bal)}"))
+            return
+    else:
+        if not SELLER_WALLET_MASTER_KEY:
+            await giveaway_target_text(target, ltext(lang, "❌ Wallet-funded giveaways are unavailable: SELLER_WALLET_MASTER_KEY is missing.", "❌ Wallet-funded giveaway unavailable: SELLER_WALLET_MASTER_KEY missing."))
+            return
+        bal, balance_network, error = get_user_balance(user_id, password or "")
+        if error == "wrong_password":
+            await giveaway_target_text(target, ltext(lang, "❌ Wrong password. Giveaway not created.", "❌ ভুল Password। Giveaway তৈরি হয়নি।"))
+            return
+        if error:
+            await giveaway_target_text(target, ltext(lang, f"❌ Could not verify wallet balance.\n{error}", f"❌ Wallet balance verify করা যায়নি।\n{error}"))
+            return
+        if balance_network != network:
+            await giveaway_target_text(target, ltext(lang, "❌ Wallet network changed. Start again.", "❌ Wallet network পরিবর্তন হয়েছে। আবার শুরু করুন।"))
+            context.user_data.clear()
+            return
+        if bal is not None and total_max > float(bal):
+            ni = NETWORKS.get(network, {"symbol": "?"})
+            await giveaway_target_text(target, ltext(lang, f"❌ Insufficient wallet balance.\nNeed: {total_max} {ni['symbol']}\nBalance: {bal} {ni['symbol']}", f"❌ Wallet balance পর্যাপ্ত নয়।\nNeed: {total_max} {ni['symbol']}\nBalance: {bal} {ni['symbol']}"))
+            return
+        row = get_user_wallet(user_id)
+        if not row or row[2] != network:
+            await giveaway_target_text(target, ltext(lang, "❌ Wallet not found. Start again with /setup.", "❌ Wallet পাওয়া যায়নি। /setup দিয়ে শুরু করুন।"))
+            return
+        private_key = decrypt_key(row[0], row[1], password or "")
+        encrypted_key, salt = encrypt_seller_key(private_key)
+        wallet_address = row[3]
+    session_id = f"GIVE-{gen_code(6)}"
+    while get_giveaway_session(session_id):
+        session_id = f"GIVE-{gen_code(6)}"
+    codes = []
+    while len(codes) < recipient_count:
+        code = gen_code()
+        if code not in codes and not get_code(code):
+            codes.append(code)
+    expires_at = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+    create_giveaway_session(session_id, user_id, source, network, base_amount, recipient_count, early_bonus_count, early_bonus_amount, expires_at, encrypted_key, salt, wallet_address)
+    create_giveaway_codes(session_id, codes)
+    context.user_data.clear()
+    text = giveaway_summary_text(lang, session_id, network, recipient_count, base_amount, early_bonus_count, early_bonus_amount, minutes, total_max, codes)
+    await send_giveaway_summary(target, context, lang, text)
+
+
 async def show_disable_code_menu(query, user_id):
     if not is_admin(user_id):
         return
@@ -3774,6 +3997,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await create_gift_code_from_context(update.message, context, minutes, lang)
         return
 
+    if context.user_data.get("giveaway_step"):
+        return await handle_giveaway_text(update, context, user_id)
+
     if context.user_data.get("redeem_step"):
         return await handle_redeem(update, context, user_id, username)
     if context.user_data.get("uw_waiting_bal_password"):
@@ -3865,6 +4091,92 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def handle_giveaway_text(update, context, user_id):
+    lang = user_lang(user_id)
+    step = context.user_data.get("giveaway_step")
+    text = update.message.text.strip()
+    if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, "✅ Giveaway cancelled.", "✅ Giveaway বাতিল হয়েছে।"), reply_markup=main_menu(user_id, lang))
+        return
+    if step == "count":
+        try:
+            count = int(text)
+            if count <= 0 or count > 100:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(ltext(lang, "❌ Enter a recipient count between 1 and 100.", "❌ 1 থেকে 100 এর মধ্যে recipient count লিখুন।"))
+            return
+        context.user_data["giveaway_count"] = count
+        context.user_data["giveaway_step"] = "base_amount"
+        network = context.user_data.get("giveaway_network", "solana")
+        ni = NETWORKS.get(network, {"symbol": "?"})
+        await update.message.reply_text(ltext(lang, f"💵 Base amount per winner? Send {ni['symbol']} amount.", f"💵 প্রতি winner base amount কত? {ni['symbol']} amount লিখুন।"))
+        return
+    if step == "base_amount":
+        try:
+            amount = float(text)
+            if amount <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("invalid_amount", lang))
+            return
+        context.user_data["giveaway_base_amount"] = amount
+        context.user_data["giveaway_step"] = "bonus_choice"
+        await update.message.reply_text(ltext(lang, "🎯 Add an early-claimer bonus?", "🎯 Early claimer bonus যোগ করবেন?"), reply_markup=giveaway_bonus_keyboard(lang))
+        return
+    if step == "bonus_count":
+        try:
+            count = int(text)
+            if count <= 0 or count > int(context.user_data.get("giveaway_count", 0)):
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(ltext(lang, "❌ Enter a bonus count from 1 up to recipient count.", "❌ 1 থেকে recipient count পর্যন্ত bonus count লিখুন।"))
+            return
+        context.user_data["giveaway_bonus_count"] = count
+        context.user_data["giveaway_step"] = "bonus_amount"
+        network = context.user_data.get("giveaway_network", "solana")
+        ni = NETWORKS.get(network, {"symbol": "?"})
+        await update.message.reply_text(ltext(lang, f"💵 Bonus amount per early claimer? Send extra {ni['symbol']} amount.", f"💵 প্রতি early claimer bonus amount কত? Extra {ni['symbol']} amount লিখুন।"))
+        return
+    if step == "bonus_amount":
+        try:
+            amount = float(text)
+            if amount <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("invalid_amount", lang))
+            return
+        context.user_data["giveaway_bonus_amount"] = amount
+        context.user_data["giveaway_step"] = "duration"
+        await update.message.reply_text(ltext(lang, "⏰ Choose giveaway duration:", "⏰ Giveaway মেয়াদ বেছে নিন:"), reply_markup=giveaway_duration_keyboard(lang))
+        return
+    if step == "custom_duration":
+        try:
+            minutes = int(text)
+            if minutes <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(tr("enter_custom_duration", lang))
+            return
+        if context.user_data.get("giveaway_source") == "user_wallet":
+            context.user_data["giveaway_minutes"] = minutes
+            context.user_data["giveaway_step"] = "password"
+            await update.message.reply_text(ltext(lang, "🔐 Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password দিন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
+            return
+        await create_giveaway_from_context(update.message, context, user_id, lang, minutes)
+        return
+    if step == "password":
+        password = text
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        minutes = int(context.user_data.get("giveaway_minutes", 0))
+        await create_giveaway_from_context(update.message, context, user_id, lang, minutes, password=password)
+        return
+
+
 async def handle_redeem(update, context, user_id, username):
     lang = user_lang(user_id)
     if context.user_data.get("redeem_step") == "code":
@@ -3873,7 +4185,7 @@ async def handle_redeem(update, context, user_id, username):
         if not row:
             await update.message.reply_text(ltext(lang, "❌ Code not found.\n\nEnter the correct code.", "❌ কোড পাওয়া যায়নি!\n\nসঠিক কোড লিখুন।"))
             return
-        _code_val, amount_crypto, expires_at, used, _used_by, _created_at, code_network = row
+        _code_val, amount_crypto, expires_at, used, _used_by, _created_at, code_network, giveaway_id, _creator_id, _claim_number, _claimed_amount = row
         if used:
             await update.message.reply_text(ltext(lang, f"⚠️ This code has already been used.\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"⚠️ এই কোড আগেই ব্যবহার হয়েছে!\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"))
             context.user_data.clear()
@@ -3883,8 +4195,19 @@ async def handle_redeem(update, context, user_id, username):
             context.user_data.clear()
             return
         net_info = NETWORKS.get(code_network, NETWORKS["solana"])
-        context.user_data.update({"redeem_code": code, "redeem_usdc": amount_crypto, "redeem_network": code_network, "redeem_step": "wallet"})
-        await update.message.reply_text(ltext(lang, f"✅ Code verified!\n\n🎁 You receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
+        context.user_data.update({"redeem_code": code, "redeem_usdc": amount_crypto, "redeem_network": code_network, "redeem_giveaway_id": giveaway_id, "redeem_step": "wallet"})
+        if giveaway_id:
+            session = get_giveaway_session(giveaway_id)
+            if not session:
+                await update.message.reply_text(ltext(lang, "❌ Giveaway session not found. Contact support.", "❌ Giveaway session পাওয়া যায়নি। Support-এ যোগাযোগ করুন।"))
+                context.user_data.clear()
+                return
+            bonus_line = ltext(lang, "No early bonus.", "Early bonus নেই।")
+            if int(session[6] or 0) > 0 and float(session[7] or 0) > 0:
+                bonus_line = ltext(lang, f"First {session[6]} successful claimers get +{session[7]} {net_info['symbol']} extra if still available.", f"প্রথম {session[6]} জন successful claimer +{session[7]} {net_info['symbol']} extra পাবে, slot থাকলে।")
+            await update.message.reply_text(ltext(lang, f"✅ Giveaway code verified!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Giveaway code যাচাই সফল!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
+        else:
+            await update.message.reply_text(ltext(lang, f"✅ Code verified!\n\n🎁 You receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
         return
 
     wallet = update.message.text.strip()
@@ -3895,7 +4218,62 @@ async def handle_redeem(update, context, user_id, username):
         return
     code = context.user_data["redeem_code"]
     amount_crypto = context.user_data["redeem_usdc"]
+    giveaway_id = context.user_data.get("redeem_giveaway_id")
     context.user_data.clear()
+    if giveaway_id:
+        claim = claim_giveaway_code(code, user_id)
+        if not claim.get("ok"):
+            reason = claim.get("reason")
+            messages = {
+                "used": ltext(lang, f"⚠️ This code has already been claimed.\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"⚠️ এই code আগেই claim হয়েছে!\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"),
+                "expired": ltext(lang, f"⏰ This code has expired.\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"⏰ এই code-এর মেয়াদ শেষ!\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"),
+                "fully_claimed": ltext(lang, f"⚠️ Giveaway is already fully claimed.\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"⚠️ Giveaway ইতিমধ্যে fully claimed।\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"),
+            }
+            await update.message.reply_text(messages.get(reason, ltext(lang, f"❌ Could not claim this giveaway code.\nCode: {code}\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"❌ এই giveaway code claim করা যায়নি।\nCode: {code}\n📞 @{SUPPORT_USERNAME.lstrip('@')}")))
+            return
+        network = claim["network"]
+        net_info = NETWORKS[network]
+        amount_crypto = claim["amount"]
+        claim_line = f"#{claim['claim_number']}/{claim['recipient_count']}"
+        await update.message.reply_text(ltext(lang, f"⏳ Giveaway claim reserved {claim_line}. Sending {amount_crypto} {net_info['symbol']}...\n\n🌐 {net_info['name']}\n👛 {wallet}", f"⏳ Giveaway claim reserved {claim_line}. {amount_crypto} {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n👛 {wallet}"))
+        try:
+            if claim["source"] == "admin_stock":
+                sig = await send_crypto(network, wallet, amount_crypto)
+            else:
+                private_key = decrypt_seller_key(claim["encrypted_key"], claim["salt"])
+                loop = asyncio.get_running_loop()
+                sig = await loop.run_in_executor(None, lambda: send_with_private_key(network, private_key, wallet, amount_crypto))
+            explorer = f"{net_info['explorer']}{sig}"
+            order_id = save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=claim["session_id"], source="giveaway", seller_id=claim.get("creator_id") if claim["source"] == "user_wallet" else None)
+            await update.message.reply_text(ltext(lang, f"🎉 Giveaway sent!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nClaim: {claim_line}", f"🎉 Giveaway পাঠানো হয়েছে!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nClaim: {claim_line}"))
+            admin_msg = f"🎉 Giveaway redeemed!\n\n🧾 {claim['session_id']}\n👤 @{username} ({user_id})\n🎟️ {code}\n🎯 Claim {claim_line}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}"
+            try:
+                await update.get_bot().send_message(ADMIN_ID, admin_msg)
+            except Exception:
+                pass
+            if claim["source"] == "user_wallet" and str(claim.get("creator_id")) != str(ADMIN_ID):
+                try:
+                    await update.get_bot().send_message(int(claim["creator_id"]), admin_msg)
+                except Exception:
+                    pass
+        except Exception as exc:
+            save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, "", "failed", network, order_id=claim["session_id"], source="giveaway", seller_id=claim.get("creator_id") if claim["source"] == "user_wallet" else None)
+            add_audit("system", "giveaway_send_failed", "gift_code", code, f"session={claim['session_id']} error={exc}")
+            msg = ltext(lang, f"❌ Giveaway delivery failed after claim was reserved.\n\nCode: {code}\nSession: {claim['session_id']}\n💡 {failure_reason_text(exc, network, lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"❌ Claim reserve হওয়ার পর giveaway delivery failed।\n\nCode: {code}\nSession: {claim['session_id']}\n💡 {failure_reason_text(exc, network, lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
+            await update.message.reply_text(msg)
+            fail_msg = f"❌ Giveaway delivery failed\n\nSession: {claim['session_id']}\nCode: {code}\nUser: @{username} ({user_id})\nAmount: {amount_crypto} {net_info['symbol']}\nWallet: {wallet}\nError: {exc}"
+            try:
+                await update.get_bot().send_message(ADMIN_ID, fail_msg)
+            except Exception:
+                pass
+            if claim["source"] == "user_wallet" and str(claim.get("creator_id")) != str(ADMIN_ID):
+                try:
+                    await update.get_bot().send_message(int(claim["creator_id"]), fail_msg)
+                except Exception:
+                    pass
+            logger.error("Giveaway redeem failed: %s", exc)
+        return
+
     sufficient, current_bal = check_sufficient(network, amount_crypto)
     if not sufficient and current_bal is not None:
         await update.message.reply_text(ltext(lang, f"❌ Insufficient stock.\n\n{stock_detail(network, amount_crypto, current_bal)}", f"❌ পর্যাপ্ত stock নেই।\n\n{stock_detail(network, amount_crypto, current_bal)}"))
@@ -3946,6 +4324,11 @@ async def gencode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     context.user_data["gencode_step"] = "network"
     await update.message.reply_text(tr("code_select_network", lang), reply_markup=network_menu("gencode", lang))
+
+
+async def giveaway_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
+    await start_giveaway_flow(update.message, context, str(update.effective_user.id), lang)
 
 
 async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4527,6 +4910,7 @@ async def main():
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
+    app.add_handler(CommandHandler("giveaway", giveaway_cmd))
     app.add_handler(CommandHandler("pending", pending_cmd))
     app.add_handler(CommandHandler("failed", failed_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
