@@ -93,7 +93,7 @@ def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.get_json(silent=True) or {}
     token = request.view_args.get("token") if request.view_args else None
-    token = token or request.args.get("seller_token") or data.get("seller_token") or data.get("token")
+    token = token or request.args.get("seller_token") or data.get("seller_token")
     logger.info("Raw: %s", raw[:300])
     all_text = raw + " " + " ".join(str(v) for v in data.values())
 
