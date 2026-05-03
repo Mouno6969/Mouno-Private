@@ -12,6 +12,16 @@ from config import (
     BSC_PRIVATE_KEY,
     BSC_RPC,
     ETHEREUM_RPC,
+    LOW_GAS_THRESHOLD_AVALANCHE,
+    LOW_GAS_THRESHOLD_BASE,
+    LOW_GAS_THRESHOLD_BSC,
+    LOW_GAS_THRESHOLD_ETHEREUM,
+    LOW_GAS_THRESHOLD_ETHEREUM_USDC,
+    LOW_GAS_THRESHOLD_POLYGON,
+    LOW_GAS_THRESHOLD_SOLANA,
+    LOW_GAS_THRESHOLD_TON,
+    LOW_GAS_THRESHOLD_TRC20,
+    POLYGON_PRIVATE_KEY,
     POLYGON_RPC,
     SOLANA_KEY,
     TRON_PRIVATE_KEY,
@@ -52,7 +62,7 @@ def get_evm_address(private_key=None):
 
 def get_evm_balance(network, private_key=None):
     try:
-        key = private_key or BSC_PRIVATE_KEY
+        key = private_key or _evm_private_key(network)
         rpc = RPCS.get(network)
         contract_info = CONTRACTS.get(network)
         if not key or not rpc or not contract_info:
@@ -63,6 +73,25 @@ def get_evm_balance(network, private_key=None):
         contract = w3.eth.contract(address=Web3.to_checksum_address(contract_info["address"]), abi=ERC20_ABI)
         balance = contract.functions.balanceOf(account).call()
         return round(balance / 10 ** contract_info["decimals"], 4)
+    except Exception:
+        return None
+
+
+def _evm_private_key(network):
+    if network == "polygon":
+        return POLYGON_PRIVATE_KEY or BSC_PRIVATE_KEY
+    return BSC_PRIVATE_KEY
+
+
+def get_evm_native_balance(network, private_key=None):
+    try:
+        key = private_key or _evm_private_key(network)
+        rpc = RPCS.get(network)
+        if not key or not rpc:
+            return None
+        w3 = Web3(Web3.HTTPProvider(rpc))
+        account = w3.eth.account.from_key(key).address
+        return round(float(w3.from_wei(w3.eth.get_balance(account), "ether")), 6)
     except Exception:
         return None
 
@@ -94,6 +123,23 @@ def get_solana_balance(private_key=None):
         return None
 
 
+def get_solana_native_balance(private_key=None):
+    try:
+        key = private_key or SOLANA_KEY
+        if not key:
+            return None
+        keypair = Keypair.from_bytes(base58.b58decode(key))
+        response = requests.post(
+            "https://api.mainnet-beta.solana.com",
+            json={"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [str(keypair.pubkey())]},
+            timeout=10,
+        ).json()
+        value = response.get("result", {}).get("value")
+        return round(value / 10**9, 6) if value is not None else None
+    except Exception:
+        return None
+
+
 def get_tron_balance(private_key=None):
     try:
         key_hex = private_key or TRON_PRIVATE_KEY
@@ -105,6 +151,19 @@ def get_tron_balance(private_key=None):
         contract = client.get_contract("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
         balance = contract.functions.balanceOf(addr)
         return round(balance / 10**6, 4)
+    except Exception:
+        return None
+
+
+def get_tron_native_balance(private_key=None):
+    try:
+        key_hex = private_key or TRON_PRIVATE_KEY
+        if not key_hex:
+            return None
+        client = tron_client()
+        key = tron_private_key(key_hex)
+        addr = key.public_key.to_base58check_address()
+        return round(float(client.get_account_balance(addr)), 6)
     except Exception:
         return None
 
@@ -134,9 +193,62 @@ def get_all_balances():
     return balances, evm_addr
 
 
-def check_sufficient(network, amount):
+GAS_META = {
+    "solana": ("SOL", LOW_GAS_THRESHOLD_SOLANA),
+    "polygon": ("MATIC/POL", LOW_GAS_THRESHOLD_POLYGON),
+    "bsc": ("BNB", LOW_GAS_THRESHOLD_BSC),
+    "avalanche": ("AVAX", LOW_GAS_THRESHOLD_AVALANCHE),
+    "ethereum": ("ETH", LOW_GAS_THRESHOLD_ETHEREUM),
+    "ethereum_usdc": ("ETH", LOW_GAS_THRESHOLD_ETHEREUM_USDC),
+    "base": ("ETH", LOW_GAS_THRESHOLD_BASE),
+    "trc20": ("TRX", LOW_GAS_THRESHOLD_TRC20),
+    "ton": ("TON", LOW_GAS_THRESHOLD_TON),
+}
+
+
+def get_native_gas_balances():
+    tasks = {
+        "solana": get_solana_native_balance,
+        "polygon": lambda: get_evm_native_balance("polygon"),
+        "bsc": lambda: get_evm_native_balance("bsc"),
+        "avalanche": lambda: get_evm_native_balance("avalanche"),
+        "ethereum": lambda: get_evm_native_balance("ethereum"),
+        "ethereum_usdc": lambda: get_evm_native_balance("ethereum_usdc"),
+        "base": lambda: get_evm_native_balance("base"),
+        "trc20": get_tron_native_balance,
+        "ton": get_ton_balance,
+    }
+    balances = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(fn): net for net, fn in tasks.items()}
+        for future in as_completed(futures):
+            net = futures[future]
+            try:
+                balances[net] = future.result(timeout=8)
+            except Exception:
+                balances[net] = None
+    return balances
+
+
+def check_gas_sufficient(network):
+    symbol, threshold = GAS_META.get(network, ("native", 0))
+    balances = get_native_gas_balances()
+    balance = balances.get(network)
+    if balance is None:
+        return True, None, threshold, symbol
+    return float(balance) >= float(threshold), balance, threshold, symbol
+
+
+def check_sufficient(network, amount, exclude_order_id=None, exclude_trx_id=None):
     balances, _ = get_all_balances()
     bal = balances.get(network)
     if bal is None:
         return True, None
-    return bal >= amount, bal
+    try:
+        from db import get_active_reserved_amount
+
+        reserved = get_active_reserved_amount(network, exclude_order_id=exclude_order_id, exclude_trx_id=exclude_trx_id)
+    except Exception:
+        reserved = 0
+    available = float(bal) - float(reserved or 0)
+    return available >= float(amount), round(available, 6)

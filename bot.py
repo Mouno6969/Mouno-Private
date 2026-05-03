@@ -22,7 +22,7 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-from balance import check_sufficient, get_all_balances
+from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
 from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, GEMINI_API_KEY, GEMINI_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL
 from crypto_manager import (
@@ -36,11 +36,17 @@ from crypto_manager import (
 )
 from db import (
     create_code,
+    add_audit,
+    bind_stock_reservation_trx,
+    consume_stock_reservation,
+    create_stock_reservation,
     delete_pending_order,
     disable_code,
     get_all_active_codes,
     get_code,
     get_network_rate,
+    get_active_reserved_amount,
+    get_all_cost_rates,
     get_pending_order,
     get_pending_orders,
     get_recent_transactions,
@@ -50,23 +56,29 @@ from db import (
     get_setting,
     get_report_stats,
     get_seller_status,
+    get_seller_public_stats,
+    get_profit_summary,
     get_webhook_health,
     find_order,
     create_payout_request,
     get_payout_request,
     list_payout_requests,
+    list_audit,
     list_seller_profiles,
+    list_stock_reservations,
     get_transaction,
     get_transaction_stats,
     get_user_language,
     get_wallet,
     mark_sms_used,
+    release_stock_reservation,
     save_pending_order,
     save_sms,
     save_transaction,
     save_wallet,
     set_user_language,
     set_network_rate,
+    set_cost_rate,
     set_setting,
     sms_exists,
     trx_exists,
@@ -415,7 +427,67 @@ def stock_detail(network, amount, current_bal):
     info = NETWORKS.get(network, {"name": network, "symbol": "?"})
     if current_bal is None:
         return f"⚠️ {info['name']} stock could not be checked."
-    return f"📦 Seller stock: {current_bal} {info['symbol']} available, {amount} needed."
+    reserved = get_active_reserved_amount(network)
+    reserve_line = f"\n🔒 Reserved: {round(reserved, 6)} {info['symbol']}" if reserved else ""
+    return f"📦 Stock available after reserves: {current_bal} {info['symbol']}{reserve_line}\nNeed: {amount} {info['symbol']}."
+
+
+def gas_status_text():
+    balances = get_native_gas_balances()
+    lines = ["⛽ Gas Monitor", DIVIDER]
+    for network, info in NETWORKS.items():
+        symbol, threshold = GAS_META.get(network, ("native", 0))
+        balance = balances.get(network)
+        ok = True if balance is None else float(balance) >= float(threshold)
+        label = info["name"]
+        status = "✅" if ok else "⚠️ LOW"
+        value = "N/A" if balance is None else balance
+        lines.append(f"{status} {label}: {value} {symbol} (min {threshold})")
+    return "\n".join(lines)
+
+
+def reservations_text():
+    rows = list_stock_reservations("active", 30)
+    totals = {}
+    for row in rows:
+        _rid, _oid, _trx, _uid, _seller, network, amount, *_ = row
+        totals[network] = totals.get(network, 0) + float(amount or 0)
+    lines = ["📦 Active Reservations", DIVIDER]
+    if totals:
+        lines.append("Totals:")
+        for network, amount in totals.items():
+            ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+            lines.append(f"• {ni['name']}: {round(amount, 6)} {ni['symbol']}")
+        lines.append(DIVIDER)
+    if not rows:
+        lines.append("✅ No active reservations.")
+    for rid, oid, trx, uid, _seller, network, amount, status, reason, created, expires, _updated in rows[:20]:
+        ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        lines.append(f"🔒 {rid}\n🧾 {oid or 'N/A'} | 🔑 {trx or 'waiting'}\n👤 {uid} | {amount} {ni['symbol']} on {ni['name']}\n⏰ expires {str(expires)[:16]} | {reason or status}")
+    return "\n".join(lines)
+
+
+def audit_text(limit=20):
+    rows = list_audit(limit)
+    if not rows:
+        return panel("🧾 Audit Log", "No audit events yet.")
+    lines = []
+    for _aid, actor, action, target_type, target_id, details, created in rows:
+        lines.append(f"{str(created)[:16]} | {actor} | {action}\n{target_type or '-'}:{target_id or '-'} {details or ''}")
+    return panel("🧾 Audit Log", f"\n{DIVIDER}\n".join(lines))
+
+
+def profit_text(period="daily"):
+    data = get_profit_summary(period)
+    count, sale_bdt, crypto, profit, margin = data["overall"]
+    lines = [f"💹 Profit Summary ({period})", DIVIDER, f"✅ Completed: {count or 0}", f"💰 Sales: {round(sale_bdt or 0, 2)} BDT", f"💵 Crypto: {round(crypto or 0, 6)}", f"📈 Profit: {round(profit or 0, 2)} BDT", f"📊 Margin: {round(margin or 0, 2)}%", DIVIDER]
+    for network, n_count, bdt, vol, net_profit, net_margin in data["by_network"]:
+        ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+        lines.append(f"• {ni['name']}: {n_count} orders, {round(net_profit or 0, 2)} BDT profit, {round(net_margin or 0, 2)}%")
+    rates = get_all_cost_rates(NETWORKS.keys())
+    lines.append(DIVIDER)
+    lines.append("Cost rates: " + ", ".join(f"{net}={rate}" for net, rate in rates.items() if rate))
+    return "\n".join(lines)
 
 
 def webhook_health_text():
@@ -449,6 +521,7 @@ def receipt_block(order_id, trx_id, network, amount, wallet, sig, seller_id=None
         f"👛 Wallet: {short_wallet(wallet)}\n"
         f"🔑 TrxID: {trx_id or 'N/A'}\n"
         f"🏷 Seller: {seller_badge(seller_id)}\n"
+        f"👤 Seller profile: /seller {seller_id or ADMIN_ID}\n"
         f"{tx_line}"
     )
 
@@ -505,11 +578,11 @@ def completed_receipt_text(identifier, viewer_id):
 
 def report_text(period="daily"):
     data = get_report_stats(period)
-    total, completed, failed, other, total_bdt, total_crypto = data["transactions"]
+    total, completed, failed, other, total_bdt, total_crypto, total_profit = data["transactions"]
     top = "\n".join(f"• {NETWORKS.get(net, {'name': net})['name']}: {count} orders, {round(crypto or 0, 6)} crypto, {round(bdt or 0, 2)} BDT" for net, count, crypto, bdt in data["top_networks"]) or "No completed networks."
     stars_count, stars_amount = data["stars_pending"]
     payout_count, payout_amount = data["payouts_pending"]
-    return panel("📈 Admin Report", f"Period: {period}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n\nTop networks:\n{top}")
+    return panel("📈 Admin Report", f"Period: {period}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n\nTop networks:\n{top}")
 
 
 def seller_dashboard_text():
@@ -522,6 +595,11 @@ def seller_dashboard_text():
     lines.extend(warnings or ["✅ No low-balance warnings."])
     lines.append(DIVIDER)
     lines.append(webhook_health_text())
+    lines.append(DIVIDER)
+    lines.append(gas_status_text())
+    lines.append(DIVIDER)
+    summary = get_profit_summary("daily")["overall"]
+    lines.append(f"💹 Today profit: {round(summary[3] or 0, 2)} BDT | Sales: {round(summary[1] or 0, 2)} BDT")
     lines.append(f"🔑 EVM: {short_wallet(evm_addr)}")
     return "\n".join(lines)
 
@@ -541,6 +619,8 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
         keyboard.append([InlineKeyboardButton("📈 Report", callback_data="admin_report_daily"), InlineKeyboardButton("💾 Backup Now", callback_data="backup_now")])
+        keyboard.append([InlineKeyboardButton("📦 Reserves", callback_data="admin_reservations"), InlineKeyboardButton("💹 Profit", callback_data="admin_profit")])
+        keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
         keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
@@ -615,6 +695,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_crypto(network, wallet, amount):
+    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
+    if not gas_ok and gas_bal is not None:
+        raise RuntimeError(f"Low gas: {gas_bal} {gas_symbol} available, minimum {gas_threshold} required")
+    if gas_bal is None:
+        logger.warning("Gas balance could not be checked for %s", network)
+        add_audit("system", "gas_check_unknown", "network", network, "send not blocked")
     loop = asyncio.get_running_loop()
     if network == "solana":
         return await loop.run_in_executor(None, lambda: send_usdc(wallet, amount))
@@ -700,7 +786,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin(user_id):
             return ConversationHandler.END
         await send_backup_document(query.get_bot(), ADMIN_ID)
+        add_audit(user_id, "backup_requested", "database", "mouno.db", "telegram backup button")
         await query.edit_message_text("✅ Backup sent.", reply_markup=back_keyboard(lang))
+
+    elif query.data == "admin_reservations":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(reservations_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="admin_reservations"), InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "admin_profit":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(profit_text("daily"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📈 Weekly", callback_data="admin_profit_weekly"), InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "admin_profit_weekly":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(profit_text("weekly"), reply_markup=back_keyboard(lang))
+
+    elif query.data == "admin_gas":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(gas_status_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="admin_gas"), InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "admin_audit":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(audit_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="admin_audit"), InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
 
     elif query.data == "seller_badges":
         if not is_admin(user_id):
@@ -735,6 +847,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount = float(query.data.replace("test_sms_", "", 1))
         trx_id = f"TEST{gen_code(8)}"
         await process_bkash(context.application, f"bKash Payment Received Tk {amount} TrxID {trx_id}", "test_sms")
+        add_audit(user_id, "test_sms_injected", "sms", trx_id, f"amount={amount}")
         await query.edit_message_text(f"✅ Fake SMS injected.\nTrxID: {trx_id}\nAmount: {amount} BDT", reply_markup=back_keyboard(lang))
 
     elif query.data == "ai_support":
@@ -847,12 +960,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin(user_id):
             return ConversationHandler.END
         set_setting("maintenance_mode", "on")
+        add_audit(user_id, "maintenance_on", "setting", "maintenance_mode")
         await query.edit_message_text(tr("maintenance_on", lang), reply_markup=back_keyboard(lang))
 
     elif query.data == "maintenance_off":
         if not is_admin(user_id):
             return ConversationHandler.END
         set_setting("maintenance_mode", "off")
+        add_audit(user_id, "maintenance_off", "setting", "maintenance_mode")
         await query.edit_message_text(tr("maintenance_off", lang), reply_markup=back_keyboard(lang))
 
     elif query.data.startswith("admin_send_network_"):
@@ -915,6 +1030,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await confirm_buy(query, context, user_id, username)
 
     elif query.data == "cancel":
+        if context.user_data.get("order_id"):
+            release_stock_reservation(order_id=context.user_data.get("order_id"), reason="buyer_cancel", actor_id=user_id)
         context.user_data.clear()
         await query.edit_message_text("❌ বাতিল হয়েছে!\n\nআবার শুরু করতে /start দিন.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 মেনু", callback_data="back")]]))
         return ConversationHandler.END
@@ -1067,7 +1184,7 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    total, completed, failed, total_bdt, total_crypto = get_transaction_stats()
+    total, completed, failed, total_bdt, total_crypto, total_profit = get_transaction_stats()
     pending_count = len(get_pending_orders(100))
     failed_count = len(get_failed_transactions(100))
     maintenance = "ON" if is_maintenance_enabled() else "OFF"
@@ -1080,6 +1197,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔁 Retry queue: {failed_count}\n"
         f"💰 Completed BDT: {round(total_bdt or 0, 4)}\n"
         f"💵 Completed crypto total: {round(total_crypto or 0, 6)}\n"
+        f"💹 Profit: {round(total_profit or 0, 2)} BDT\n"
         f"🛠️ Maintenance: {maintenance}"
     )
 
@@ -1102,9 +1220,11 @@ async def maintenance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     arg = context.args[0].lower() if context.args else "status"
     if arg in {"on", "enable", "enabled"}:
         set_setting("maintenance_mode", "on")
+        add_audit(update.effective_user.id, "maintenance_on", "setting", "maintenance_mode")
         await update.message.reply_text("🛑 Maintenance mode ON")
     elif arg in {"off", "disable", "disabled"}:
         set_setting("maintenance_mode", "off")
+        add_audit(update.effective_user.id, "maintenance_off", "setting", "maintenance_mode")
         await update.message.reply_text("✅ Maintenance mode OFF")
     else:
         await update.message.reply_text(f"🛠️ Maintenance: {'ON' if is_maintenance_enabled() else 'OFF'}\n\nUse /maintenance on or /maintenance off")
@@ -1118,6 +1238,7 @@ async def backup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
     await send_backup_document(update.get_bot(), ADMIN_ID)
+    add_audit(update.effective_user.id, "backup_requested", "database", "mouno.db", "telegram command")
 
 
 async def send_backup_document(bot, chat_id):
@@ -1165,6 +1286,7 @@ async def handle_payout_decision(query):
         await query.edit_message_text("❌ Payout request not found.")
         return
     update_payout_request(req_id, status, "updated from Telegram")
+    add_audit(query.from_user.id, f"payout_{status}", "payout", req_id)
     _id, _order, user_id, amount, method, details, *_ = row
     await query.edit_message_text(f"✅ Payout {status}.\n\nID: {req_id}\nUser: {user_id}\nAmount: {amount}\nMethod: {method}\nDetails: {details}")
     try:
@@ -1201,15 +1323,29 @@ async def seller_badge_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /seller_badge USER_ID new|verified|trusted")
         return
     set_seller_status(context.args[0], context.args[1])
+    add_audit(update.effective_user.id, "seller_badge_changed", "seller", context.args[0], context.args[1])
     await update.message.reply_text(f"✅ Seller badge updated.\nUser: {context.args[0]}\nBadge: {SELLER_BADGES[context.args[1]]}")
 
 
 async def seller_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = context.args[0] if context.args else str(update.effective_user.id)
-    row = get_seller_status(target)
-    status = row[1] if row else "new"
-    updated = row[2] if row else "N/A"
-    await update.message.reply_text(panel("🏷 Seller Profile", f"User ID: {target}\nBadge: {SELLER_BADGES.get(status, status)}\nUpdated: {str(updated)[:19]}"))
+    stats = get_seller_public_stats(target)
+    total_done = (stats["completed_orders"] or 0) + (stats["failed_orders"] or 0)
+    success = (stats["completed_orders"] / total_done * 100) if total_done else 0
+    avg = stats.get("avg_delivery_seconds")
+    avg_text = f"{round(avg / 60, 1)} min" if avg else "N/A"
+    body = (
+        f"User ID: {target}\n"
+        f"Badge: {SELLER_BADGES.get(stats['status'], stats['status'])}\n"
+        f"✅ Completed: {stats['completed_orders']}\n"
+        f"❌ Failed: {stats['failed_orders']}\n"
+        f"📊 Success rate: {round(success, 2)}%\n"
+        f"💰 Volume: {round(stats['completed_bdt'], 2)} BDT / {round(stats['completed_crypto'], 6)} crypto\n"
+        f"⚡ Avg delivery: {avg_text}\n"
+        f"🕒 Last completed: {str(stats.get('last_completed_at') or 'N/A')[:19]}\n"
+        f"🔒 Active reserves: {stats['active_reservations']} / {round(stats['reserved_crypto'], 6)} crypto"
+    )
+    await update.message.reply_text(panel("🏷 Seller Profile", body))
 
 
 async def seller_dashboard_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1230,6 +1366,54 @@ async def report_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if period not in {"daily", "weekly"}:
         period = "daily"
     await update.message.reply_text(report_text(period))
+
+
+async def profit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    period = context.args[0].lower() if context.args else "daily"
+    if period not in {"daily", "weekly"}:
+        period = "daily"
+    await update.message.reply_text(profit_text(period))
+
+
+async def costrate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    if len(context.args) == 2:
+        network = context.args[0].lower()
+        if network not in NETWORKS:
+            await update.message.reply_text("❌ Unknown network.")
+            return
+        try:
+            rate = float(context.args[1])
+        except Exception:
+            await update.message.reply_text("Usage: /costrate NETWORK RATE")
+            return
+        set_cost_rate(network, rate)
+        add_audit(update.effective_user.id, "cost_rate_changed", "network", network, f"rate={rate}")
+        await update.message.reply_text(f"✅ Cost rate updated.\n{network}: {rate} BDT")
+        return
+    rates = get_all_cost_rates(NETWORKS.keys())
+    await update.message.reply_text("💹 Cost Rates\n\n" + "\n".join(f"{net}: {rates.get(net) or 0} BDT" for net in NETWORKS) + "\n\nSet: /costrate NETWORK RATE")
+
+
+async def gas_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(gas_status_text())
+
+
+async def reservations_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(reservations_text())
+
+
+async def audit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(audit_text())
 
 
 async def payout_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1277,6 +1461,7 @@ async def inject_test_sms(update: Update, context: ContextTypes.DEFAULT_TYPE, so
     trx_id = f"TEST{gen_code(8)}"
     text = f"bKash Payment Received Tk {amount} TrxID {trx_id}"
     await process_bkash(context.application, text, source)
+    add_audit(update.effective_user.id, "test_sms_injected", "sms", trx_id, f"source={source} amount={amount}")
     await update.message.reply_text(f"✅ Fake bKash notice injected.\nSource: {source}\nTrxID: {trx_id}\nAmount: {amount} BDT\n\nTEST TrxIDs are never auto-sent if matched to a pending order.")
 
 
@@ -1370,12 +1555,18 @@ async def retry_failed_transaction(query, trx_id, lang):
         await query.edit_message_text("⚠️ This transaction is not failed anymore.")
         return
     ni = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
+    sufficient, current_bal = check_sufficient(network, crypto)
+    if not sufficient and current_bal is not None:
+        await query.edit_message_text(f"❌ Retry blocked: insufficient stock.\n\n{stock_detail(network, crypto, current_bal)}", reply_markup=failed_retry_keyboard(trx_id))
+        return
     await query.edit_message_text("⏳ Retrying crypto send...")
     try:
         sig = await send_crypto(network, wallet, crypto)
         update_transaction(trx_id, sig=sig, status="completed")
+        add_audit(query.from_user.id, "retry_send_completed", "transaction", trx_id)
         await query.edit_message_text(f"✅ Retry successful!\n\n🌐 {ni['name']}\n💵 {crypto} {ni['symbol']}\n👛 {wallet}\n🔗 {ni['explorer']}{sig}", reply_markup=back_keyboard(lang))
     except Exception as exc:
+        add_audit(query.from_user.id, "retry_send_failed", "transaction", trx_id, str(exc))
         await query.edit_message_text(f"❌ Retry failed again.\n\n{exc}", reply_markup=failed_retry_keyboard(trx_id))
 
 
@@ -1464,11 +1655,22 @@ async def confirm_buy(query, context, user_id, username):
             reply_markup=back_keyboard(lang),
         )
         return
+    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
+    if not gas_ok and gas_bal is not None:
+        await query.edit_message_text(
+            f"⛽ Network gas low. New orders paused for {net_info['name']}.\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}",
+            reply_markup=back_keyboard(lang),
+        )
+        return
+    order_id = context.user_data.get("order_id") or f"ORD-{gen_code(6)}"
+    _res_id, order_id = create_stock_reservation(order_id, user_id, network, crypto_amount, ttl_minutes=15, reason="bkash_order")
+    context.user_data["order_id"] = order_id
     context.user_data["waiting_trxid"] = True
     context.user_data["trx_deadline"] = asyncio.get_event_loop().time() + 900
     await query.edit_message_text(
         (
             f"🎯 {'Order Confirmed' if lang == 'en' else 'অর্ডার কনফার্ম'}!\n{DIVIDER}\n"
+            f"🧾 Order: {order_id}\n"
             f"🌐 Network: {net_info['name']}\n"
             f"💰 {'Send exactly' if lang == 'en' else 'ঠিক'} {amount_bdt} BDT\n\n"
             f"📲 bKash: {BKASH_NUMBER}\n\n"
@@ -1552,8 +1754,13 @@ async def approve_order(query, user_id):
     if not is_admin(user_id):
         return
     _prefix, target_uid, trx_id, network = query.data.split("_", 3)
+    if trx_id.startswith("TEST"):
+        add_audit(user_id, "test_order_approve_blocked", "pending_order", trx_id)
+        await query.edit_message_text("🧪 Test TrxID approval blocked. Fake SMS notices never send real crypto.")
+        return
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?", "explorer": ""})
-    target_wallet = get_wallet(target_uid)
+    pending = get_pending_order(trx_id)
+    target_wallet = pending[4] if pending and pending[4] else get_wallet(target_uid)
     if not target_wallet:
         await query.edit_message_text(f"❌ User এর wallet পাওয়া যায়নি!\nUser ID: {target_uid}")
         return
@@ -1568,24 +1775,33 @@ async def approve_order(query, user_id):
         crypto_amount = 0
 
     order_id = None
-    pending = get_pending_order(trx_id)
     if pending:
         amount_bdt = pending[2]
         crypto_amount = pending[3]
         target_wallet = pending[4] or target_wallet
         order_id = pending[7] if len(pending) > 7 else None
 
+    sufficient, current_bal = check_sufficient(network, crypto_amount, exclude_order_id=order_id, exclude_trx_id=trx_id)
+    if not sufficient and current_bal is not None:
+        await query.edit_message_text(f"❌ Insufficient stock.\n\n{stock_detail(network, crypto_amount, current_bal)}")
+        return
+
     try:
         sig = await send_crypto(network, target_wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
-        order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id)
+        order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
+        add_audit(user_id, "order_approved", "transaction", trx_id, f"order={order_id}")
         await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}")
         try:
             await query.get_bot().send_message(int(target_uid), f"🎉 পেমেন্ট confirm হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nধন্যবাদ! 🙏")
         except Exception:
             pass
     except Exception as exc:
+        save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, "", "failed", network, order_id=order_id, source="bkash")
+        release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_approve_send_failed", actor_id="system")
+        add_audit(user_id, "order_approve_send_failed", "transaction", trx_id, str(exc))
         await query.edit_message_text(f"❌ পাঠাতে ব্যর্থ!\n\n{exc}")
         logger.error("Admin approve send failed: %s", exc)
 
@@ -1594,7 +1810,11 @@ async def reject_order(query, user_id):
     if not is_admin(user_id):
         return
     _prefix, target_uid, trx_id = query.data.split("_", 2)
+    pending = get_pending_order(trx_id)
+    order_id = pending[7] if pending and len(pending) > 7 else None
     delete_pending_order(trx_id)
+    release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_reject", actor_id=user_id)
+    add_audit(user_id, "order_rejected", "pending_order", trx_id, f"order={order_id}")
     await query.edit_message_text(f"❌ Rejected!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}")
     try:
         await query.get_bot().send_message(int(target_uid), f"❌ আপনার পেমেন্ট verify করা যায়নি!\n\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @MdMouno")
@@ -1633,7 +1853,11 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     crypto_amount = round(amount_bdt / rate, 6)
     sufficient, current_bal = check_sufficient(network, crypto_amount)
     if not sufficient and current_bal is not None:
-        await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n💰 মজুত: {current_bal} {net_info['symbol']}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno")
+        await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n{stock_detail(network, crypto_amount, current_bal)}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno")
+        return ConversationHandler.END
+    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
+    if not gas_ok and gas_bal is not None:
+        await update.message.reply_text(f"⛽ {net_info['name']} gas low. নতুন order সাময়িক বন্ধ।\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}")
         return ConversationHandler.END
 
     context.user_data["amount_bdt"] = amount_bdt
@@ -1691,13 +1915,18 @@ async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
     sufficient, current_bal = check_sufficient(network, amount_crypto)
     if not sufficient and current_bal is not None:
         await update.message.reply_text(
-            f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {amount_crypto}\nAvailable: {current_bal}"
+            f"❌ Insufficient {net_info['symbol']} stock.\n\nNeed: {amount_crypto}\n{stock_detail(network, amount_crypto, current_bal)}"
             if lang == "en"
-            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\nআছে: {current_bal}"
+            else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\n{stock_detail(network, amount_crypto, current_bal)}"
         )
+        return ConversationHandler.END
+    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
+    if not gas_ok and gas_bal is not None:
+        await update.message.reply_text(f"⛽ {net_info['name']} gas low. নতুন Stars order সাময়িক বন্ধ।\n\nAvailable: {gas_bal} {gas_symbol}\nMinimum: {gas_threshold} {gas_symbol}")
         return ConversationHandler.END
 
     order_id = gen_order_id("STAR")
+    create_stock_reservation(order_id, user.id, network, amount_crypto, ttl_minutes=30, reason="stars_invoice")
     username = user.username or user.first_name or ""
     save_star_order(order_id, user.id, username, network, wallet, amount_crypto, stars_amount)
     title = tr("stars_invoice_title", lang)
@@ -1761,6 +1990,10 @@ async def admin_send_amount_received(update: Update, context: ContextTypes.DEFAU
     net_info = NETWORKS[network]
     context.user_data["admin_send_amount"] = amount
     sufficient, current_bal = check_sufficient(network, amount)
+    gas_ok, gas_bal, gas_threshold, gas_symbol = check_gas_sufficient(network)
+    if not gas_ok and gas_bal is not None:
+        await update.message.reply_text(f"⛽ Low gas: {gas_bal} {gas_symbol} available, minimum {gas_threshold} required.")
+        return ConversationHandler.END
     stock_line = ""
     if current_bal is not None:
         stock_line = f"\n💰 Available: {current_bal} {net_info['symbol']}"
@@ -1796,7 +2029,8 @@ async def complete_admin_send(query, context, user_id, lang):
     try:
         sig = await send_crypto(network, wallet, amount)
         explorer = f"{net_info['explorer']}{sig}"
-        order_id = save_transaction(f"ADMIN-{sig[:24]}", user_id, 0, amount, wallet, sig, "completed", network)
+        order_id = save_transaction(f"ADMIN-{sig[:24]}", user_id, 0, amount, wallet, sig, "completed", network, source="admin_send")
+        add_audit(user_id, "admin_send_completed", "transaction", f"ADMIN-{sig[:24]}", f"network={network} amount={amount}")
         context.user_data.clear()
         await query.edit_message_text(
             f"{tr('admin_send_done', lang)}\n\n"
@@ -1804,7 +2038,9 @@ async def complete_admin_send(query, context, user_id, lang):
             reply_markup=back_keyboard(lang),
         )
     except Exception as exc:
-        save_transaction(f"ADMIN-FAILED-{gen_code(8)}", user_id, 0, amount, wallet, "", "failed", network)
+        failed_id = f"ADMIN-FAILED-{gen_code(8)}"
+        save_transaction(failed_id, user_id, 0, amount, wallet, "", "failed", network, source="admin_send")
+        add_audit(user_id, "admin_send_failed", "transaction", failed_id, str(exc))
         context.user_data.clear()
         await query.edit_message_text(f"❌ Send failed.\n\n{exc}", reply_markup=back_keyboard(lang))
 
@@ -1821,6 +2057,7 @@ async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_RATE
     network = context.user_data.get("rate_network", "solana")
     set_network_rate(network, new_rate)
+    add_audit(update.effective_user.id, "rate_changed", "network", network, f"rate={new_rate}")
     net_info = NETWORKS[network]
     await update.message.reply_text(f"✅ রেট আপডেট!\n\n🌐 {net_info['name']}\n💵 1 {net_info['symbol']} = {new_rate} BDT")
     return ConversationHandler.END
@@ -1890,6 +2127,8 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     deadline = context.user_data.get("trx_deadline", 0)
     if asyncio.get_event_loop().time() > deadline:
+        if context.user_data.get("order_id"):
+            release_stock_reservation(order_id=context.user_data.get("order_id"), reason="buyer_timeout", actor_id="system")
         context.user_data.clear()
         await update.message.reply_text("⏰ সময়সীমা শেষ!\n\nআবার অর্ডার করুন /start দিয়ে\n\n❓ @MdMouno")
         return
@@ -1913,7 +2152,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not sms_row:
         amount_bdt = context.user_data.get("amount_bdt", 0)
         crypto_amount = context.user_data.get("usdc_amount", 0)
-        order_id = save_pending_order(trx_id, user_id, amount_bdt, crypto_amount, wallet, network)
+        order_id = context.user_data.get("order_id") or f"ORD-{gen_code(6)}"
+        order_id = save_pending_order(trx_id, user_id, amount_bdt, crypto_amount, wallet, network, order_id=order_id)
+        bind_stock_reservation_trx(order_id, trx_id)
         keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"), InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}")]]
         try:
             await update.get_bot().send_message(ADMIN_ID, f"⚠️ SMS পাওয়া যায়নি! Manual Verify দরকার।\n\n🧾 Order: {order_id}\n👤 User: @{username} ({user_id})\n🔑 TrxID: {trx_id}\n💰 Amount: {amount_bdt} BDT\n💵 Est: {crypto_amount} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n👛 Wallet: {wallet}\n\nbKash এ TrxID যাচাই করে Approve বা Reject করুন:", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -1924,9 +2165,11 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     amount_bdt = sms_row[1]
     crypto_amount = round(amount_bdt / get_rate(network), 6)
-    sufficient, current_bal = check_sufficient(network, crypto_amount)
+    order_id = context.user_data.get("order_id") or f"ORD-{gen_code(6)}"
+    bind_stock_reservation_trx(order_id, trx_id)
+    sufficient, current_bal = check_sufficient(network, crypto_amount, exclude_order_id=order_id)
     if not sufficient and current_bal is not None:
-        await update.message.reply_text(f"❌ পর্যাপ্ত {net_info['symbol']} নেই!\n\n🌐 {net_info['name']}\n💵 চান: {crypto_amount}\n💰 আছে: {current_bal}\n\n📞 @MdMouno")
+        await update.message.reply_text(f"❌ পর্যাপ্ত {net_info['symbol']} নেই!\n\n🌐 {net_info['name']}\n💵 চান: {crypto_amount}\n{stock_detail(network, crypto_amount, current_bal)}\n\n📞 @MdMouno")
         return
 
     await update.message.reply_text(f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে...")
@@ -1934,11 +2177,14 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sig = await send_crypto(network, wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
-        order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network)
+        order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         context.user_data.clear()
         await update.message.reply_text(f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nধন্যবাদ! 🙏")
     except Exception as exc:
-        save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, "", "failed", network)
+        save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id, source="bkash")
+        release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="send_failed", actor_id="system")
+        add_audit("system", "send_failed", "transaction", trx_id, str(exc))
         context.user_data.clear()
         logger.error("Send failed: %s", exc)
         await update.message.reply_text(f"❌ পাঠাতে সমস্যা!\n\n📞 @MdMouno\n\nআপনার TrxID: {trx_id}\nসংরক্ষণ করুন।")
@@ -1974,12 +2220,16 @@ async def handle_redeem(update, context, user_id, username):
     code = context.user_data["redeem_code"]
     amount_crypto = context.user_data["redeem_usdc"]
     context.user_data.clear()
+    sufficient, current_bal = check_sufficient(network, amount_crypto)
+    if not sufficient and current_bal is not None:
+        await update.message.reply_text(f"❌ পর্যাপ্ত stock নেই।\n\n{stock_detail(network, amount_crypto, current_bal)}")
+        return
     await update.message.reply_text(f"⏳ {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}")
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
         explorer = f"{net_info['explorer']}{sig}"
         use_code(code, user_id)
-        order_id = save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network)
+        order_id = save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network, source="gift")
         await update.message.reply_text(f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nধন্যবাদ! 🙏")
         try:
             await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
@@ -2032,12 +2282,20 @@ async def send_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid amount.")
         return
     wallet = context.args[1].strip()
+    sufficient, current_bal = check_sufficient("solana", amount)
+    if not sufficient and current_bal is not None:
+        await update.message.reply_text(f"❌ Insufficient stock.\n\n{stock_detail('solana', amount, current_bal)}")
+        return
     await update.message.reply_text(f"⏳ Sending {amount} USDC (Solana)...")
     try:
-        sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_usdc(wallet, amount))
-        save_transaction(f"ADMIN-{sig[:24]}", update.effective_user.id, 0, amount, wallet, sig, "completed", "solana")
+        sig = await send_crypto("solana", wallet, amount)
+        save_transaction(f"ADMIN-{sig[:24]}", update.effective_user.id, 0, amount, wallet, sig, "completed", "solana", source="admin_send")
+        add_audit(update.effective_user.id, "admin_send_completed", "transaction", f"ADMIN-{sig[:24]}", f"network=solana amount={amount}")
         text = f"✅ Sent!\n\n💵 {amount} USDC\n👛 {wallet}\n🔗 https://solscan.io/tx/{sig}"
     except Exception as exc:
+        failed_id = f"ADMIN-FAILED-{gen_code(8)}"
+        save_transaction(failed_id, update.effective_user.id, 0, amount, wallet, "", "failed", "solana", source="admin_send")
+        add_audit(update.effective_user.id, "admin_send_failed", "transaction", failed_id, str(exc))
         text = f"❌ Failed!\n{exc}"
     await update.message.reply_text(text)
 
@@ -2173,7 +2431,7 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text("⏳ পাঠানো হচ্ছে...")
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, dest, amount))
-        save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network)
+        save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network, source="wallet")
         context.user_data.clear()
         await update.message.reply_text(f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}")
     except Exception as exc:
@@ -2198,9 +2456,9 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if query.currency != "XTR" or int(query.total_amount) != int(stars_amount):
         await query.answer(ok=False, error_message="Payment amount mismatch.")
         return
-    sufficient, current_bal = check_sufficient(network, amount_crypto)
+    sufficient, current_bal = check_sufficient(network, amount_crypto, exclude_order_id=order_id)
     if not sufficient and current_bal is not None:
-        await query.answer(ok=False, error_message=f"Seller stock is low: {current_bal} available, {amount_crypto} needed.")
+        await query.answer(ok=False, error_message=f"Seller stock is low after reserves: {current_bal} available, {amount_crypto} needed.")
         return
     await query.answer(ok=True)
 
@@ -2227,6 +2485,8 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
         return
     if str(update.effective_user.id) != str(user_id) or int(payment.total_amount) != int(stars_amount):
         update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error="payment verification mismatch")
+        release_stock_reservation(order_id=order_id, reason="stars_payment_mismatch", actor_id="system")
+        add_audit("system", "stars_payment_mismatch", "star_order", order_id)
         await update.message.reply_text("❌ Payment verification mismatch. Contact admin.")
         return
 
@@ -2237,7 +2497,8 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
         sig = await send_crypto(network, wallet, amount_crypto)
         explorer = f"{net_info['explorer']}{sig}"
         update_star_order_status(order_id, "completed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, sig)
-        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id)
+        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id, source="stars")
+        consume_stock_reservation(order_id=order_id)
         await update.message.reply_text(
             f"{tr('stars_completed', lang)}\n\n"
             f"⭐ {stars_amount} Stars\n"
@@ -2259,7 +2520,9 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
             pass
     except Exception as exc:
         update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error=str(exc))
-        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, "", "failed", network)
+        save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, "", "failed", network, order_id=order_id, source="stars")
+        release_stock_reservation(order_id=order_id, reason="stars_send_failed", actor_id="system")
+        add_audit("system", "stars_send_failed", "star_order", order_id, str(exc))
         await update.message.reply_text("✅ Stars payment received, but crypto sending failed. Admin has been notified.")
         try:
             await update.get_bot().send_message(
@@ -2372,7 +2635,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         return
 
     crypto_amount = expected_crypto or round(float(sms_amount_bdt) / get_rate(network), 6)
-    sufficient, current_bal = check_sufficient(network, crypto_amount)
+    sufficient, current_bal = check_sufficient(network, crypto_amount, exclude_order_id=order_id, exclude_trx_id=trx_id)
     if not sufficient and current_bal is not None:
         await app.bot.send_message(
             ADMIN_ID,
@@ -2388,7 +2651,8 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         sig = await send_crypto(network, wallet, crypto_amount)
         explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
-        order_id = save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id)
+        order_id = save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
         await app.bot.send_message(
             int(user_id),
@@ -2407,7 +2671,9 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             f"🔗 {explorer}",
         )
     except Exception as exc:
-        save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id)
+        save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id, source="bkash")
+        release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="auto_complete_send_failed", actor_id="system")
+        add_audit("system", "auto_complete_send_failed", "transaction", trx_id, str(exc))
         await app.bot.send_message(
             ADMIN_ID,
             f"🚨 Auto-complete failed after bKash SMS verification.\n\n"
@@ -2487,6 +2753,11 @@ async def main():
     app.add_handler(CommandHandler("seller_badge", seller_badge_cmd))
     app.add_handler(CommandHandler("seller_dashboard", seller_dashboard_cmd))
     app.add_handler(CommandHandler("report", report_cmd))
+    app.add_handler(CommandHandler("profit", profit_cmd))
+    app.add_handler(CommandHandler("costrate", costrate_cmd))
+    app.add_handler(CommandHandler("gas", gas_cmd))
+    app.add_handler(CommandHandler("reservations", reservations_cmd))
+    app.add_handler(CommandHandler("audit", audit_cmd))
     app.add_handler(CommandHandler("payout", payout_cmd))
     app.add_handler(CommandHandler("payouts", payouts_cmd))
     app.add_handler(CommandHandler("webhook_health", webhook_health_cmd))

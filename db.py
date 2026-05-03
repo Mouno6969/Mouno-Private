@@ -3,6 +3,7 @@ import sqlite3
 import secrets
 import string
 from contextlib import closing
+from datetime import datetime, timedelta
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "mouno.db")
 
@@ -140,15 +141,55 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_reservations (
+                id TEXT PRIMARY KEY,
+                order_id TEXT,
+                trx_id TEXT,
+                user_id TEXT,
+                seller_id TEXT,
+                network TEXT,
+                amount_crypto REAL,
+                status TEXT DEFAULT 'active' CHECK(status IN ('active','released','consumed','expired')),
+                reason TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id TEXT PRIMARY KEY,
+                actor_id TEXT,
+                action TEXT,
+                target_type TEXT,
+                target_id TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         ensure_column(con, "transactions", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "transactions", "order_id", "TEXT")
         ensure_column(con, "transactions", "updated_at", "TIMESTAMP")
+        ensure_column(con, "transactions", "rate_bdt", "REAL")
+        ensure_column(con, "transactions", "cost_rate_bdt", "REAL")
+        ensure_column(con, "transactions", "profit_bdt", "REAL")
+        ensure_column(con, "transactions", "profit_margin_pct", "REAL")
+        ensure_column(con, "transactions", "source", "TEXT")
+        ensure_column(con, "transactions", "seller_id", "TEXT")
         ensure_column(con, "gift_codes", "network", "TEXT DEFAULT 'solana'")
         ensure_column(con, "gift_codes", "amount", "REAL")
         ensure_column(con, "pending_orders", "order_id", "TEXT")
         ensure_column(con, "pending_orders", "updated_at", "TIMESTAMP")
+        ensure_column(con, "pending_orders", "seller_id", "TEXT")
+        ensure_column(con, "star_orders", "seller_id", "TEXT")
+        ensure_column(con, "stock_reservations", "seller_id", "TEXT")
         cur.execute("UPDATE transactions SET updated_at=COALESCE(updated_at, created_at)")
+        cur.execute("UPDATE transactions SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
         cur.execute("UPDATE pending_orders SET updated_at=COALESCE(updated_at, created_at)")
+        cur.execute("UPDATE pending_orders SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
+        cur.execute("UPDATE star_orders SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
+        cur.execute("UPDATE stock_reservations SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
         con.commit()
 
 
@@ -191,14 +232,67 @@ def mark_sms_used(trx_id):
         con.commit()
 
 
-def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network="solana", order_id=None):
+def _source_from_trx(trx_id, source=None):
+    if source:
+        return source
+    value = str(trx_id or "")
+    if value.startswith("STAR-"):
+        return "stars"
+    if value.startswith("GIFT-"):
+        return "gift"
+    if value.startswith("ADMIN-"):
+        return "admin_send"
+    if value.startswith("WALLET-"):
+        return "wallet"
+    return "bkash"
+
+
+def _cost_rate_for_network(con, network):
+    row = con.execute("SELECT value FROM app_settings WHERE key=?", (f"cost_rate_{network}",)).fetchone()
+    if row and row[0] not in (None, ""):
+        try:
+            return float(row[0])
+        except Exception:
+            return 0.0
+    for key in (f"COST_RATE_{str(network).upper()}", "DEFAULT_COST_RATE_BDT"):
+        value = os.getenv(key)
+        if value not in (None, ""):
+            try:
+                return float(value)
+            except Exception:
+                return 0.0
+    return 0.0
+
+
+def _profit_snapshot(con, amount_bdt, amount_usdc, network, status, source):
+    try:
+        sale = float(amount_bdt or 0)
+        crypto = float(amount_usdc or 0)
+    except Exception:
+        sale, crypto = 0.0, 0.0
+    if status != "completed" or sale <= 0 or crypto <= 0 or source in {"admin_send", "gift", "wallet"}:
+        return None, None, 0.0 if status == "completed" else None, None
+    rate_bdt = sale / crypto if crypto else None
+    cost_rate = _cost_rate_for_network(con, network)
+    if cost_rate <= 0:
+        return rate_bdt, 0.0, None, None
+    profit = sale - (crypto * cost_rate)
+    margin = (profit / sale * 100) if sale > 0 else None
+    return rate_bdt, cost_rate, profit, margin
+
+
+def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network="solana", order_id=None, source=None, seller_id=None):
     order_id = order_id or gen_order_id()
+    source = _source_from_trx(trx_id, source)
+    seller_id = str(seller_id or os.getenv("ADMIN_ID") or "")
     with closing(connect()) as con:
+        rate_bdt, cost_rate_bdt, profit_bdt, profit_margin_pct = _profit_snapshot(con, amount_bdt, amount_usdc, network, status, source)
         con.execute(
             """
             INSERT INTO transactions
-            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network, updated_at,
+             rate_bdt, cost_rate_bdt, profit_bdt, profit_margin_pct, source, seller_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(trx_id) DO UPDATE SET
                 order_id=COALESCE(transactions.order_id, excluded.order_id),
                 user_id=excluded.user_id,
@@ -208,9 +302,15 @@ def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, stat
                 sig=excluded.sig,
                 status=excluded.status,
                 network=excluded.network,
+                rate_bdt=excluded.rate_bdt,
+                cost_rate_bdt=excluded.cost_rate_bdt,
+                profit_bdt=excluded.profit_bdt,
+                profit_margin_pct=excluded.profit_margin_pct,
+                source=excluded.source,
+                seller_id=excluded.seller_id,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network),
+            (trx_id, order_id, user_id, amount_bdt, amount_usdc, wallet, sig, status, network, rate_bdt, cost_rate_bdt, profit_bdt, profit_margin_pct, source, seller_id),
         )
         con.commit()
         return order_id
@@ -218,12 +318,17 @@ def save_transaction(trx_id, user_id, amount_bdt, amount_usdc, wallet, sig, stat
 
 def update_transaction(trx_id, sig=None, status=None):
     with closing(connect()) as con:
+        old = con.execute("SELECT amount_bdt, amount_usdc, network, source FROM transactions WHERE trx_id=?", (trx_id,)).fetchone()
+        profit_values = (None, None, None, None)
+        if old and status is not None:
+            rate_bdt, cost_rate_bdt, profit_bdt, profit_margin_pct = _profit_snapshot(con, old[0], old[1], old[2], status, old[3])
+            profit_values = (rate_bdt, cost_rate_bdt, profit_bdt, profit_margin_pct)
         if sig is not None and status is not None:
-            con.execute("UPDATE transactions SET sig=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE trx_id=?", (sig, status, trx_id))
+            con.execute("UPDATE transactions SET sig=?, status=?, rate_bdt=?, cost_rate_bdt=?, profit_bdt=?, profit_margin_pct=?, updated_at=CURRENT_TIMESTAMP WHERE trx_id=?", (sig, status, *profit_values, trx_id))
         elif sig is not None:
             con.execute("UPDATE transactions SET sig=?, updated_at=CURRENT_TIMESTAMP WHERE trx_id=?", (sig, trx_id))
         elif status is not None:
-            con.execute("UPDATE transactions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE trx_id=?", (status, trx_id))
+            con.execute("UPDATE transactions SET status=?, rate_bdt=?, cost_rate_bdt=?, profit_bdt=?, profit_margin_pct=?, updated_at=CURRENT_TIMESTAMP WHERE trx_id=?", (status, *profit_values, trx_id))
         con.commit()
 
 
@@ -280,10 +385,49 @@ def get_transaction_stats():
                 SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed,
                 COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0) as total_bdt,
-                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0) as total_crypto
+                COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0) as total_crypto,
+                COALESCE(SUM(CASE WHEN status='completed' THEN profit_bdt ELSE 0 END), 0) as total_profit
             FROM transactions
             """
         ).fetchone()
+
+
+def set_cost_rate(network, rate):
+    set_setting(f"cost_rate_{network}", rate)
+
+
+def get_cost_rate(network):
+    with closing(connect()) as con:
+        return _cost_rate_for_network(con, network)
+
+
+def get_all_cost_rates(networks):
+    return {network: get_cost_rate(network) for network in networks}
+
+
+def get_profit_summary(period="daily"):
+    modifier = "-7 days" if str(period).lower().startswith("week") else "-1 day"
+    with closing(connect()) as con:
+        overall = con.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(amount_bdt), 0), COALESCE(SUM(amount_usdc), 0),
+                   COALESCE(SUM(profit_bdt), 0), AVG(profit_margin_pct)
+            FROM transactions
+            WHERE status='completed' AND datetime(created_at) >= datetime('now', ?)
+            """,
+            (modifier,),
+        ).fetchone()
+        by_network = con.execute(
+            """
+            SELECT network, COUNT(*), COALESCE(SUM(amount_bdt), 0), COALESCE(SUM(amount_usdc), 0),
+                   COALESCE(SUM(profit_bdt), 0), AVG(profit_margin_pct)
+            FROM transactions
+            WHERE status='completed' AND datetime(created_at) >= datetime('now', ?)
+            GROUP BY network ORDER BY SUM(profit_bdt) DESC LIMIT 10
+            """,
+            (modifier,),
+        ).fetchall()
+        return {"period": period, "overall": overall, "by_network": by_network}
 
 
 def create_code(code, amount_usdc, expires_at, network="solana"):
@@ -342,19 +486,146 @@ def set_network_rate(network, rate):
         con.commit()
 
 
-def save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id=None):
+def save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id=None, seller_id=None):
     order_id = order_id or gen_order_id()
+    seller_id = str(seller_id or os.getenv("ADMIN_ID") or "")
     with closing(connect()) as con:
         con.execute(
             """
             INSERT OR REPLACE INTO pending_orders
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id, seller_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
-            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id),
+            (trx_id, user_id, amount_bdt, amount_usdc, wallet, network, order_id, seller_id),
         )
         con.commit()
         return order_id
+
+
+def _reservation_where(order_id=None, trx_id=None):
+    if order_id:
+        return "order_id=?", (order_id,)
+    if trx_id:
+        return "trx_id=?", (trx_id,)
+    raise ValueError("order_id or trx_id required")
+
+
+def expire_stock_reservations():
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, order_id, trx_id FROM stock_reservations WHERE status='active' AND datetime(expires_at) <= datetime('now')"
+        ).fetchall()
+        con.execute("UPDATE stock_reservations SET status='expired', reason='ttl_expired', updated_at=CURRENT_TIMESTAMP WHERE status='active' AND datetime(expires_at) <= datetime('now')")
+        for rid, order_id, trx_id in rows:
+            con.execute(
+                "INSERT INTO audit_log (id, actor_id, action, target_type, target_id, details) VALUES (?, 'system', 'reservation_expired', 'reservation', ?, ?)",
+                (gen_order_id("AUD"), rid, f"order={order_id} trx={trx_id}"),
+            )
+        con.commit()
+        return len(rows)
+
+
+def create_stock_reservation(order_id, user_id, network, amount_crypto, trx_id=None, ttl_minutes=15, reason="order", seller_id=None):
+    expire_stock_reservations()
+    if not order_id:
+        order_id = gen_order_id()
+    seller_id = str(seller_id or os.getenv("ADMIN_ID") or "")
+    expires_at = (datetime.utcnow() + timedelta(minutes=ttl_minutes)).isoformat(timespec="seconds")
+    with closing(connect()) as con:
+        existing = con.execute("SELECT id FROM stock_reservations WHERE order_id=? AND status='active'", (order_id,)).fetchone()
+        if existing:
+            con.execute(
+                """
+                UPDATE stock_reservations
+                SET trx_id=COALESCE(?, trx_id), user_id=?, network=?, amount_crypto=?, reason=?, expires_at=?, seller_id=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+                """,
+                (trx_id, str(user_id), network, float(amount_crypto), reason, expires_at, seller_id, existing[0]),
+            )
+            res_id = existing[0]
+        else:
+            res_id = gen_order_id("RES")
+            con.execute(
+                """
+                INSERT INTO stock_reservations (id, order_id, trx_id, user_id, seller_id, network, amount_crypto, status, reason, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                """,
+                (res_id, order_id, trx_id, str(user_id), seller_id, network, float(amount_crypto), reason, expires_at),
+            )
+        con.commit()
+        return res_id, order_id
+
+
+def bind_stock_reservation_trx(order_id, trx_id):
+    with closing(connect()) as con:
+        con.execute("UPDATE stock_reservations SET trx_id=?, updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status='active'", (trx_id, order_id))
+        con.commit()
+
+
+def get_active_reserved_amount(network, exclude_order_id=None, exclude_trx_id=None):
+    expire_stock_reservations()
+    sql = "SELECT COALESCE(SUM(amount_crypto), 0) FROM stock_reservations WHERE status='active' AND network=?"
+    params = [network]
+    if exclude_order_id:
+        sql += " AND COALESCE(order_id, '') != ?"
+        params.append(exclude_order_id)
+    if exclude_trx_id:
+        sql += " AND COALESCE(trx_id, '') != ?"
+        params.append(exclude_trx_id)
+    with closing(connect()) as con:
+        return float(con.execute(sql, params).fetchone()[0] or 0)
+
+
+def get_active_reservation(order_id=None, trx_id=None):
+    expire_stock_reservations()
+    where, params = _reservation_where(order_id, trx_id)
+    with closing(connect()) as con:
+        return con.execute(
+            f"SELECT id, order_id, trx_id, user_id, seller_id, network, amount_crypto, status, reason, created_at, expires_at, updated_at FROM stock_reservations WHERE status='active' AND {where}",
+            params,
+        ).fetchone()
+
+
+def _set_reservation_status(status, order_id=None, trx_id=None, reason=None, actor_id="system"):
+    where, params = _reservation_where(order_id, trx_id)
+    with closing(connect()) as con:
+        rows = con.execute(f"SELECT id, order_id, trx_id, network, amount_crypto FROM stock_reservations WHERE status='active' AND {where}", params).fetchall()
+        con.execute(f"UPDATE stock_reservations SET status=?, reason=COALESCE(?, reason), updated_at=CURRENT_TIMESTAMP WHERE status='active' AND {where}", (status, reason, *params))
+        for rid, oid, tid, network, amount in rows:
+            con.execute(
+                "INSERT INTO audit_log (id, actor_id, action, target_type, target_id, details) VALUES (?, ?, ?, 'reservation', ?, ?)",
+                (gen_order_id("AUD"), str(actor_id), f"reservation_{status}", rid, f"order={oid} trx={tid} network={network} amount={amount} reason={reason or ''}"),
+            )
+        con.commit()
+        return len(rows)
+
+
+def consume_stock_reservation(order_id=None, trx_id=None):
+    return _set_reservation_status("consumed", order_id, trx_id, "sent", "system")
+
+
+def release_stock_reservation(order_id=None, trx_id=None, reason="released", actor_id="system"):
+    return _set_reservation_status("released", order_id, trx_id, reason, actor_id)
+
+
+def list_stock_reservations(status="active", limit=20):
+    expire_stock_reservations()
+    with closing(connect()) as con:
+        if status:
+            return con.execute(
+                """
+                SELECT id, order_id, trx_id, user_id, seller_id, network, amount_crypto, status, reason, created_at, expires_at, updated_at
+                FROM stock_reservations WHERE status=? ORDER BY datetime(created_at) DESC LIMIT ?
+                """,
+                (status, limit),
+            ).fetchall()
+        return con.execute(
+            """
+            SELECT id, order_id, trx_id, user_id, seller_id, network, amount_crypto, status, reason, created_at, expires_at, updated_at
+            FROM stock_reservations ORDER BY datetime(created_at) DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
 
 
 def get_pending_order(trx_id):
@@ -429,15 +700,38 @@ def set_setting(key, value):
         con.commit()
 
 
-def save_star_order(order_id, user_id, username, network, wallet, amount_crypto, stars_amount):
+def add_audit(actor_id, action, target_type=None, target_id=None, details=None):
+    audit_id = gen_order_id("AUD")
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO audit_log (id, actor_id, action, target_type, target_id, details)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (audit_id, str(actor_id), action, target_type, target_id, details),
+        )
+        con.commit()
+        return audit_id
+
+
+def list_audit(limit=30):
+    with closing(connect()) as con:
+        return con.execute(
+            "SELECT id, actor_id, action, target_type, target_id, details, created_at FROM audit_log ORDER BY datetime(created_at) DESC, rowid DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+
+def save_star_order(order_id, user_id, username, network, wallet, amount_crypto, stars_amount, seller_id=None):
+    seller_id = str(seller_id or os.getenv("ADMIN_ID") or "")
     with closing(connect()) as con:
         con.execute(
             """
             INSERT OR REPLACE INTO star_orders
-            (order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+            (order_id, user_id, username, network, wallet, amount_crypto, stars_amount, status, seller_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)
             """,
-            (order_id, str(user_id), username or "", network, wallet, amount_crypto, int(stars_amount)),
+            (order_id, str(user_id), username or "", network, wallet, amount_crypto, int(stars_amount), seller_id),
         )
         con.commit()
 
@@ -629,7 +923,8 @@ def get_report_stats(period="daily"):
                    SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),
                    SUM(CASE WHEN status NOT IN ('completed','failed') THEN 1 ELSE 0 END),
                    COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0)
+                   COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN status='completed' THEN profit_bdt ELSE 0 END), 0)
             FROM transactions WHERE datetime(created_at) >= datetime('now', ?)
             """,
             (modifier,),
@@ -649,13 +944,64 @@ def get_report_stats(period="daily"):
         return {"period": period, "transactions": tx, "top_networks": top_networks, "pending_orders": pending, "stars_pending": stars_pending, "payouts_pending": payouts_pending}
 
 
+def get_seller_public_stats(user_id):
+    seller_id = str(user_id or os.getenv("ADMIN_ID") or "")
+    with closing(connect()) as con:
+        status_row = con.execute("SELECT status, updated_at FROM seller_profiles WHERE user_id=?", (seller_id,)).fetchone()
+        tx = con.execute(
+            """
+            SELECT COUNT(*),
+                   SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),
+                   COALESCE(SUM(CASE WHEN status='completed' THEN amount_bdt ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN status='completed' THEN amount_usdc ELSE 0 END), 0),
+                   MAX(CASE WHEN status='completed' THEN updated_at ELSE NULL END)
+            FROM transactions WHERE COALESCE(seller_id, ?) = ?
+            """,
+            (seller_id, seller_id),
+        ).fetchone()
+        avg_delivery = con.execute(
+            """
+            SELECT AVG((julianday(COALESCE(updated_at, created_at)) - julianday(created_at)) * 86400)
+            FROM transactions
+            WHERE COALESCE(seller_id, ?) = ? AND status='completed' AND updated_at IS NOT NULL
+            """,
+            (seller_id, seller_id),
+        ).fetchone()[0]
+        reserves = con.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(amount_crypto), 0)
+            FROM stock_reservations WHERE status='active' AND COALESCE(seller_id, ?) = ?
+            """,
+            (seller_id, seller_id),
+        ).fetchone()
+        return {
+            "user_id": seller_id,
+            "status": status_row[0] if status_row else "new",
+            "updated_at": status_row[1] if status_row else None,
+            "total_orders": tx[0] or 0,
+            "completed_orders": tx[1] or 0,
+            "failed_orders": tx[2] or 0,
+            "completed_bdt": tx[3] or 0,
+            "completed_crypto": tx[4] or 0,
+            "last_completed_at": tx[5],
+            "avg_delivery_seconds": avg_delivery,
+            "active_reservations": reserves[0] or 0,
+            "reserved_crypto": reserves[1] or 0,
+        }
+
+
 def dashboard_snapshot(limit=20):
     with closing(connect()) as con:
         return {
-            "transactions": con.execute("SELECT trx_id, order_id, user_id, amount_bdt, amount_usdc, network, status, created_at FROM transactions ORDER BY datetime(created_at) DESC LIMIT ?", (limit,)).fetchall(),
+            "transactions": con.execute("SELECT trx_id, order_id, user_id, amount_bdt, amount_usdc, network, status, profit_bdt, source, created_at FROM transactions ORDER BY datetime(created_at) DESC LIMIT ?", (limit,)).fetchall(),
             "pending": get_pending_orders(limit),
             "sellers": list_seller_profiles(limit),
             "payouts": list_payout_requests(None, limit),
+            "reservations": list_stock_reservations(None, limit),
+            "audit": list_audit(limit),
+            "profit_daily": get_profit_summary("daily"),
+            "profit_weekly": get_profit_summary("weekly"),
         }
 
 
