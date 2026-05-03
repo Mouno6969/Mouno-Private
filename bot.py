@@ -142,9 +142,14 @@ from db import (
     update_star_order_status,
     use_code,
     approve_seller,
+    bind_referral,
     create_or_update_seller_application,
+    create_referral_withdrawal,
     create_seller_order,
     create_seller_star_ledger,
+    credit_referral_reward,
+    complete_referral_withdrawal,
+    fail_referral_withdrawal,
     disable_seller,
     disable_seller_wallet,
     find_waiting_seller_order_by_trx,
@@ -154,16 +159,24 @@ from db import (
     get_seller_order_by_trx,
     get_seller_payment_notice,
     get_seller_rate,
+    get_or_create_referral_code,
+    get_referrer_for_user,
     list_approved_sellers,
     list_enabled_seller_wallets,
     list_pending_seller_orders,
     list_pending_seller_payouts,
+    list_referral_ledger,
     list_seller_rates,
     list_seller_star_ledger,
     list_seller_wallets,
     list_sellers_by_status,
     mark_seller_payment_notice_used,
     mark_seller_payout_status,
+    mark_referral_withdrawal,
+    referral_admin_stats,
+    referral_balance,
+    referral_stats,
+    reserve_referral_withdrawal,
     reject_seller,
     save_seller_payment_notice,
     save_seller_wallet,
@@ -250,6 +263,7 @@ TEXT = {
     "seller_center": {"bn": "🏪 Seller Center", "en": "🏪 Seller Center"},
     "order_status": {"bn": "🔎 Order Status", "en": "🔎 Order Status"},
     "seller_dashboard": {"bn": "🏪 Seller Dashboard", "en": "🏪 Seller Dashboard"},
+    "referral": {"bn": "👥 Referral", "en": "👥 Referral"},
     "terms": {"bn": "📜 Terms", "en": "📜 Terms"},
     "wallet": {"bn": "🔐 আমার Wallet", "en": "🔐 My Wallet"},
     "language": {"bn": "🌐 ভাষা", "en": "🌐 Language"},
@@ -1100,6 +1114,7 @@ def command_help_text(user_id=None):
         ("/seller_center", "seller menu/application/tools"),
         ("/seller_dashboard", "seller dashboard খুলুন"),
         ("/seller_guide", "seller guide পড়ুন"),
+        ("/referral", "referral link/wallet দেখুন"),
         ("/setup", "personal wallet key connect/encrypt"),
         ("/changekey", "saved wallet key change"),
         ("/deletekey", "saved wallet key delete"),
@@ -1506,7 +1521,9 @@ def report_text(period="daily"):
     top = "\n".join(f"• {NETWORKS.get(net, {'name': net})['name']}: {count} orders, {round(crypto or 0, 6)} crypto, {round(bdt or 0, 2)} BDT" for net, count, crypto, bdt in data["top_networks"]) or "No completed networks."
     stars_count, stars_amount = data["stars_pending"]
     payout_count, payout_amount = data["payouts_pending"]
-    return panel("📈 Admin Report", f"Period: {period}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n\nTop networks:\n{top}")
+    ref_credited, ref_withdrawn, ref_liability = data.get("referrals", (0, 0, 0))
+    ref_failed = data.get("referral_failed_withdrawals", 0)
+    return panel("📈 Admin Report", f"Period: {period}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n👥 Referral liability: {round(ref_liability or 0, 6)} USD | credited {round(ref_credited or 0, 6)} | withdrawn {round(ref_withdrawn or 0, 6)} | failed wd {ref_failed}\n\nTop networks:\n{top}")
 
 
 def seller_dashboard_text():
@@ -1535,7 +1552,7 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu")],
         [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
-        [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status")],
+        [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status"), InlineKeyboardButton(tr("referral", lang), callback_data="referral_menu")],
         [InlineKeyboardButton(tr("sellers", lang), callback_data="sellers_market"), InlineKeyboardButton(tr("seller_center", lang), callback_data="seller_center")],
         [InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support"), InlineKeyboardButton(tr("seller_dashboard", lang), callback_data="seller_dashboard")],
         [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
@@ -1552,7 +1569,8 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
         keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
-        keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
+        keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("👥 Referral Admin", callback_data="referral_admin")])
+        keyboard.append([InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -1618,6 +1636,15 @@ def home_text(user_name=None, lang="bn"):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    args = getattr(context, "args", None) or []
+    if args:
+        raw_code = str(args[0]).strip()
+        code = raw_code[4:] if raw_code.startswith("ref_") else raw_code
+        if re.fullmatch(r"[A-Za-z0-9]{6,32}", code):
+            try:
+                bind_referral(user.id, code)
+            except Exception as exc:
+                logger.error("Referral bind failed: %s", exc)
     lang = get_user_language(user.id)
     if not lang:
         await update.message.reply_text(tr("choose_language", "bn"), reply_markup=language_keyboard())
@@ -1649,10 +1676,162 @@ async def send_crypto(network, wallet, amount):
 
 
 SELLER_NETWORKS = ["solana", "polygon", "bsc", "avalanche", "ethereum", "ethereum_usdc", "base", "trc20"]
+STABLE_REFERRAL_NETWORKS = ["solana", "polygon", "bsc", "avalanche", "ethereum", "ethereum_usdc", "base", "trc20"]
 
 
 def short_datetime(value):
     return str(value or "")[:16]
+
+
+def referral_enabled():
+    return get_setting("referral_enabled", "off") == "on"
+
+
+def referral_percent_value():
+    try:
+        return float(get_setting("referral_percent", "0") or 0)
+    except Exception:
+        return 0.0
+
+
+def referral_min_withdraw_value():
+    try:
+        return float(get_setting("referral_min_withdraw_usd", "1") or 1)
+    except Exception:
+        return 1.0
+
+
+def stable_network_menu(prefix="refwd_net", lang="bn"):
+    rows = []
+    for i in range(0, len(STABLE_REFERRAL_NETWORKS), 2):
+        row = []
+        for network in STABLE_REFERRAL_NETWORKS[i:i + 2]:
+            row.append(InlineKeyboardButton(NETWORKS[network]["name"][:24], callback_data=f"{prefix}_{network}"))
+        rows.append(row)
+    rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="referral_menu")])
+    return InlineKeyboardMarkup(rows)
+
+
+async def bot_referral_username(bot):
+    username = getattr(bot, "username", None)
+    if username:
+        return username
+    me = await bot.get_me()
+    return me.username
+
+
+def referral_link(username, code):
+    return f"https://t.me/{username}?start=ref_{code}"
+
+
+def referral_summary_text(user_id, code, link, lang="bn"):
+    stats = referral_stats(user_id)
+    enabled = referral_enabled()
+    percent = referral_percent_value()
+    min_withdraw = referral_min_withdraw_value()
+    rows = list_referral_ledger(user_id, 5)
+    recent = []
+    for _lid, typ, amount, source_type, source_id, _ref_uid, status, _details, created in rows:
+        sign = "+" if float(amount or 0) >= 0 else ""
+        recent.append(f"{short_datetime(created)} | {typ} {sign}{round(float(amount or 0), 6)} USD | {status} | {source_type}:{source_id}")
+    recent_text = "\n".join(recent) or ltext(lang, "No referral ledger entries yet.", "এখনও কোনো referral ledger entry নেই।")
+    status = ltext(lang, "ON", "চালু") if enabled else ltext(lang, "OFF", "বন্ধ")
+    disabled_line = "" if enabled else "\n⚠️ " + ltext(lang, "Referral rewards and withdrawals are currently off. You can still share your link.", "Referral reward এবং withdrawal বর্তমানে বন্ধ। Link share করতে পারবেন।")
+    return panel(
+        tr("referral", lang),
+        f"Status: {status}\n"
+        f"Reward percent: {percent}%\n"
+        f"Wallet balance: {round(stats['balance'], 6)} USD\n"
+        f"Minimum withdrawal: {min_withdraw} USD\n"
+        f"Referrals: {stats['referral_count']}\n"
+        f"Total earned: {round(stats['total_earned'], 6)} USD\n"
+        f"Total withdrawn: {round(stats['total_withdrawn'], 6)} USD\n"
+        f"{disabled_line}\n\n"
+        f"Your code: {code}\n"
+        f"Your link: {link}\n\n"
+        f"Recent ledger:\n{recent_text}",
+    )
+
+
+def referral_keyboard(lang="bn", admin=False):
+    rows = [
+        [InlineKeyboardButton("🔗 My Link", callback_data="referral_link"), InlineKeyboardButton("💸 Withdraw", callback_data="referral_withdraw")],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="referral_menu"), InlineKeyboardButton(tr("back", lang), callback_data="back")],
+    ]
+    if admin:
+        rows.insert(1, [InlineKeyboardButton("👥 Referral Admin", callback_data="referral_admin")])
+    return InlineKeyboardMarkup(rows)
+
+
+async def show_referral_menu(target, context, user_id, lang, edit=False):
+    code = get_or_create_referral_code(user_id)
+    username = await bot_referral_username(context.bot)
+    text = referral_summary_text(user_id, code, referral_link(username, code), lang)
+    markup = referral_keyboard(lang, is_admin(user_id))
+    if edit and hasattr(target, "edit_message_text"):
+        await target.edit_message_text(text, reply_markup=markup)
+    else:
+        await target.reply_text(text, reply_markup=markup)
+
+
+def referral_admin_text():
+    stats = referral_admin_stats()
+    return panel(
+        "👥 Referral Admin",
+        f"Status: {get_setting('referral_enabled', 'off').upper()}\n"
+        f"Percent: {referral_percent_value()}%\n"
+        f"Min withdraw: {referral_min_withdraw_value()} USD\n"
+        f"Relationships: {stats['relationships']}\n"
+        f"Total credited: {round(stats['credited'], 6)} USD\n"
+        f"Total withdrawn: {round(stats['withdrawn'], 6)} USD\n"
+        f"Liability: {round(stats['liability'], 6)} USD\n"
+        f"Failed withdrawals: {stats['failed_withdrawals']}",
+    )
+
+
+def referral_admin_keyboard(lang="bn"):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Enable", callback_data="refadmin_enable"), InlineKeyboardButton("🛑 Disable", callback_data="refadmin_disable")],
+        [InlineKeyboardButton("% Set Percent", callback_data="refadmin_set_percent"), InlineKeyboardButton("💸 Set Min Withdraw", callback_data="refadmin_set_min")],
+        [InlineKeyboardButton(tr("back", lang), callback_data="referral_menu")],
+    ])
+
+
+def referral_eligible_usd(network, amount_crypto, amount_bdt=0):
+    try:
+        bdt = float(amount_bdt or 0)
+    except Exception:
+        bdt = 0
+    if bdt > 0:
+        try:
+            rate = float(get_rate("solana") or 0)
+            if rate > 0:
+                return bdt / rate
+        except Exception:
+            pass
+    if network in STABLE_REFERRAL_NETWORKS:
+        try:
+            return float(amount_crypto or 0)
+        except Exception:
+            return 0
+    return 0
+
+
+def record_referral_reward_for_transaction(user_id, source_type, source_id, network, amount_crypto, amount_bdt=0, details=None):
+    try:
+        if not referral_enabled():
+            return None
+        percent = referral_percent_value()
+        if percent <= 0:
+            return None
+        eligible = referral_eligible_usd(network, amount_crypto, amount_bdt)
+        result = credit_referral_reward(user_id, source_type, source_id, eligible, percent, details)
+        if result:
+            add_audit("system", "referral_credit", "referral_ledger", result["id"], f"user={result['user_id']} amount={result['amount_usd']} source={source_type}:{source_id}")
+        return result
+    except Exception as exc:
+        logger.error("Referral credit failed: %s", exc)
+        return None
 
 
 def seller_network_menu(prefix, seller_id=None, lang="bn"):
@@ -1816,6 +1995,8 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
             mark_seller_payment_notice_used(seller_id, trx_id)
         source = "seller_stars" if method == "stars" else "seller_bkash"
         save_transaction(f"SELLER-{order_id}", buyer_id, amount_bdt or 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id, source=source, seller_id=seller_id)
+        record_referral_reward_for_transaction(buyer_id, "seller_buy", f"{order_id}:buyer", network, amount_crypto, amount_bdt or 0, f"seller={seller_id} method={method}")
+        record_referral_reward_for_transaction(seller_id, "seller_sale", f"{order_id}:seller", network, amount_crypto, amount_bdt or 0, f"buyer={buyer_id} method={method}")
         if method == "stars" and stars_amount:
             create_seller_star_ledger(gen_order_id("SL"), seller_id, order_id, stars_amount)
         explorer = f"{ni.get('explorer','')}{sig}"
@@ -1938,6 +2119,59 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["order_status_lookup"] = True
         await query.edit_message_text(ltext(lang, "🔎 Order Status\n\nSend your Order ID or TrxID.\nExample: ORD-ABC123 or your bKash TrxID\n\nCommands: /order ORD-XXXXXX or /status TRXID", "🔎 Order Status\n\nOrder ID বা TrxID পাঠান।\nউদাহরণ: ORD-ABC123 অথবা TrxID\n\nCommand: /order ORD-XXXXXX বা /status TRXID"), reply_markup=back_keyboard(lang))
+
+    elif query.data in {"referral_menu", "referral_link"}:
+        context.user_data.clear()
+        await show_referral_menu(query, context, user_id, lang, edit=True)
+
+    elif query.data == "referral_withdraw":
+        context.user_data.clear()
+        if not referral_enabled():
+            await query.edit_message_text(ltext(lang, "⚠️ Referral withdrawals are currently disabled by admin. Your link still works for relationship tracking.", "⚠️ Referral withdrawal বর্তমানে admin বন্ধ রেখেছেন। Relationship tracking-এর জন্য link কাজ করবে।"), reply_markup=referral_keyboard(lang, is_admin(user_id)))
+            return ConversationHandler.END
+        balance = referral_balance(user_id)
+        min_withdraw = referral_min_withdraw_value()
+        if balance + 1e-9 < min_withdraw:
+            await query.edit_message_text(ltext(lang, f"💸 Referral balance too low.\n\nBalance: {round(balance, 6)} USD\nMinimum: {min_withdraw} USD", f"💸 Referral balance কম।\n\nBalance: {round(balance, 6)} USD\nMinimum: {min_withdraw} USD"), reply_markup=referral_keyboard(lang, is_admin(user_id)))
+            return ConversationHandler.END
+        context.user_data["ref_withdraw_step"] = "network"
+        await query.edit_message_text(ltext(lang, f"💸 Referral withdrawal\n\nBalance: {round(balance, 6)} USD\nChoose a stablecoin network:", f"💸 Referral withdrawal\n\nBalance: {round(balance, 6)} USD\nStablecoin network বেছে নিন:"), reply_markup=stable_network_menu("refwd_net", lang))
+
+    elif query.data.startswith("refwd_net_"):
+        network = query.data.replace("refwd_net_", "", 1)
+        if network not in STABLE_REFERRAL_NETWORKS:
+            return ConversationHandler.END
+        if not referral_enabled():
+            await query.edit_message_text(ltext(lang, "⚠️ Referral withdrawals are currently disabled.", "⚠️ Referral withdrawal বর্তমানে বন্ধ।"), reply_markup=referral_keyboard(lang, is_admin(user_id)))
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data.update({"ref_withdraw_step": "amount", "ref_withdraw_network": network})
+        balance = referral_balance(user_id)
+        min_withdraw = referral_min_withdraw_value()
+        ni = NETWORKS[network]
+        await query.edit_message_text(ltext(lang, f"💸 {ni['name']} withdrawal\n\nBalance: {round(balance, 6)} USD\nMinimum: {min_withdraw} USD\n\nSend amount in USD/{ni['symbol']}:", f"💸 {ni['name']} withdrawal\n\nBalance: {round(balance, 6)} USD\nMinimum: {min_withdraw} USD\n\nUSD/{ni['symbol']} amount লিখুন:"))
+
+    elif query.data == "referral_admin":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        await query.edit_message_text(referral_admin_text(), reply_markup=referral_admin_keyboard(lang))
+
+    elif query.data in {"refadmin_enable", "refadmin_disable"}:
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        value = "on" if query.data == "refadmin_enable" else "off"
+        set_setting("referral_enabled", value)
+        add_audit(user_id, "referral_setting_changed", "setting", "referral_enabled", value)
+        await query.edit_message_text(referral_admin_text(), reply_markup=referral_admin_keyboard(lang))
+
+    elif query.data in {"refadmin_set_percent", "refadmin_set_min"}:
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["ref_admin_set"] = "percent" if query.data.endswith("percent") else "min"
+        prompt = "Send referral percent from 0 to 20. This will not auto-enable referrals." if query.data.endswith("percent") else "Send minimum withdrawal amount in USD/stablecoin."
+        await query.edit_message_text(prompt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="referral_admin")]]))
 
     elif query.data == "sellers_market":
         await show_seller_marketplace(query, lang)
@@ -3044,7 +3278,8 @@ async def retry_failed_transaction(query, trx_id, lang):
     if not row:
         await query.edit_message_text("❌ Transaction not found.")
         return
-    _trx_id, _bdt, crypto, network, wallet, status, _created, _order_id, _user_id, _old_sig = row
+    _trx_id, _bdt, crypto, network, wallet, status, _created, _order_id, _user_id, _old_sig = row[:10]
+    source = row[10] if len(row) > 10 else None
     if status != "failed":
         await query.edit_message_text("⚠️ This transaction is not failed anymore.")
         return
@@ -3057,6 +3292,8 @@ async def retry_failed_transaction(query, trx_id, lang):
     try:
         sig = await send_crypto(network, wallet, crypto)
         update_transaction(trx_id, sig=sig, status="completed")
+        if source not in {"admin_send", "gift", "giveaway", "referral_withdrawal"}:
+            record_referral_reward_for_transaction(_user_id, source or "retry", f"retry:{trx_id}", network, crypto, _bdt, f"order={_order_id} retry_source={source}")
         add_audit(query.from_user.id, "retry_send_completed", "transaction", trx_id)
         await query.edit_message_text(f"✅ Retry successful!\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}", reply_markup=back_keyboard(lang))
         if _user_id:
@@ -3466,6 +3703,7 @@ async def approve_order(query, user_id):
     try:
         sig = await send_crypto(network, target_wallet, crypto_amount)
         order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        record_referral_reward_for_transaction(target_uid, "bkash", trx_id, network, crypto_amount, amount_bdt, f"order={order_id}")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
         add_audit(user_id, "order_approved", "transaction", trx_id, f"order={order_id}")
@@ -3727,6 +3965,11 @@ async def seller_center_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_seller_center(update.message, context, str(user.id), user.username or user.first_name, edit=False)
 
 
+async def referral_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    await show_referral_menu(update.message, context, str(user.id), user_lang(user.id), edit=False)
+
+
 async def seller_guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(seller_guide_text(get_seller(str(update.effective_user.id))))
 
@@ -3899,6 +4142,84 @@ async def waiting_rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def handle_referral_withdraw_text(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id, lang, incoming_text):
+    if not referral_enabled():
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, "⚠️ Referral withdrawals are currently disabled.", "⚠️ Referral withdrawal বর্তমানে বন্ধ।"), reply_markup=main_menu(user_id, lang))
+        return
+    step = context.user_data.get("ref_withdraw_step")
+    network = context.user_data.get("ref_withdraw_network")
+    if network not in STABLE_REFERRAL_NETWORKS:
+        context.user_data.clear()
+        await update.message.reply_text("❌ Withdrawal session expired.", reply_markup=main_menu(user_id, lang))
+        return
+    balance = referral_balance(user_id)
+    min_withdraw = referral_min_withdraw_value()
+    ni = NETWORKS[network]
+    if step == "amount":
+        try:
+            amount = round(float(incoming_text), 6)
+            if amount <= 0 or amount + 1e-9 < min_withdraw or amount - balance > 1e-9:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(ltext(lang, f"❌ Invalid amount. Send an amount between {min_withdraw} and {round(balance, 6)}.", f"❌ ভুল amount। {min_withdraw} থেকে {round(balance, 6)} এর মধ্যে লিখুন।"))
+            return
+        context.user_data["ref_withdraw_amount"] = amount
+        context.user_data["ref_withdraw_step"] = "wallet"
+        await update.message.reply_text(ltext(lang, f"Send your {ni['name']} destination wallet:\nExample: {wallet_hint(network)}", f"আপনার {ni['name']} destination wallet দিন:\nExample: {wallet_hint(network)}"))
+        return
+    wallet = incoming_text.strip()
+    amount = float(context.user_data.get("ref_withdraw_amount") or 0)
+    if amount <= 0:
+        context.user_data.clear()
+        await update.message.reply_text("❌ Withdrawal session expired.", reply_markup=main_menu(user_id, lang))
+        return
+    if not valid_wallet(network, wallet):
+        await update.message.reply_text(ltext(lang, f"❌ Invalid wallet. Example: {wallet_hint(network)}", f"❌ ভুল wallet। Example: {wallet_hint(network)}"))
+        return
+    balance = referral_balance(user_id)
+    if amount - balance > 1e-9:
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, f"❌ Balance changed. Current balance: {round(balance, 6)} USD", f"❌ Balance পরিবর্তন হয়েছে। Current balance: {round(balance, 6)} USD"), reply_markup=main_menu(user_id, lang))
+        return
+    sufficient, current_bal = check_sufficient(network, amount)
+    if not sufficient and current_bal is not None:
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, f"❌ Bot stock is insufficient right now.\n{stock_detail(network, amount, current_bal)}", f"❌ Bot stock এখন পর্যাপ্ত নয়।\n{stock_detail(network, amount, current_bal)}"), reply_markup=main_menu(user_id, lang))
+        return
+    withdrawal_id = create_referral_withdrawal(user_id, amount, network, wallet)
+    reserved = reserve_referral_withdrawal(user_id, withdrawal_id, amount, network, wallet)
+    if not reserved:
+        mark_referral_withdrawal(withdrawal_id, "failed", error="insufficient unreserved referral balance")
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, "❌ Balance is already reserved or insufficient. Please refresh and try again.", "❌ Balance ইতিমধ্যে reserved অথবা পর্যাপ্ত নয়। Refresh করে আবার চেষ্টা করুন।"), reply_markup=main_menu(user_id, lang))
+        return
+    await update.message.reply_text(ltext(lang, f"⏳ Sending {amount} {ni['symbol']} referral withdrawal...", f"⏳ {amount} {ni['symbol']} referral withdrawal পাঠানো হচ্ছে..."))
+    try:
+        sig = await send_crypto(network, wallet, amount)
+        complete_referral_withdrawal(withdrawal_id, sig)
+        trx_id = f"REFWD-{withdrawal_id}"
+        order_id = save_transaction(trx_id, user_id, 0, amount, wallet, sig, "completed", network, order_id=withdrawal_id, source="referral_withdrawal")
+        add_audit("system", "referral_withdrawal_completed", "referral_withdrawal", withdrawal_id, f"user={user_id} amount={amount} network={network}")
+        context.user_data.clear()
+        receipt = receipt_block(order_id, trx_id, network, amount, wallet, sig)
+        await update.message.reply_text(ltext(lang, f"✅ Referral withdrawal complete!\n\n{receipt}", f"✅ Referral withdrawal সম্পন্ন!\n\n{receipt}"), reply_markup=main_menu(user_id, lang))
+        try:
+            await update.get_bot().send_message(ADMIN_ID, f"✅ Referral withdrawal complete.\nUser: {user_id}\nAmount: {amount} {ni['symbol']}\nNetwork: {ni['name']}\nTX: {sig}")
+        except Exception:
+            pass
+    except Exception as exc:
+        fail_referral_withdrawal(withdrawal_id, str(exc)[:500])
+        add_audit("system", "referral_withdrawal_failed", "referral_withdrawal", withdrawal_id, str(exc))
+        context.user_data.clear()
+        reason = failure_reason_text(exc, network, lang)
+        await update.message.reply_text(ltext(lang, f"❌ Referral withdrawal failed. Your referral balance was not debited.\n\n💡 {reason}", f"❌ Referral withdrawal failed. আপনার referral balance কাটা হয়নি।\n\n💡 {reason}"), reply_markup=main_menu(user_id, lang))
+        try:
+            await update.get_bot().send_message(ADMIN_ID, f"🚨 Referral withdrawal failed.\nUser: {user_id}\nWithdrawal: {withdrawal_id}\nAmount: {amount}\nNetwork: {network}\nError: {exc}")
+        except Exception:
+            pass
+
+
 async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
@@ -3913,6 +4234,31 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("payout_request"):
         context.user_data.clear()
         await create_payout_from_text(update, user_id, incoming_text)
+        return
+
+    ref_admin_set = context.user_data.get("ref_admin_set")
+    if ref_admin_set:
+        if not is_admin(user_id):
+            context.user_data.pop("ref_admin_set", None)
+            return
+        try:
+            value = float(incoming_text)
+            if ref_admin_set == "percent" and not (0 <= value <= 20):
+                raise ValueError
+            if ref_admin_set == "min" and value < 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text("❌ Invalid value. Percent must be 0-20; min withdraw must be non-negative.", reply_markup=referral_admin_keyboard(lang))
+            return
+        key = "referral_percent" if ref_admin_set == "percent" else "referral_min_withdraw_usd"
+        set_setting(key, value)
+        add_audit(user_id, "referral_setting_changed", "setting", key, str(value))
+        context.user_data.clear()
+        await update.message.reply_text(referral_admin_text(), reply_markup=referral_admin_keyboard(lang))
+        return
+
+    if context.user_data.get("ref_withdraw_step"):
+        await handle_referral_withdraw_text(update, context, user_id, lang, incoming_text)
         return
 
     setup_provider = context.user_data.get("ai_setup_provider")
@@ -4074,6 +4420,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
         order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        record_referral_reward_for_transaction(user_id, "bkash", trx_id, network, crypto_amount, amount_bdt, f"order={order_id}")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         context.user_data.clear()
         await update.message.reply_text(ltext(lang, f"🎉 {net_info['symbol']} sent!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nThank you!", f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nধন্যবাদ! 🙏"))
@@ -4504,6 +4851,7 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         sig = await asyncio.get_running_loop().run_in_executor(None, lambda: send_from_user_wallet(user_id, password, dest, amount))
         save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network, source="wallet")
+        record_referral_reward_for_transaction(user_id, "wallet", f"WALLET-{sig[:24]}", network, amount, 0, "user_wallet_transfer")
         context.user_data.clear()
         await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
     except Exception as exc:
@@ -4618,6 +4966,7 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
         explorer = f"{net_info['explorer']}{sig}"
         update_star_order_status(order_id, "completed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, sig)
         save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id, source="stars")
+        record_referral_reward_for_transaction(user_id, "stars", f"STAR-{payment.telegram_payment_charge_id}", network, amount_crypto, 0, f"order={order_id}")
         consume_stock_reservation(order_id=order_id)
         await update.message.reply_text(
             f"{tr('stars_completed', lang)}\n\n"
@@ -4788,6 +5137,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
         order_id = save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
+        record_referral_reward_for_transaction(user_id, "bkash", trx_id, network, crypto_amount, sms_amount_bdt, f"order={order_id}")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
         await app.bot.send_message(
@@ -4929,6 +5279,7 @@ async def main():
     app.add_handler(CommandHandler("seller_guide", seller_guide_cmd))
     app.add_handler(CommandHandler("seller_badge", seller_badge_cmd))
     app.add_handler(CommandHandler("seller_dashboard", seller_dashboard_cmd))
+    app.add_handler(CommandHandler("referral", referral_cmd))
     app.add_handler(CommandHandler("report", report_cmd))
     app.add_handler(CommandHandler("profit", profit_cmd))
     app.add_handler(CommandHandler("costrate", costrate_cmd))
