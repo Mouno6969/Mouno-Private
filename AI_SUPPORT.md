@@ -7,7 +7,12 @@ The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 Set one or more free/free-tier provider keys in `.env`:
 
 ```env
-AI_PROVIDER_ORDER=gemini,groq,openrouter,huggingface,cohere,mistral
+AI_PROVIDER_ORDER=nvidia_deepseek,nvidia_gemma,gemini,groq,openrouter,huggingface,cohere,mistral
+NVIDIA_API_KEY=your_nvidia_build_nim_key
+NVIDIA_DEEPSEEK_API_KEY=
+NVIDIA_DEEPSEEK_MODEL=deepseek-ai/deepseek-v4-pro
+NVIDIA_GEMMA_API_KEY=
+NVIDIA_GEMMA_MODEL=google/gemma-4-31b-it
 GEMINI_API_KEY=your_google_ai_studio_key
 GEMINI_MODEL=gemini-1.5-flash
 GROQ_API_KEY=your_groq_key
@@ -22,7 +27,7 @@ MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-small-latest
 ```
 
-You can set only one key, or multiple keys. The bot supports Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. It tries the first configured provider in `AI_PROVIDER_ORDER` and automatically falls back to the next configured provider if one fails or returns an empty answer. Restart the bot after editing `.env`.
+You can set only one key, or multiple keys. The bot supports NVIDIA Build/NIM DeepSeek V4 Pro, NVIDIA Build/NIM Gemma 4 31B, Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. NVIDIA providers are always first priority when configured: the bot tries `nvidia_deepseek`, then `nvidia_gemma`, then the remaining configured providers in `AI_PROVIDER_ORDER` with duplicates removed. It automatically falls back to the next configured provider if one fails or returns an empty answer. Use `NVIDIA_API_KEY` as a shared NVIDIA key, or `NVIDIA_DEEPSEEK_API_KEY` / `NVIDIA_GEMMA_API_KEY` for per-model keys. Restart the bot after editing `.env`.
 
 These are free/free-tier/trial options where available; provider quotas and availability are not guaranteed unlimited.
 
