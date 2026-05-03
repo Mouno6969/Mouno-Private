@@ -820,6 +820,109 @@ def webhook_health_text():
     return panel("🩺 Webhook Health", f"Status: {active}\nLast bKash notice received: {age}\nSource: {source}\nLast TrxID: {trx}\nWindow: {WEBHOOK_STALE_MINUTES} minutes")
 
 
+def restart_help_text():
+    commands = """cd ~/mouno
+git pull origin main
+source .venv/bin/activate
+python -m py_compile bot.py db.py balance.py webhook.py config.py
+kill $(cat bot.pid) 2>/dev/null || true
+pkill -f "python.*bot.py" 2>/dev/null || true
+nohup .venv/bin/python bot.py > bot.out 2>&1 &
+echo $! > bot.pid
+sleep 5
+tail -50 bot.out"""
+    return (
+        "♻️ Safe Restart Guide\n"
+        f"{DIVIDER}\n"
+        "⚠️ Bot থেকে restart command execute করা হবে না; safety guide only.\n"
+        "✅ Restart করার আগে অবশ্যই `git pull origin main` চালান।\n"
+        "❌ `py_compile` fail করলে bot start করবেন না; আগে error fix করুন।\n"
+        "✅ Start এর পর `bot.out` এ `Bot started!` বা polling/webhook logs দেখা উচিত।\n\n"
+        f"```bash\n{commands}\n```"
+    )
+
+
+def bot_health_text():
+    lines = ["🟢 Bot Health", DIVIDER, f"🕒 Now: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"]
+    try:
+        maintenance = get_setting("maintenance_mode", "off") or "off"
+        lines.append(f"🛠️ Maintenance: {maintenance.upper()}")
+    except Exception as exc:
+        lines.append(f"🛠️ Maintenance: error {type(exc).__name__}")
+    try:
+        from db import DB_PATH
+
+        get_setting("health_check", "ok")
+        get_webhook_health()
+        lines.append(f"🗄️ DB: {'✅ OK' if os.path.exists(DB_PATH) else '⚠️ file missing'}")
+    except Exception as exc:
+        lines.append(f"🗄️ DB: ❌ {type(exc).__name__}")
+    lines.extend([
+        f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
+        f"☁️ Backup upload: {'✅ yes' if BACKUP_UPLOAD_URL else '❌ no'}",
+        f"🔐 Seller master key: {'✅ yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
+        DIVIDER,
+    ])
+    try:
+        health = get_webhook_health()
+        last = health.get("last_notice_at")
+        source = health.get("source") or "unknown"
+        trx = health.get("trx_id") or "N/A"
+        if last:
+            try:
+                dt = datetime.fromisoformat(str(last))
+                minutes = int((datetime.now() - dt).total_seconds() // 60)
+                active = "✅ active" if minutes <= WEBHOOK_STALE_MINUTES else "⚠️ stale"
+                age = f"{minutes} min ago"
+            except Exception:
+                active = "❔ unknown"
+                age = str(last)
+        else:
+            active = "❔ unknown/stale"
+            age = "unknown"
+        lines.append(f"🩺 Webhook: {active} | {age} | {source} | {trx} | {WEBHOOK_STALE_MINUTES}m")
+    except Exception as exc:
+        lines.append(f"🩺 Webhook: ❌ {type(exc).__name__}")
+    try:
+        sources = ai_provider_key_sources()
+        configured = [(p, src) for p, (_key, src) in sources.items() if src]
+        summary = ", ".join(f"{AI_PROVIDER_LABELS[p]}:{src}" for p, src in configured) or "none"
+        lines.append(f"🤖 AI: {len(configured)}/{len(sources)} configured | {summary}")
+    except Exception as exc:
+        lines.append(f"🤖 AI: ❌ {type(exc).__name__}")
+    lines.append(DIVIDER)
+    try:
+        balances, _evm_addr = get_all_balances()
+        warnings = balance_warning_lines(balances)
+        if warnings:
+            lines.append(f"📦 Stock: ⚠️ {len(warnings)} warning(s)")
+            lines.extend(warnings[:5])
+            if len(warnings) > 5:
+                lines.append(f"…+{len(warnings) - 5} more")
+        else:
+            lines.append("📦 Stock: ✅ Stock OK")
+    except Exception as exc:
+        lines.append(f"📦 Stock: ❌ {type(exc).__name__}")
+    try:
+        gas_balances = get_native_gas_balances()
+        gas_warnings = []
+        for network, info in NETWORKS.items():
+            symbol, threshold = GAS_META.get(network, ("native", 0))
+            balance = gas_balances.get(network)
+            if balance is not None and float(balance) < float(threshold):
+                gas_warnings.append(f"⚠️ {info['name']}: {balance} {symbol} (min {threshold})")
+        if gas_warnings:
+            lines.append(f"⛽ Gas: ⚠️ {len(gas_warnings)} warning(s)")
+            lines.extend(gas_warnings[:5])
+            if len(gas_warnings) > 5:
+                lines.append(f"…+{len(gas_warnings) - 5} more")
+        else:
+            lines.append("⛽ Gas: ✅ Gas OK")
+    except Exception as exc:
+        lines.append(f"⛽ Gas: ❌ {type(exc).__name__}")
+    return "\n".join(lines)
+
+
 def receipt_block(order_id, trx_id, network, amount, wallet, sig, seller_id=None):
     info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "?", "explorer": ""})
     tx_line = f"🔗 TX: {info.get('explorer', '')}{sig}" if sig else "🔗 TX: N/A"
@@ -930,6 +1033,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton(tr("set_rate", lang), callback_data="setrate_menu"), InlineKeyboardButton(tr("gen_code", lang), callback_data="gencode_menu")])
         keyboard.append([InlineKeyboardButton(tr("admin_send", lang), callback_data="admin_send"), InlineKeyboardButton(tr("disable_code", lang), callback_data="disable_code_menu")])
         keyboard.append([InlineKeyboardButton("📈 Report", callback_data="admin_report_daily"), InlineKeyboardButton("💾 Backup Now", callback_data="backup_now")])
+        keyboard.append([InlineKeyboardButton("🟢 Bot Health", callback_data="bot_health"), InlineKeyboardButton("♻️ Restart Help", callback_data="restart_help")])
         keyboard.append([InlineKeyboardButton("📦 Reserves", callback_data="admin_reservations"), InlineKeyboardButton("💹 Profit", callback_data="admin_profit")])
         keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
@@ -1509,6 +1613,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "webhook_health":
         await query.edit_message_text(webhook_health_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="webhook_health")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
 
+    elif query.data == "bot_health":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(bot_health_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="bot_health")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "restart_help":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(restart_help_text(), reply_markup=back_keyboard(lang))
+
     elif query.data == "request_payout":
         context.user_data.clear()
         context.user_data["payout_request"] = True
@@ -2021,6 +2135,18 @@ async def backup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_audit(update.effective_user.id, "backup_requested", "database", "mouno.db", "telegram command")
 
 
+async def restart_help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(restart_help_text())
+
+
+async def bot_health_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(bot_health_text())
+
+
 async def send_backup_document(bot, chat_id):
     from db import DB_PATH
 
@@ -2310,6 +2436,30 @@ def failed_retry_keyboard(trx_id):
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔁 Retry Send", callback_data=f"retrytx_{trx_id}")]])
 
 
+def order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, wallet, status):
+    ni = NETWORKS.get(network, {"name": network, "symbol": "?"})
+    lines = [
+        f"📌 Status: {status}",
+        f"🧾 Order: {order_id or 'N/A'}",
+        f"👤 User: {target_uid}",
+        f"🔑 TrxID: {trx_id}",
+        f"🌐 {ni['name']}",
+        f"💰 {amount_bdt or 0} BDT",
+        f"💵 {crypto_amount or 0} {ni['symbol']}",
+        f"👛 {short_wallet(wallet)}",
+    ]
+    return "\n".join(lines)
+
+
+async def send_order_user_message(bot, target_uid, text, **kwargs):
+    try:
+        await bot.send_message(int(target_uid), text, **kwargs)
+        return True
+    except Exception as exc:
+        logger.warning("Order user notification failed for %s: %s", target_uid, exc)
+        return False
+
+
 async def failed_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
@@ -2344,10 +2494,14 @@ async def retry_failed_transaction(query, trx_id, lang):
         sig = await send_crypto(network, wallet, crypto)
         update_transaction(trx_id, sig=sig, status="completed")
         add_audit(query.from_user.id, "retry_send_completed", "transaction", trx_id)
-        await query.edit_message_text(f"✅ Retry successful!\n\n🌐 {ni['name']}\n💵 {crypto} {ni['symbol']}\n👛 {wallet}\n🔗 {ni['explorer']}{sig}", reply_markup=back_keyboard(lang))
+        await query.edit_message_text(f"✅ Retry successful!\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}", reply_markup=back_keyboard(lang))
+        if _user_id:
+            await send_order_user_message(query.get_bot(), _user_id, f"🎉 Crypto পাঠানো হয়েছে!\n\nAdmin retry সফল হয়েছে।\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}\n\nধন্যবাদ! 🙏")
     except Exception as exc:
         add_audit(query.from_user.id, "retry_send_failed", "transaction", trx_id, str(exc))
         await query.edit_message_text(f"❌ Retry failed again.\n\n{exc}", reply_markup=failed_retry_keyboard(trx_id))
+        if _user_id:
+            await send_order_user_message(query.get_bot(), _user_id, f"⚠️ Admin retry আবার failed হয়েছে।\n\n🧾 Order: {_order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nSupport/admin handle করবেন। 📞 @{SUPPORT_USERNAME.lstrip('@')}")
 
 
 def pending_order_keyboard(row):
@@ -2544,7 +2698,6 @@ async def approve_order(query, user_id):
     if not target_wallet:
         await query.edit_message_text(f"❌ User এর wallet পাওয়া যায়নি!\nUser ID: {target_uid}")
         return
-    await query.edit_message_text(f"✅ Approved!\n\n⏳ Crypto পাঠানো হচ্ছে...\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}")
 
     sms_row = get_sms(trx_id)
     if sms_row:
@@ -2561,6 +2714,11 @@ async def approve_order(query, user_id):
         target_wallet = pending[4] or target_wallet
         order_id = pending[7] if len(pending) > 7 else None
 
+    await query.edit_message_text(
+        "✅ Approved!\n\n⏳ Crypto পাঠানো হচ্ছে...\n\n"
+        + order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, target_wallet, "manual verified/sending")
+    )
+
     sufficient, current_bal = check_sufficient(network, crypto_amount, exclude_order_id=order_id, exclude_trx_id=trx_id)
     if not sufficient and current_bal is not None:
         await query.edit_message_text(f"❌ Insufficient stock.\n\n{stock_detail(network, crypto_amount, current_bal)}")
@@ -2568,21 +2726,18 @@ async def approve_order(query, user_id):
 
     try:
         sig = await send_crypto(network, target_wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, sig, "completed", network, order_id=order_id, source="bkash")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
         add_audit(user_id, "order_approved", "transaction", trx_id, f"order={order_id}")
-        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n👤 User: {target_uid}\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}")
-        try:
-            await query.get_bot().send_message(int(target_uid), f"🎉 পেমেন্ট confirm হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nধন্যবাদ! 🙏")
-        except Exception:
-            pass
+        await query.edit_message_text(f"✅ Crypto পাঠানো হয়েছে!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, target_wallet, 'completed')}\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}")
+        await send_order_user_message(query.get_bot(), target_uid, f"🎉 পেমেন্ট admin manually verified হয়েছে!\n\nCrypto পাঠানো হয়েছে।\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nধন্যবাদ! 🙏")
     except Exception as exc:
-        save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, "", "failed", network, order_id=order_id, source="bkash")
+        order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, "", "failed", network, order_id=order_id, source="bkash")
         release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_approve_send_failed", actor_id="system")
         add_audit(user_id, "order_approve_send_failed", "transaction", trx_id, str(exc))
-        await query.edit_message_text(f"❌ পাঠাতে ব্যর্থ!\n\n{exc}")
+        await query.edit_message_text(f"❌ Payment verified, but crypto পাঠাতে ব্যর্থ!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, target_wallet, 'send failed/retry needed')}\n\nError: {exc}", reply_markup=failed_retry_keyboard(trx_id))
+        await send_order_user_message(query.get_bot(), target_uid, f"✅ আপনার payment admin manually verified করেছেন।\n\n⚠️ Crypto পাঠাতে temporary সমস্যা হয়েছে। Admin retry করবেন বা support contact করবেন।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n📞 Support: @{SUPPORT_USERNAME.lstrip('@')}")
         logger.error("Admin approve send failed: %s", exc)
 
 
@@ -2592,14 +2747,15 @@ async def reject_order(query, user_id):
     _prefix, target_uid, trx_id = query.data.split("_", 2)
     pending = get_pending_order(trx_id)
     order_id = pending[7] if pending and len(pending) > 7 else None
+    if pending:
+        amount_bdt, crypto_amount, wallet, network = pending[2], pending[3], pending[4], pending[5]
+    else:
+        amount_bdt, crypto_amount, wallet, network = 0, 0, get_wallet(target_uid), "solana"
     delete_pending_order(trx_id)
     release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_reject", actor_id=user_id)
     add_audit(user_id, "order_rejected", "pending_order", trx_id, f"order={order_id}")
-    await query.edit_message_text(f"❌ Rejected!\n\n👤 User: {target_uid}\n🔑 TrxID: {trx_id}")
-    try:
-        await query.get_bot().send_message(int(target_uid), f"❌ আপনার পেমেন্ট verify করা যায়নি!\n\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @MdMouno")
-    except Exception:
-        pass
+    await query.edit_message_text(f"❌ Rejected!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, wallet, 'rejected/manual verify failed')}")
+    await send_order_user_message(query.get_bot(), target_uid, f"❌ আপনার পেমেন্ট verify করা যায়নি।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
 
 
 async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3130,7 +3286,21 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bind_stock_reservation_trx(order_id, trx_id)
         keyboard = [[InlineKeyboardButton("✅ Approve", callback_data=f"approve_{user_id}_{trx_id}_{network}"), InlineKeyboardButton("❌ Reject", callback_data=f"reject_{user_id}_{trx_id}")]]
         try:
-            await update.get_bot().send_message(ADMIN_ID, f"⚠️ SMS পাওয়া যায়নি! Manual Verify দরকার।\n\n🧾 Order: {order_id}\n👤 User: @{username} ({user_id})\n🔑 TrxID: {trx_id}\n💰 Amount: {amount_bdt} BDT\n💵 Est: {crypto_amount} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n👛 Wallet: {wallet}\n\nbKash এ TrxID যাচাই করে Approve বা Reject করুন:", reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.get_bot().send_message(
+                ADMIN_ID,
+                f"⚠️ Manual Verify দরকার\n{DIVIDER}\n"
+                "📌 Status: bKash SMS/notice পাওয়া যায়নি\n"
+                f"🧾 Order: {order_id}\n"
+                f"👤 User: @{username} ({user_id})\n"
+                f"🔑 TrxID: {trx_id}\n"
+                f"💰 Amount: {amount_bdt} BDT\n"
+                f"💵 Est: {crypto_amount} {net_info['symbol']}\n"
+                f"🌐 Network: {net_info['name']}\n"
+                f"👛 Wallet short: {short_wallet(wallet)}\n"
+                f"👛 Wallet full: {wallet}\n\n"
+                "Action: bKash app-এ TrxID/amount verify করে Approve বা Reject চাপুন।",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
         except Exception as exc:
             logger.error(exc)
         await update.message.reply_text(f"⏳ TrxID যাচাই করা হচ্ছে।\n\n🔑 TrxID: {trx_id}\n\nAdmin যাচাই করছেন, একটু অপেক্ষা করুন...")
@@ -3785,6 +3955,8 @@ async def main():
     app.add_handler(CommandHandler("maintenance", maintenance_cmd))
     app.add_handler(CommandHandler("terms", terms_cmd))
     app.add_handler(CommandHandler("backup", backup_cmd))
+    app.add_handler(CommandHandler("restart_help", restart_help_cmd))
+    app.add_handler(CommandHandler("bot_health", bot_health_cmd))
     app.add_handler(CommandHandler("txlog", txlog_cmd))
     app.add_handler(CommandHandler("order", order_cmd))
     app.add_handler(CommandHandler("status", status_cmd))
