@@ -562,10 +562,12 @@ def _extract_openai_chat_text(data):
         raise RuntimeError("No AI response returned")
     content = choices[0].get("message", {}).get("content", "")
     if isinstance(content, list):
-        text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+        text = "".join(str(part.get("text") or "") for part in content if isinstance(part, dict)).strip()
+    elif content is None:
+        text = ""
     else:
         text = str(content).strip()
-    if not text:
+    if not text or text.lower() in {"none", "null", "n/a"}:
         raise RuntimeError("Empty AI response returned")
     return text
 
@@ -740,8 +742,8 @@ def _ask_gemini(question, lang="bn"):
     if not candidates:
         raise RuntimeError("No AI response returned")
     parts = candidates[0].get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts).strip()
-    if not text:
+    text = "".join(str(part.get("text") or "") for part in parts).strip()
+    if not text or text.lower() in {"none", "null", "n/a"}:
         raise RuntimeError("Empty AI response returned")
     return text
 
@@ -893,8 +895,8 @@ def _ask_cohere(question, lang="bn"):
     response.raise_for_status()
     data = response.json()
     content = data.get("message", {}).get("content", [])
-    text = "".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
-    if not text:
+    text = "".join(str(part.get("text") or "") for part in content if isinstance(part, dict)).strip()
+    if not text or text.lower() in {"none", "null", "n/a"}:
         raise RuntimeError("Empty AI response returned")
     return text
 
