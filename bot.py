@@ -623,6 +623,58 @@ def panel(title, body=""):
     return f"╭─ {title_line}\n╰{'─' * min(len(title_line) + 3, 28)}\n{body}".rstrip()
 
 
+def command_help_text(user_id=None):
+    user_commands = [
+        ("/start", "মেইন মেনু/ভাষা খুলুন"),
+        ("/help", "সব typed command দেখুন"),
+        ("/guide", "পুরো user guide পড়ুন"),
+        ("/terms", "terms ও risk warning"),
+        ("/ai", "AI support chat শুরু"),
+        ("/order ORD-XXXXXX", "order ID দিয়ে status দেখুন"),
+        ("/status TRXID_OR_ORDERID", "transaction/order status দেখুন"),
+        ("/receipt ORD_OR_TRX", "completed order receipt দেখুন"),
+        ("/seller USER_ID", "seller profile/stats দেখুন"),
+        ("/seller_center", "seller menu/application/tools"),
+        ("/seller_dashboard", "seller dashboard খুলুন"),
+        ("/seller_guide", "seller guide পড়ুন"),
+        ("/setup", "personal wallet key connect/encrypt"),
+        ("/changekey", "saved wallet key change"),
+        ("/deletekey", "saved wallet key delete"),
+        ("/mybalance", "personal wallet balance দেখুন"),
+        ("/send_wallet", "personal wallet থেকে crypto send"),
+        ("/payout", "payout request flow শুরু"),
+    ]
+    lines = ["Normal User Commands"] + [f"{cmd} — {desc}" for cmd, desc in user_commands]
+    if is_admin(user_id):
+        admin_commands = [
+            ("/send", "admin send flow শুরু"),
+            ("/gencode", "gift code generate"),
+            ("/pending", "pending/manual verify orders"),
+            ("/failed", "failed sends + retry button"),
+            ("/stats", "bot/order stats দেখুন"),
+            ("/balances", "admin stock balances দেখুন"),
+            ("/maintenance [on|off]", "maintenance mode on/off"),
+            ("/backup", "DB backup পাঠান"),
+            ("/report [weekly]", "sales/order report দেখুন"),
+            ("/profit [daily|weekly]", "profit summary দেখুন"),
+            ("/costrate [NETWORK RATE]", "cost rates set/list"),
+            ("/gas", "native gas monitor দেখুন"),
+            ("/reservations", "active reservations দেখুন"),
+            ("/audit", "audit log দেখুন"),
+            ("/payouts", "payout review করুন"),
+            ("/webhook_health", "bKash webhook health দেখুন"),
+            ("/bot_health", "overall bot health panel"),
+            ("/restart_help", "Termux safe restart guide"),
+            ("/test_sms [amount]", "fake buyer SMS test"),
+            ("/test_seller_sms [amount]", "fake seller SMS test"),
+            ("/seller_badge USER_ID new|verified|trusted", "seller badge update"),
+            ("/aiadmin why order failed ORD-123", "AI admin diagnostics"),
+        ]
+        lines += ["", "Admin Commands"] + [f"{cmd} — {desc}" for cmd, desc in admin_commands]
+    lines.append(f"\nSupport: @{SUPPORT_USERNAME.lstrip('@')}")
+    return panel("📌 Command Help", "\n".join(lines))
+
+
 def short_wallet(wallet):
     return f"{wallet[:8]}...{wallet[-6:]}" if wallet and len(wallet) > 18 else (wallet or "N/A")
 
@@ -1774,6 +1826,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "1️⃣ Select network\n2️⃣ Send wallet address\n3️⃣ Enter amount\n4️⃣ Pay bKash or Stars\n5️⃣ Receive crypto automatically\n\n"
                 "🎁 Gift code\nEnter code → wallet → receive asset\n\n"
                 "🔐 My Wallet\nConnect wallet to check balance or send crypto\n\n"
+                "⌨️ সব typed command দেখতে /help লিখুন\nType /help for all commands\n\n"
                 f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}"
             ),
             reply_markup=back_keyboard(lang),
@@ -3754,6 +3807,10 @@ async def guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(GUIDE)
 
 
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(command_help_text(update.effective_user.id))
+
+
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     delete_user_wallet(str(update.effective_user.id))
     await update.message.reply_text("🔄 পুরনো key মুছে দেওয়া হয়েছে!\n\nনতুন wallet setup করুন:")
@@ -3946,6 +4003,7 @@ async def main():
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
     app.add_handler(CommandHandler("pending", pending_cmd))
