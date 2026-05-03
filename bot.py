@@ -1529,7 +1529,7 @@ async def show_seller_rates(query, seller_id, lang):
 
 
 async def show_seller_pending(query, seller_id, lang):
-    rows = list_pending_seller_orders(None if is_admin(seller_id) else seller_id, 10)
+    rows = list_pending_seller_orders(seller_id, 10)
     if not rows:
         await query.edit_message_text("✅ Pending/manual seller order নেই।", reply_markup=back_keyboard(lang))
         return
@@ -1611,7 +1611,6 @@ async def handle_seller_order_trx(update, context, user_id, username):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order_id}")]])
     try:
         await update.get_bot().send_message(int(seller_id), f"⚠️ Buyer TrxID দিল কিন্তু forwarder notice মেলেনি। Manual verify করুন।\n\n{seller_order_summary(get_seller_order(order_id))}", reply_markup=keyboard)
-        await update.get_bot().send_message(ADMIN_ID, f"⚠️ Seller order manual verify.\n\n{seller_order_summary(get_seller_order(order_id))}", reply_markup=keyboard)
     except Exception as exc:
         logger.error(exc)
     context.user_data.clear()
@@ -1643,7 +1642,6 @@ async def process_seller_bkash(app, text, sender, meta):
         if not ok:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order[0]}")]])
             await app.bot.send_message(int(seller_id), f"⚠️ Seller payment notice needs manual verification.\nReason: {result}\n\n{seller_order_summary(get_seller_order(order[0]))}", reply_markup=keyboard)
-            await app.bot.send_message(ADMIN_ID, f"⚠️ Seller payment notice needs manual verification.\nReason: {result}\n\n{seller_order_summary(get_seller_order(order[0]))}", reply_markup=keyboard)
         return True
     if saved_new:
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🧾 Pending Orders", callback_data="seller_pending")]])
@@ -1841,7 +1839,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not order:
             await query.edit_message_text("❌ Order not found.")
             return ConversationHandler.END
-        if not (is_admin(user_id) or str(order[1]) == user_id):
+        if str(order[1]) != user_id:
+            await query.edit_message_text("🚫 Only the assigned seller can approve this order.")
             return ConversationHandler.END
         if query.data.startswith("sorderr_"):
             update_seller_order(order_id, status="rejected")
