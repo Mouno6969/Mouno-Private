@@ -24,7 +24,7 @@ from telegram.request import HTTPXRequest
 
 from balance import GAS_META, check_gas_sufficient, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
-from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, NVIDIA_DEEPSEEK_API_KEY, NVIDIA_DEEPSEEK_MODEL, NVIDIA_GEMMA_API_KEY, NVIDIA_GEMMA_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
+from config import ADMIN_ID, BKASH_NUMBER, BOT_TOKEN, RATE, STAR_RATE, SUPPORT_USERNAME, AI_PROVIDER_ORDER, NVIDIA_KIMI_API_KEY, NVIDIA_KIMI_MODEL, NVIDIA_DEEPSEEK_API_KEY, NVIDIA_DEEPSEEK_MODEL, NVIDIA_GEMMA_API_KEY, NVIDIA_GEMMA_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, HUGGINGFACE_API_KEY, HUGGINGFACE_MODEL, COHERE_API_KEY, COHERE_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, LOW_BALANCE_THRESHOLD, WEBHOOK_STALE_MINUTES, BACKUP_UPLOAD_URL, SELLER_WALLET_MASTER_KEY
 from crypto_manager import (
     delete_user_wallet,
     encrypt_key,
@@ -82,6 +82,8 @@ from db import (
     set_network_rate,
     set_cost_rate,
     set_setting,
+    record_ai_provider_result,
+    list_ai_provider_stats,
     sms_exists,
     trx_exists,
     save_star_order,
@@ -317,6 +319,7 @@ def ai_support_prompt(lang="bn"):
 
 
 AI_PROVIDER_LABELS = {
+    "nvidia_kimi": "NVIDIA Kimi K2.6",
     "nvidia_deepseek": "NVIDIA DeepSeek V4 Pro",
     "nvidia_gemma": "NVIDIA Gemma 4 31B",
     "gemini": "Gemini",
@@ -328,6 +331,7 @@ AI_PROVIDER_LABELS = {
 }
 
 AI_PROVIDER_SETTING_KEYS = {
+    "nvidia_kimi": "ai_nvidia_kimi_api_key",
     "nvidia_deepseek": "ai_nvidia_deepseek_api_key",
     "nvidia_gemma": "ai_nvidia_gemma_api_key",
     "gemini": "ai_gemini_api_key",
@@ -345,7 +349,7 @@ def _clean_ai_key(value):
 
 
 def ai_provider_order():
-    order = ["nvidia_deepseek", "nvidia_gemma"]
+    order = ["nvidia_kimi", "nvidia_deepseek", "nvidia_gemma"]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
         if provider in AI_PROVIDER_LABELS and provider not in order:
@@ -355,6 +359,7 @@ def ai_provider_order():
 
 def ai_provider_env_keys():
     return {
+        "nvidia_kimi": NVIDIA_KIMI_API_KEY,
         "nvidia_deepseek": NVIDIA_DEEPSEEK_API_KEY,
         "nvidia_gemma": NVIDIA_GEMMA_API_KEY,
         "gemini": GEMINI_API_KEY,
@@ -391,6 +396,7 @@ def ai_provider_key(provider):
 
 def ai_provider_models():
     return {
+        "nvidia_kimi": NVIDIA_KIMI_MODEL,
         "nvidia_deepseek": NVIDIA_DEEPSEEK_MODEL,
         "nvidia_gemma": NVIDIA_GEMMA_MODEL,
         "gemini": GEMINI_MODEL,
@@ -413,6 +419,13 @@ def _safe_ai_error(exc):
     if isinstance(exc, requests.RequestException):
         return type(exc).__name__
     return type(exc).__name__
+
+
+def record_ai_provider_result_safe(provider, success, error=None):
+    try:
+        record_ai_provider_result(provider, success, error)
+    except Exception as exc:
+        logger.warning("AI stats recording failed for %s: %s", provider, type(exc).__name__)
 
 
 def _extract_openai_chat_text(data):
@@ -449,7 +462,7 @@ def _ask_gemini(question, lang="bn"):
     return text
 
 
-def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None):
+def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None, extra_payload=None):
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     if extra_headers:
         headers.update(extra_headers)
@@ -462,6 +475,8 @@ def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_
         "temperature": 0.3,
         "max_tokens": 500,
     }
+    if extra_payload:
+        payload.update(extra_payload)
     response = requests.post(endpoint, headers=headers, json=payload, timeout=30)
     response.raise_for_status()
     return _extract_openai_chat_text(response.json())
@@ -484,6 +499,17 @@ def _ask_nvidia_deepseek(question, lang="bn"):
         NVIDIA_DEEPSEEK_MODEL,
         question,
         lang,
+    )
+
+
+def _ask_nvidia_kimi(question, lang="bn"):
+    return _ask_openai_compatible(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        ai_provider_key("nvidia_kimi"),
+        NVIDIA_KIMI_MODEL,
+        question,
+        lang,
+        extra_payload={"chat_template_kwargs": {"thinking": True}},
     )
 
 
@@ -556,6 +582,7 @@ def ask_ai_support(question, lang="bn"):
             raise RuntimeError("No AI provider API key is configured")
         raise RuntimeError("No configured AI provider is enabled in AI_PROVIDER_ORDER")
     askers = {
+        "nvidia_kimi": _ask_nvidia_kimi,
         "nvidia_deepseek": _ask_nvidia_deepseek,
         "nvidia_gemma": _ask_nvidia_gemma,
         "gemini": _ask_gemini,
@@ -569,9 +596,13 @@ def ask_ai_support(question, lang="bn"):
     for provider in providers:
         tried.append(AI_PROVIDER_LABELS[provider])
         try:
-            return askers[provider](question, lang)
+            answer = askers[provider](question, lang)
+            record_ai_provider_result_safe(provider, True)
+            return answer
         except Exception as exc:
-            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], _safe_ai_error(exc))
+            safe_error = _safe_ai_error(exc)
+            record_ai_provider_result_safe(provider, False, safe_error)
+            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
     raise RuntimeError("All configured AI providers failed: " + ", ".join(tried))
 
 
@@ -620,6 +651,34 @@ def ai_setup_text():
         "Fallback order: " + (" → ".join(AI_PROVIDER_LABELS[p] for p in order) if order else "none"),
     ]
     return panel("⚙️ AI Setup", "\n".join(lines))
+
+
+def ai_usage_text():
+    sources = ai_provider_key_sources()
+    models = ai_provider_models()
+    stats = {row[0]: row for row in list_ai_provider_stats()}
+    order = ai_provider_order()
+    lines = [
+        "Fallback order: " + (" → ".join(AI_PROVIDER_LABELS[p] for p in order) if order else "none"),
+        "Counts update after each provider attempt. Keys/prompts/responses are hidden.",
+        "",
+    ]
+    for provider, label in AI_PROVIDER_LABELS.items():
+        _key, source = sources[provider]
+        source_label = source or "missing"
+        row = stats.get(provider)
+        success_count = row[1] if row else 0
+        failure_count = row[2] if row else 0
+        last_success = short_datetime(row[3]) if row else "-"
+        last_failure = short_datetime(row[4]) if row else "-"
+        last_error = row[5] if row and row[5] else "-"
+        lines.append(f"{label}")
+        lines.append(f"  model: {models[provider]}")
+        lines.append(f"  source: {source_label} | ok: {success_count} | fail: {failure_count}")
+        lines.append(f"  last ok: {last_success} | last fail: {last_failure}")
+        if last_error != "-":
+            lines.append(f"  last error: {last_error}")
+    return panel("📊 AI Usage", "\n".join(lines)[:3900])
 
 
 def ai_setup_keyboard(lang="bn"):
@@ -699,6 +758,7 @@ def command_help_text(user_id=None):
             ("/test_seller_sms [amount]", "fake seller SMS test"),
             ("/seller_badge USER_ID new|verified|trusted", "seller badge update"),
             ("/aiadmin why order failed ORD-123", "AI admin diagnostics"),
+            ("/ai_usage", "AI model success/failure counts"),
         ]
         lines += ["", "Admin Commands"] + [f"{cmd} — {desc}" for cmd, desc in admin_commands]
     lines.append(f"\nSupport: @{SUPPORT_USERNAME.lstrip('@')}")
@@ -1120,6 +1180,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
         keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
+        keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
         keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
         keyboard.append([InlineKeyboardButton("🛑 Maintenance ON", callback_data="maintenance_on"), InlineKeyboardButton("✅ Maintenance OFF", callback_data="maintenance_off")])
@@ -1768,6 +1829,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin(user_id):
             return ConversationHandler.END
         await query.edit_message_text(ai_status_text(), reply_markup=back_keyboard(lang))
+
+    elif query.data == "ai_usage":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(ai_usage_text(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Refresh", callback_data="ai_usage")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
 
     elif query.data == "ai_setup":
         if not is_admin(user_id):
@@ -2501,6 +2567,12 @@ async def aiadmin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
     await update.message.reply_text(f"🤖 AI Admin diagnostic\n\n{local}")
+
+
+async def ai_usage_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text(ai_usage_text())
 
 
 async def daily_admin_jobs(app):
@@ -4066,6 +4138,7 @@ async def main():
     app.add_handler(CommandHandler("test_sms", test_sms_cmd))
     app.add_handler(CommandHandler("test_seller_sms", test_seller_sms_cmd))
     app.add_handler(CommandHandler("aiadmin", aiadmin_cmd))
+    app.add_handler(CommandHandler("ai_usage", ai_usage_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(CommandHandler("ai", ai_cmd))
