@@ -4,7 +4,16 @@ The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 
 ## Configure
 
-Set one or more free/free-tier provider keys in `.env`:
+Admins can configure AI inside Telegram from `⚙️ AI Setup`:
+
+1. Press `⚙️ AI Setup` from the admin menu.
+2. Choose Gemini, Groq, OpenRouter, Hugging Face, Cohere, or Mistral.
+3. Use `🔑 Set API Key` and `🧠 Set Model` to save values in the bot database.
+4. Use `🔁 Fallback Order` to change provider priority, for example `gemini,groq,openrouter,huggingface,cohere,mistral`.
+
+Bot-saved keys and fallback order are used immediately; restart is not required. `🧹 Clear Bot Key` only removes the database override and does not change `.env`.
+
+`.env` remains optional/manual. Set one or more free/free-tier provider keys in `.env` if you prefer file-based configuration:
 
 ```env
 AI_PROVIDER_ORDER=gemini,groq,openrouter,huggingface,cohere,mistral
@@ -22,7 +31,7 @@ MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-small-latest
 ```
 
-You can set only one key, or multiple keys. The bot supports Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. It tries the first configured provider in `AI_PROVIDER_ORDER` and automatically falls back to the next configured provider if one fails or returns an empty answer. Restart the bot after editing `.env`.
+You can set only one key, or multiple keys. The bot supports Gemini, Groq, OpenRouter, Hugging Face, Cohere, and Mistral. It reads bot database settings first, then falls back to `.env`. It tries the first configured provider in the current fallback order and automatically falls back to the next configured provider if one fails or returns an empty answer. Restart the bot only after editing `.env` manually.
 
 These are free/free-tier/trial options where available; provider quotas and availability are not guaranteed unlimited.
 
