@@ -1711,7 +1711,7 @@ def build_receipt_image(data):
         y += 24
 
     draw.rounded_rectangle((120, height - 135, width - 120, height - 78), radius=24, outline=(129, 72, 40, 160), width=3)
-    draw.text((185, height - 120), "Verified automatic transaction receipt", font=status_font, fill=(129, 72, 40, 220))
+    draw.text((155, height - 120), "এই রিসিপ্টটি সফল ট্রাঞ্জেকশনের স্বয়ংক্রিয় প্রমাণ", font=receipt_font(28), fill=(129, 72, 40, 220))
     output = BytesIO()
     image.convert("RGB").save(output, format="PNG", optimize=True)
     output.seek(0)
