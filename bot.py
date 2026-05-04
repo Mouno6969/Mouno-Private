@@ -6,13 +6,14 @@ import os
 import re
 import secrets
 import string
+import tempfile
 import threading
 import unicodedata
 from datetime import datetime, timedelta
 from io import BytesIO
 
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputFile, LabeledPrice, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -1731,7 +1732,11 @@ async def send_transaction_receipt(bot, recipients, receipt_data):
         sent.add(key)
         try:
             photo = build_receipt_image(receipt_data)
-            await bot.send_photo(chat_id=chat_id, photo=InputFile(photo, filename=photo.name), caption=f"Receipt: {receipt_data.get('order_id') or 'N/A'}")
+            with tempfile.NamedTemporaryFile(suffix=".png") as temp_file:
+                temp_file.write(photo.getvalue())
+                temp_file.flush()
+                with open(temp_file.name, "rb") as file:
+                    await bot.send_photo(chat_id=chat_id, photo=file, caption=f"Receipt: {receipt_data.get('order_id') or 'N/A'}")
         except Exception as exc:
             logger.exception("Receipt photo delivery failed for %s: %s", chat_id, exc)
             try:
