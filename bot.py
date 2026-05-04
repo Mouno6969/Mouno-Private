@@ -1585,14 +1585,7 @@ def receipt_text_from_data(data):
     return "\n".join(lines)
 
 
-def receipt_font(size, bold=False):
-    names = [
-        os.path.join(RECEIPT_FONT_DIR, "NotoSansBengali-Bold.ttf" if bold else "NotoSansBengali-Regular.ttf"),
-        "/usr/share/fonts/truetype/noto/NotoSansBengali-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-    ]
+def load_receipt_font(size, names):
     from PIL import ImageFont
     for name in names:
         try:
@@ -1600,6 +1593,24 @@ def receipt_font(size, bold=False):
         except Exception:
             pass
     return ImageFont.load_default()
+
+
+def receipt_font(size, bold=False):
+    return load_receipt_font(size, [
+        os.path.join(RECEIPT_FONT_DIR, "NotoSans-Bold.ttf" if bold else "NotoSans-Regular.ttf"),
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    ])
+
+
+def receipt_bengali_font(size, bold=False):
+    return load_receipt_font(size, [
+        os.path.join(RECEIPT_FONT_DIR, "NotoSansBengali-Bold.ttf" if bold else "NotoSansBengali-Regular.ttf"),
+        "/usr/share/fonts/truetype/noto/NotoSansBengali-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
+        os.path.join(RECEIPT_FONT_DIR, "NotoSans-Bold.ttf" if bold else "NotoSans-Regular.ttf"),
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    ])
 
 
 def receipt_image_text(value):
@@ -1732,7 +1743,7 @@ def build_receipt_image(data):
         y += 24
 
     draw.rounded_rectangle((120, height - 135, width - 120, height - 78), radius=24, outline=(129, 72, 40, 160), width=3)
-    draw.text((155, height - 120), "এই রিসিপ্টটি সফল ট্রাঞ্জেকশনের স্বয়ংক্রিয় প্রমাণ", font=receipt_font(28), fill=(129, 72, 40, 220))
+    draw.text((155, height - 120), "এই রিসিপ্টটি সফল ট্রাঞ্জেকশনের স্বয়ংক্রিয় প্রমাণ", font=receipt_bengali_font(28), fill=(129, 72, 40, 220))
     output = BytesIO()
     image.convert("RGB").save(output, format="PNG", optimize=True)
     output.seek(0)
