@@ -1689,6 +1689,71 @@ def paste_receipt_seal(image):
     image.alpha_composite(seal, (x, y))
 
 
+def receipt_qr_payload(data):
+    network = data.get("network")
+    sig = data.get("tx_hash") or data.get("signature")
+    explorer = receipt_value(data.get("explorer_url"), "")
+    if not explorer:
+        generated = receipt_explorer_url(network, sig)
+        if str(generated).startswith(("http://", "https://")):
+            explorer = generated
+    if explorer:
+        return explorer, "Transaction proof link"
+
+    info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": data.get("crypto_symbol") or "?", "explorer": ""})
+    wallet = receipt_value(data.get("wallet"))
+    tx = receipt_value(sig, "")
+    parts = [
+        f"order={receipt_value(data.get('order_id'))}",
+        f"payment={receipt_value(data.get('payment_id'))}",
+        f"network={receipt_value(network or info.get('name'))}",
+        f"amount={receipt_amount(data.get('crypto_amount')) or 'N/A'} {data.get('crypto_symbol') or info.get('symbol') or '?'}",
+        f"wallet={short_wallet(wallet)}",
+    ]
+    if tx:
+        parts.append(f"tx={short_wallet(tx)}")
+    parts.append(f"time={receipt_value(data.get('timestamp'))}")
+    return "Mouno receipt|" + "|".join(parts), "Encoded receipt details"
+
+
+def build_receipt_qr(data, size=190):
+    import qrcode
+    from PIL import Image
+    payload, detail_label = receipt_qr_payload(data)
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    qr_image = qr.make_image(fill_color=(63, 39, 28), back_color=(255, 252, 242)).convert("RGBA")
+    qr_image = qr_image.resize((size, size), Image.Resampling.NEAREST)
+    return qr_image, detail_label
+
+
+def paste_receipt_qr(image, data, top=1060):
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(image)
+    box = (705, top, image.width - 90, top + 290)
+    draw.rounded_rectangle(box, radius=28, fill=(255, 252, 242, 245), outline=(184, 137, 82, 220), width=3)
+    qr_image, detail_label = build_receipt_qr(data, size=170)
+    content_width = box[2] - box[0] - 44
+    center_x = (box[0] + box[2]) // 2
+
+    label_font = receipt_font(24, True)
+    label = "Scan for proof"
+    label_width = draw.textlength(label, font=label_font)
+    draw.text((center_x - label_width / 2, box[1] + 22), label, font=label_font, fill=(63, 39, 28, 255))
+
+    qr_x = center_x - qr_image.width // 2
+    qr_y = box[1] + 64
+    image.alpha_composite(qr_image, (qr_x, qr_y))
+
+    detail_font = receipt_font(19)
+    detail_width = min(draw.textlength(detail_label, font=detail_font), content_width)
+    if detail_width == draw.textlength(detail_label, font=detail_font):
+        draw.text((center_x - detail_width / 2, box[1] + 246), detail_label, font=detail_font, fill=(129, 72, 40, 230))
+    else:
+        draw_receipt_text(draw, (box[0] + 22, box[1] + 242), detail_label, detail_font, (129, 72, 40, 230), content_width, 2)
+
+
 def build_receipt_image(data):
     from PIL import Image, ImageDraw
     width, height = 1100, 1750
@@ -1735,11 +1800,21 @@ def build_receipt_image(data):
     ])
 
     y = 315
+    qr_pasted = False
+    proof_column_labels = {"Transaction Hash / Signature", "Explorer URL"}
     for label, value in rows:
+        reserve_proof_column = label in proof_column_labels
+        if reserve_proof_column and not qr_pasted:
+            paste_receipt_qr(image, data, max(y + 18, 1060))
+            qr_pasted = True
+        max_width = width - 180
+        if reserve_proof_column:
+            max_width = 570
         draw.text((90, y), receipt_image_text(label).upper(), font=label_font, fill=(129, 72, 40, 255))
-        y = draw_receipt_text(draw, (90, y + 34), receipt_image_text(value), value_font, (35, 35, 35, 255), width - 180)
+        y = draw_receipt_text(draw, (90, y + 34), receipt_image_text(value), value_font, (35, 35, 35, 255), max_width)
         y += 24
-        draw.line((90, y, width - 90, y), fill=(224, 203, 171, 160), width=2)
+        line_end = 660 if reserve_proof_column else width - 90
+        draw.line((90, y, line_end, y), fill=(224, 203, 171, 160), width=2)
         y += 24
 
     draw.rounded_rectangle((120, height - 135, width - 120, height - 78), radius=24, outline=(129, 72, 40, 160), width=3)
