@@ -229,6 +229,7 @@ SELLER_BUY_AMOUNT = 66
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_logo.jpg")
+RECEIPT_APPROVED_STAMP_PATH = os.path.join(os.path.dirname(__file__), "assets", "approved_stamp.jpeg")
 RECEIPT_FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 
 NETWORKS = {
@@ -1689,6 +1690,85 @@ def paste_receipt_seal(image):
     image.alpha_composite(seal, (x, y))
 
 
+def receipt_qr_payload(data):
+    network = data.get("network")
+    sig = data.get("tx_hash") or data.get("signature")
+    explorer = receipt_value(data.get("explorer_url"), "")
+    if not explorer:
+        generated = receipt_explorer_url(network, sig)
+        if str(generated).startswith(("http://", "https://")):
+            explorer = generated
+    if explorer:
+        return explorer, "Transaction proof link"
+
+    info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": data.get("crypto_symbol") or "?", "explorer": ""})
+    wallet = receipt_value(data.get("wallet"))
+    tx = receipt_value(sig, "")
+    parts = [
+        f"order={receipt_value(data.get('order_id'))}",
+        f"payment={receipt_value(data.get('payment_id'))}",
+        f"network={receipt_value(network or info.get('name'))}",
+        f"amount={receipt_amount(data.get('crypto_amount')) or 'N/A'} {data.get('crypto_symbol') or info.get('symbol') or '?'}",
+        f"wallet={short_wallet(wallet)}",
+    ]
+    if tx:
+        parts.append(f"tx={short_wallet(tx)}")
+    parts.append(f"time={receipt_value(data.get('timestamp'))}")
+    return "Mouno receipt|" + "|".join(parts), "Encoded receipt details"
+
+
+def build_receipt_qr(data, size=190):
+    import qrcode
+    from PIL import Image
+    payload, detail_label = receipt_qr_payload(data)
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    qr_image = qr.make_image(fill_color=(63, 39, 28), back_color=(255, 252, 242)).convert("RGBA")
+    qr_image = qr_image.resize((size, size), Image.Resampling.NEAREST)
+    return qr_image, detail_label
+
+
+def paste_receipt_qr(image, data):
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(image)
+    box = (705, 1330, image.width - 90, 1590)
+    draw.rounded_rectangle(box, radius=28, fill=(255, 252, 242, 245), outline=(184, 137, 82, 220), width=3)
+    qr_image, detail_label = build_receipt_qr(data)
+    qr_x = box[0] + 23
+    qr_y = box[1] + 45
+    image.alpha_composite(qr_image, (qr_x, qr_y))
+    draw.text((box[0] + 220, box[1] + 58), "Scan for proof", font=receipt_font(27, True), fill=(63, 39, 28, 255))
+    draw_receipt_text(draw, (box[0] + 220, box[1] + 96), detail_label, receipt_font(22), (129, 72, 40, 230), box[2] - box[0] - 245, 4)
+    draw.text((box[0] + 220, box[1] + 176), "Verified receipt", font=receipt_font(20), fill=(113, 95, 76, 220))
+
+
+def paste_receipt_approved_stamp(image):
+    from PIL import Image
+    if not os.path.exists(RECEIPT_APPROVED_STAMP_PATH):
+        return
+    try:
+        stamp = Image.open(RECEIPT_APPROVED_STAMP_PATH).convert("RGBA")
+        pixels = []
+        for r, g, b, a in stamp.getdata():
+            if r > 238 and g > 238 and b > 238:
+                pixels.append((r, g, b, 0))
+            elif r > 220 and g > 210 and b > 210:
+                pixels.append((r, g, b, min(a, 55)))
+            else:
+                pixels.append((r, g, b, min(a, 135)))
+        stamp.putdata(pixels)
+        max_width = 330
+        scale = min(1, max_width / stamp.width)
+        stamp = stamp.resize((int(stamp.width * scale), int(stamp.height * scale)), Image.Resampling.LANCZOS)
+        stamp = stamp.rotate(-13, expand=True, resample=Image.Resampling.BICUBIC)
+        x = image.width - stamp.width - 85
+        y = 250
+        image.alpha_composite(stamp, (x, y))
+    except Exception as exc:
+        logger.debug("Could not paste approved stamp: %s", exc)
+
+
 def build_receipt_image(data):
     from PIL import Image, ImageDraw
     width, height = 1100, 1750
@@ -1698,6 +1778,7 @@ def build_receipt_image(data):
     for y in range(90, height - 80, 70):
         draw.line((70, y, width - 70, y), fill=(231, 216, 190, 75), width=1)
     paste_receipt_seal(image)
+    paste_receipt_approved_stamp(image)
 
     title_font = receipt_font(54, True)
     status_font = receipt_font(30, True)
@@ -1736,12 +1817,17 @@ def build_receipt_image(data):
 
     y = 315
     for label, value in rows:
+        max_width = width - 180
+        if y >= 1260:
+            max_width = 570
         draw.text((90, y), receipt_image_text(label).upper(), font=label_font, fill=(129, 72, 40, 255))
-        y = draw_receipt_text(draw, (90, y + 34), receipt_image_text(value), value_font, (35, 35, 35, 255), width - 180)
+        y = draw_receipt_text(draw, (90, y + 34), receipt_image_text(value), value_font, (35, 35, 35, 255), max_width)
         y += 24
-        draw.line((90, y, width - 90, y), fill=(224, 203, 171, 160), width=2)
+        line_end = 660 if y >= 1260 else width - 90
+        draw.line((90, y, line_end, y), fill=(224, 203, 171, 160), width=2)
         y += 24
 
+    paste_receipt_qr(image, data)
     draw.rounded_rectangle((120, height - 135, width - 120, height - 78), radius=24, outline=(129, 72, 40, 160), width=3)
     draw.text((155, height - 120), "এই রিসিপ্টটি সফল ট্রাঞ্জেকশনের স্বয়ংক্রিয় প্রমাণ", font=receipt_bengali_font(28), fill=(129, 72, 40, 220))
     output = BytesIO()
