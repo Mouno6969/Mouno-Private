@@ -93,7 +93,7 @@ class WelcomeVideoTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(calls, [("text", "choose_language:bn", "keyboard")])
 
-    async def test_language_selection_from_video_sends_home_text_when_caption_too_long(self):
+    async def test_language_selection_from_video_sends_home_text_as_separate_text_menu(self):
         calls = []
 
         class User:
@@ -117,7 +117,7 @@ class WelcomeVideoTests(unittest.IsolatedAsyncioTestCase):
 
         self.namespace.update(
             {
-                "language_saved_home_text": lambda first_name, lang: "x" * 1025,
+                "language_saved_home_text": lambda first_name, lang: "saved home text",
                 "main_menu": lambda user_id, lang: "menu",
                 "tr": lambda key, lang: f"{key}:{lang}",
                 "home_text": lambda first_name, lang: f"home:{first_name}:{lang}",

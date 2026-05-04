@@ -2092,16 +2092,11 @@ async def complete_language_selection_message(query, user_id, lang):
     reply_markup = main_menu(user_id, lang)
     if is_video_message(getattr(query, "message", None)):
         try:
-            if fits_video_caption(text):
-                await query.edit_message_caption(caption=text, reply_markup=reply_markup)
-            else:
-                await query.edit_message_caption(caption=tr("language_saved", lang))
-                await query.message.reply_text(home_text(query.from_user.first_name, lang), reply_markup=reply_markup)
-            return
+            await query.edit_message_caption(caption=tr("language_saved", lang))
         except Exception as exc:
             logger.warning("Welcome video caption edit failed, sending text home: %s", exc)
-            await query.message.reply_text(text, reply_markup=reply_markup)
-            return
+        await query.message.reply_text(home_text(query.from_user.first_name, lang), reply_markup=reply_markup)
+        return
     await query.edit_message_text(text, reply_markup=reply_markup)
 
 
