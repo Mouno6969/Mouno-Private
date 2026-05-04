@@ -28,7 +28,6 @@ RECEIPT_FUNCTIONS = {
     "receipt_qr_payload",
     "build_receipt_qr",
     "paste_receipt_qr",
-    "paste_receipt_approved_stamp",
     "build_receipt_image",
 }
 
@@ -46,7 +45,6 @@ def load_receipt_namespace():
         "BytesIO": BytesIO,
         "logger": logging.getLogger("receipt-test"),
         "RECEIPT_LOGO_PATH": str(BOT_PATH.with_name("assets") / "mouno_logo.jpg"),
-        "RECEIPT_APPROVED_STAMP_PATH": str(BOT_PATH.with_name("assets") / "approved_stamp.jpeg"),
         "RECEIPT_FONT_DIR": str(BOT_PATH.with_name("assets") / "fonts"),
         "ADMIN_ID": "1",
         "NETWORKS": {
