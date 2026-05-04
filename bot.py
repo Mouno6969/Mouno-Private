@@ -230,6 +230,8 @@ RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_logo.jpg")
 RECEIPT_FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
+WELCOME_VIDEO_PATH = os.path.join(os.path.dirname(__file__), "assets", "welcome_video.mp4")
+TELEGRAM_VIDEO_CAPTION_LIMIT = 1024
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -1171,6 +1173,22 @@ def language_keyboard():
     )
 
 
+def welcome_video_available(path=WELCOME_VIDEO_PATH):
+    return bool(path) and os.path.isfile(path) and os.path.getsize(path) > 0
+
+
+def is_video_message(message):
+    return bool(message and getattr(message, "video", None))
+
+
+def language_saved_home_text(first_name, lang):
+    return f"{tr('language_saved', lang)}\n\n{home_text(first_name, lang)}"
+
+
+def fits_video_caption(text):
+    return len(text or "") <= TELEGRAM_VIDEO_CAPTION_LIMIT
+
+
 def back_keyboard(lang):
     return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
 
@@ -2020,6 +2038,37 @@ def home_text(user_name=None, lang="bn"):
     return panel(tr("home_title", lang), body)
 
 
+async def send_first_time_language_selection(update):
+    text = tr("choose_language", "bn")
+    reply_markup = language_keyboard()
+    if welcome_video_available():
+        try:
+            with open(WELCOME_VIDEO_PATH, "rb") as video:
+                await update.message.reply_video(video=video, caption=text, reply_markup=reply_markup)
+            return
+        except Exception as exc:
+            logger.warning("Welcome video send failed, falling back to text: %s", exc)
+    await update.message.reply_text(text, reply_markup=reply_markup)
+
+
+async def complete_language_selection_message(query, user_id, lang):
+    text = language_saved_home_text(query.from_user.first_name, lang)
+    reply_markup = main_menu(user_id, lang)
+    if is_video_message(getattr(query, "message", None)):
+        try:
+            if fits_video_caption(text):
+                await query.edit_message_caption(caption=text, reply_markup=reply_markup)
+            else:
+                await query.edit_message_caption(caption=tr("language_saved", lang))
+                await query.message.reply_text(home_text(query.from_user.first_name, lang), reply_markup=reply_markup)
+            return
+        except Exception as exc:
+            logger.warning("Welcome video caption edit failed, sending text home: %s", exc)
+            await query.message.reply_text(text, reply_markup=reply_markup)
+            return
+    await query.edit_message_text(text, reply_markup=reply_markup)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     args = getattr(context, "args", None) or []
@@ -2033,7 +2082,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error("Referral bind failed: %s", exc)
     lang = get_user_language(user.id)
     if not lang:
-        await update.message.reply_text(tr("choose_language", "bn"), reply_markup=language_keyboard())
+        await send_first_time_language_selection(update)
         return
     await update.message.reply_text(home_text(user.first_name, lang), reply_markup=main_menu(user.id, lang))
 
@@ -2504,10 +2553,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lang = query.data.replace("set_lang_", "", 1)
         set_user_language(user_id, lang)
         context.user_data["lang"] = lang
-        await query.edit_message_text(
-            f"{tr('language_saved', lang)}\n\n{home_text(query.from_user.first_name, lang)}",
-            reply_markup=main_menu(user_id, lang),
-        )
+        await complete_language_selection_message(query, user_id, lang)
 
     elif query.data == "rate":
         await query.edit_message_text(
