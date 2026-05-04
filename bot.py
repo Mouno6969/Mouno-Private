@@ -7,7 +7,9 @@ import re
 import secrets
 import string
 import threading
+import unicodedata
 from datetime import datetime, timedelta
+from io import BytesIO
 
 import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
@@ -225,6 +227,7 @@ SELLER_BUY_AMOUNT = 66
 
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
+RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_logo.jpg")
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -1465,6 +1468,278 @@ def receipt_block(order_id, trx_id, network, amount, wallet, sig, seller_id=None
     )
 
 
+def receipt_value(value, default="N/A"):
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
+def receipt_amount(value):
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+        if number == 0:
+            return "0"
+        return f"{number:.8f}".rstrip("0").rstrip(".")
+    except Exception:
+        return str(value)
+
+
+def receipt_explorer_url(network, sig):
+    info = NETWORKS.get(network or "solana", {"explorer": ""})
+    return f"{info.get('explorer', '')}{sig}" if sig else ""
+
+
+def receipt_chat_id(chat_id):
+    if chat_id is None or str(chat_id).strip() == "":
+        return None
+    text = str(chat_id).strip()
+    try:
+        return int(text)
+    except Exception:
+        return text
+
+
+def receipt_user_label(username=None, name=None, user_id=None):
+    username = receipt_value(username, "")
+    name = receipt_value(name, "")
+    if username:
+        username = username if username.startswith("@") else f"@{username}"
+    label = username or name or "N/A"
+    return f"{label} ({receipt_value(user_id)})"
+
+
+async def chat_display(bot, user_id, fallback_username=None, fallback_name=None):
+    username = fallback_username
+    name = fallback_name
+    try:
+        chat = await bot.get_chat(int(user_id))
+        username = getattr(chat, "username", None) or username
+        first = getattr(chat, "first_name", None) or ""
+        last = getattr(chat, "last_name", None) or ""
+        full = " ".join(part for part in [first, last] if part).strip()
+        name = full or getattr(chat, "title", None) or name
+    except Exception as exc:
+        logger.debug("Could not load chat display for %s: %s", user_id, exc)
+    return receipt_user_label(username, name, user_id)
+
+
+async def make_receipt_data(bot, order_id, payment_id, network, crypto_amount, wallet, sig, buyer_id, buyer_username=None, seller_id=None, seller_username=None, seller_name=None, bdt_amount=None, stars_amount=None, title="Smart Crypto Buy"):
+    seller_id = seller_id or ADMIN_ID
+    if str(seller_id) == str(ADMIN_ID) and not seller_name:
+        seller_name = "Main Admin"
+    info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": "?", "explorer": ""})
+    return {
+        "title": title,
+        "status": "SUCCESSFUL / COMPLETED",
+        "order_id": order_id,
+        "payment_id": payment_id,
+        "network": network,
+        "network_name": info["name"],
+        "crypto_symbol": info["symbol"],
+        "crypto_amount": crypto_amount,
+        "bdt_amount": bdt_amount,
+        "stars_amount": stars_amount,
+        "buyer_id": buyer_id,
+        "buyer_username": buyer_username,
+        "buyer_label": await chat_display(bot, buyer_id, buyer_username),
+        "seller_id": seller_id,
+        "seller_username": seller_username,
+        "seller_name": seller_name,
+        "seller_label": await chat_display(bot, seller_id, seller_username, seller_name),
+        "wallet": wallet,
+        "tx_hash": sig,
+        "explorer_url": receipt_explorer_url(network, sig),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def receipt_text_from_data(data):
+    network = data.get("network")
+    info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": data.get("crypto_symbol") or "?", "explorer": ""})
+    sig = data.get("tx_hash") or data.get("signature")
+    explorer = data.get("explorer_url") or receipt_explorer_url(network, sig)
+    lines = [
+        f"✅ {data.get('title') or 'Smart Crypto Buy'} Receipt",
+        f"📌 Status: {data.get('status') or 'Completed'}",
+        f"🧾 Order: {data.get('order_id') or 'N/A'}",
+        f"🔑 Payment ID: {data.get('payment_id') or 'N/A'}",
+        f"🌐 Network: {info['name']}",
+        f"💵 Amount: {receipt_amount(data.get('crypto_amount')) or 'N/A'} {data.get('crypto_symbol') or info['symbol']}",
+    ]
+    if data.get("bdt_amount") is not None:
+        lines.append(f"💰 BDT: {receipt_amount(data.get('bdt_amount'))} BDT")
+    if data.get("stars_amount") is not None:
+        lines.append(f"⭐ Stars: {receipt_amount(data.get('stars_amount'))} Stars")
+    lines.extend([
+        f"👤 Buyer: {data.get('buyer_label') or receipt_user_label(data.get('buyer_username'), data.get('buyer_name'), data.get('buyer_id'))}",
+        f"🏪 Seller: {data.get('seller_label') or receipt_user_label(data.get('seller_username'), data.get('seller_name'), data.get('seller_id'))}",
+        f"👛 Wallet: {short_wallet(data.get('wallet'))}",
+        f"🔗 TX: {explorer or 'N/A'}",
+        f"🕒 Timestamp: {data.get('timestamp') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+    ])
+    return "\n".join(lines)
+
+
+def receipt_font(size, bold=False):
+    names = [
+        "/usr/share/fonts/truetype/noto/NotoSansBengali-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    ]
+    from PIL import ImageFont
+    for name in names:
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
+def receipt_image_text(value):
+    text = receipt_value(value, "")
+    cleaned = []
+    for ch in text:
+        category = unicodedata.category(ch)
+        if category in {"Cc", "Cf", "Cs", "Co", "Cn", "So"}:
+            continue
+        cleaned.append(ch)
+    return "".join(cleaned) or "N/A"
+
+
+def draw_receipt_text(draw, xy, text, font, fill, max_width, line_gap=6):
+    x, y = xy
+    words = str(text).split()
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if draw.textlength(candidate, font=font) <= max_width or not current:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    if not lines:
+        lines = [""]
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += font.size + line_gap
+    return y
+
+
+def paste_receipt_seal(image):
+    from PIL import Image, ImageDraw
+    seal_size = 190
+    x = image.width - seal_size - 70
+    y = 70
+    seal = Image.new("RGBA", (seal_size, seal_size), (0, 0, 0, 0))
+    mask = Image.new("L", (seal_size, seal_size), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse((0, 0, seal_size - 1, seal_size - 1), fill=150)
+    if os.path.exists(RECEIPT_LOGO_PATH):
+        logo = Image.open(RECEIPT_LOGO_PATH).convert("RGBA")
+        side = min(logo.size)
+        left = (logo.width - side) // 2
+        top = (logo.height - side) // 2
+        logo = logo.crop((left, top, left + side, top + side)).resize((seal_size, seal_size))
+        logo.putalpha(mask)
+        seal.alpha_composite(logo)
+    else:
+        seal_draw = ImageDraw.Draw(seal)
+        seal_draw.ellipse((0, 0, seal_size - 1, seal_size - 1), fill=(129, 72, 40, 42))
+        seal_draw.text((seal_size // 2 - 48, seal_size // 2 - 12), "MOUNO", fill=(129, 72, 40, 145), font=receipt_font(24, True))
+    seal_draw = ImageDraw.Draw(seal)
+    seal_draw.ellipse((6, 6, seal_size - 7, seal_size - 7), outline=(129, 72, 40, 190), width=5)
+    seal_draw.ellipse((20, 20, seal_size - 21, seal_size - 21), outline=(129, 72, 40, 110), width=2)
+    image.alpha_composite(seal, (x, y))
+
+
+def build_receipt_image(data):
+    from PIL import Image, ImageDraw
+    width, height = 1100, 1750
+    image = Image.new("RGBA", (width, height), (246, 238, 220, 255))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((45, 45, width - 45, height - 45), radius=36, fill=(255, 252, 242, 255), outline=(184, 137, 82, 255), width=4)
+    for y in range(90, height - 80, 70):
+        draw.line((70, y, width - 70, y), fill=(231, 216, 190, 75), width=1)
+    paste_receipt_seal(image)
+
+    title_font = receipt_font(54, True)
+    status_font = receipt_font(30, True)
+    label_font = receipt_font(25, True)
+    value_font = receipt_font(29)
+    small_font = receipt_font(23)
+    title = receipt_image_text(data.get("title") or "Smart Crypto Buy")
+    draw.text((80, 78), title, font=title_font, fill=(63, 39, 28, 255))
+    draw.rounded_rectangle((82, 155, 435, 205), radius=20, fill=(31, 129, 73, 255))
+    draw.text((105, 163), data.get("status") or "SUCCESSFUL / COMPLETED", font=status_font, fill=(255, 255, 255, 255))
+    draw.text((80, 225), f"Generated: {data.get('timestamp') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", font=small_font, fill=(113, 95, 76, 255))
+
+    network = data.get("network")
+    info = NETWORKS.get(network or "solana", {"name": network or "N/A", "symbol": data.get("crypto_symbol") or "?", "explorer": ""})
+    sig = data.get("tx_hash") or data.get("signature")
+    explorer = data.get("explorer_url") or receipt_explorer_url(network, sig)
+    rows = [
+        ("Order ID", data.get("order_id") or "N/A"),
+        ("Payment / Transaction ID", data.get("payment_id") or "N/A"),
+        ("Network", f"{info['name']} ({data.get('crypto_symbol') or info['symbol']})"),
+        ("Crypto Amount", f"{receipt_amount(data.get('crypto_amount')) or 'N/A'} {data.get('crypto_symbol') or info['symbol']}"),
+    ]
+    if data.get("bdt_amount") is not None:
+        rows.append(("BDT Amount", f"{receipt_amount(data.get('bdt_amount'))} BDT"))
+    if data.get("stars_amount") is not None:
+        rows.append(("Stars Amount", f"{receipt_amount(data.get('stars_amount'))} Stars"))
+    rows.extend([
+        ("Buyer", data.get("buyer_label") or receipt_user_label(data.get("buyer_username"), data.get("buyer_name"), data.get("buyer_id"))),
+        ("Seller", data.get("seller_label") or receipt_user_label(data.get("seller_username"), data.get("seller_name"), data.get("seller_id"))),
+        ("Destination Wallet", short_wallet(data.get("wallet"))),
+        ("Transaction Hash / Signature", sig or "N/A"),
+        ("Explorer URL", explorer or "N/A"),
+    ])
+
+    y = 315
+    for label, value in rows:
+        draw.text((90, y), receipt_image_text(label).upper(), font=label_font, fill=(129, 72, 40, 255))
+        y = draw_receipt_text(draw, (90, y + 34), receipt_image_text(value), value_font, (35, 35, 35, 255), width - 180)
+        y += 24
+        draw.line((90, y, width - 90, y), fill=(224, 203, 171, 160), width=2)
+        y += 24
+
+    draw.rounded_rectangle((120, height - 135, width - 120, height - 78), radius=24, outline=(129, 72, 40, 160), width=3)
+    draw.text((185, height - 120), "Verified automatic transaction receipt", font=status_font, fill=(129, 72, 40, 220))
+    output = BytesIO()
+    image.convert("RGB").save(output, format="PNG", optimize=True)
+    output.seek(0)
+    output.name = f"receipt-{receipt_value(data.get('order_id'), 'order')}.png"
+    return output
+
+
+async def send_transaction_receipt(bot, recipients, receipt_data):
+    sent = set()
+    for recipient in recipients:
+        chat_id = receipt_chat_id(recipient)
+        if chat_id is None:
+            continue
+        key = str(chat_id)
+        if key in sent:
+            continue
+        sent.add(key)
+        try:
+            photo = build_receipt_image(receipt_data)
+            await bot.send_photo(chat_id=chat_id, photo=photo, caption=f"Receipt: {receipt_data.get('order_id') or 'N/A'}")
+        except Exception as exc:
+            logger.exception("Receipt photo delivery failed for %s: %s", chat_id, exc)
+            try:
+                await bot.send_message(chat_id, receipt_text_from_data(receipt_data))
+            except Exception as fallback_exc:
+                logger.warning("Receipt fallback text delivery failed for %s: %s", chat_id, fallback_exc)
+
+
 def order_status_text(identifier, viewer_id, lang="bn"):
     kind, row = find_order(identifier)
     if not row:
@@ -2004,6 +2279,23 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         await bot.send_message(int(seller_id), f"✅ Order delivered automatically.\n\n🧾 {order_id}\n👤 Buyer: @{buyer_username or buyer_id}\n💵 {amount_crypto} {ni['symbol']}\n🔗 {explorer}")
         if ADMIN_ID:
             await bot.send_message(ADMIN_ID, f"✅ Seller order completed.\n\n{seller_order_summary(get_seller_order(order_id))}\n🔗 {explorer}")
+        receipt_data = await make_receipt_data(
+            bot,
+            order_id,
+            f"SELLER-{order_id}",
+            network,
+            amount_crypto,
+            wallet,
+            sig,
+            buyer_id,
+            buyer_username=buyer_username,
+            seller_id=seller_id,
+            seller_name=seller_public_name(seller),
+            bdt_amount=amount_bdt if method != "stars" else None,
+            stars_amount=stars_amount if method == "stars" else None,
+            title="Smart Crypto Buy",
+        )
+        await send_transaction_receipt(bot, [buyer_id, seller_id, ADMIN_ID], receipt_data)
         return True, sig
     except Exception as exc:
         reason = failure_reason_text(exc, network, "en")
@@ -3716,6 +4008,8 @@ async def approve_order(query, user_id):
             if target_lang == "en"
             else f"🎉 পেমেন্ট admin manually verified হয়েছে!\n\nCrypto পাঠানো হয়েছে।\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nধন্যবাদ! 🙏",
         )
+        receipt_data = await make_receipt_data(query.get_bot(), order_id, trx_id, network, crypto_amount, target_wallet, sig, target_uid, bdt_amount=amount_bdt, title="Smart Crypto Buy")
+        await send_transaction_receipt(query.get_bot(), [target_uid, ADMIN_ID], receipt_data)
     except Exception as exc:
         reason = failure_reason_text(exc, network, lang)
         order_id = save_transaction(trx_id, target_uid, amount_bdt, crypto_amount, target_wallet, "", "failed", network, order_id=order_id, source="bkash")
@@ -4424,6 +4718,8 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         context.user_data.clear()
         await update.message.reply_text(ltext(lang, f"🎉 {net_info['symbol']} sent!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nThank you!", f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nধন্যবাদ! 🙏"))
+        receipt_data = await make_receipt_data(update.get_bot(), order_id, trx_id, network, crypto_amount, wallet, sig, user_id, buyer_username=username, bdt_amount=amount_bdt, title="Smart Crypto Buy")
+        await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
         save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id, source="bkash")
         release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="send_failed", actor_id="system")
@@ -4603,6 +4899,9 @@ async def handle_redeem(update, context, user_id, username):
                     await update.get_bot().send_message(int(claim["creator_id"]), admin_msg)
                 except Exception:
                     pass
+            seller_id = claim.get("creator_id") if claim["source"] == "user_wallet" else ADMIN_ID
+            receipt_data = await make_receipt_data(update.get_bot(), order_id, f"GIFT-{code}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=seller_id, bdt_amount=0, title="Smart Crypto Buy")
+            await send_transaction_receipt(update.get_bot(), [user_id, seller_id, ADMIN_ID], receipt_data)
         except Exception as exc:
             save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, "", "failed", network, order_id=claim["session_id"], source="giveaway", seller_id=claim.get("creator_id") if claim["source"] == "user_wallet" else None)
             add_audit("system", "giveaway_send_failed", "gift_code", code, f"session={claim['session_id']} error={exc}")
@@ -4636,6 +4935,8 @@ async def handle_redeem(update, context, user_id, username):
             await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
         except Exception:
             pass
+        receipt_data = await make_receipt_data(update.get_bot(), order_id, f"GIFT-{code}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=ADMIN_ID, bdt_amount=0, title="Smart Crypto Buy")
+        await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
         await update.message.reply_text(
             f"❌ Gift delivery failed.\n\n💡 {failure_reason_text(exc, network, lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
@@ -4987,6 +5288,8 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
             )
         except Exception:
             pass
+        receipt_data = await make_receipt_data(update.get_bot(), order_id, f"STAR-{payment.telegram_payment_charge_id}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=ADMIN_ID, stars_amount=stars_amount, title="Smart Crypto Buy")
+        await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
         update_star_order_status(order_id, "failed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, error=str(exc))
         save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, "", "failed", network, order_id=order_id, source="stars")
@@ -5156,6 +5459,8 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             f"💵 {crypto_amount} {net_info['symbol']}\n"
             f"🔗 {explorer}",
         )
+        receipt_data = await make_receipt_data(app.bot, order_id, trx_id, network, crypto_amount, wallet, sig, user_id, bdt_amount=sms_amount_bdt, title="Smart Crypto Buy")
+        await send_transaction_receipt(app.bot, [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
         save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id, source="bkash")
         release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="auto_complete_send_failed", actor_id="system")
