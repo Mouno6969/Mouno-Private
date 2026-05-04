@@ -1732,15 +1732,27 @@ def build_receipt_qr(data, size=190):
 def paste_receipt_qr(image, data):
     from PIL import ImageDraw
     draw = ImageDraw.Draw(image)
-    box = (705, 1330, image.width - 90, 1590)
+    box = (705, 1305, image.width - 90, 1595)
     draw.rounded_rectangle(box, radius=28, fill=(255, 252, 242, 245), outline=(184, 137, 82, 220), width=3)
-    qr_image, detail_label = build_receipt_qr(data)
-    qr_x = box[0] + 23
-    qr_y = box[1] + 45
+    qr_image, detail_label = build_receipt_qr(data, size=180)
+    content_width = box[2] - box[0] - 44
+    center_x = (box[0] + box[2]) // 2
+
+    label_font = receipt_font(24, True)
+    label = "Scan for proof"
+    label_width = draw.textlength(label, font=label_font)
+    draw.text((center_x - label_width / 2, box[1] + 22), label, font=label_font, fill=(63, 39, 28, 255))
+
+    qr_x = center_x - qr_image.width // 2
+    qr_y = box[1] + 62
     image.alpha_composite(qr_image, (qr_x, qr_y))
-    draw.text((box[0] + 220, box[1] + 58), "Scan for proof", font=receipt_font(27, True), fill=(63, 39, 28, 255))
-    draw_receipt_text(draw, (box[0] + 220, box[1] + 96), detail_label, receipt_font(22), (129, 72, 40, 230), box[2] - box[0] - 245, 4)
-    draw.text((box[0] + 220, box[1] + 176), "Verified receipt", font=receipt_font(20), fill=(113, 95, 76, 220))
+
+    detail_font = receipt_font(19)
+    detail_width = min(draw.textlength(detail_label, font=detail_font), content_width)
+    if detail_width == draw.textlength(detail_label, font=detail_font):
+        draw.text((center_x - detail_width / 2, box[1] + 252), detail_label, font=detail_font, fill=(129, 72, 40, 230))
+    else:
+        draw_receipt_text(draw, (box[0] + 22, box[1] + 248), detail_label, detail_font, (129, 72, 40, 230), content_width, 2)
 
 
 def paste_receipt_approved_stamp(image):
@@ -1756,14 +1768,14 @@ def paste_receipt_approved_stamp(image):
             elif r > 220 and g > 210 and b > 210:
                 pixels.append((r, g, b, min(a, 55)))
             else:
-                pixels.append((r, g, b, min(a, 135)))
+                pixels.append((r, g, b, min(a, 115)))
         stamp.putdata(pixels)
         max_width = 330
         scale = min(1, max_width / stamp.width)
         stamp = stamp.resize((int(stamp.width * scale), int(stamp.height * scale)), Image.Resampling.LANCZOS)
         stamp = stamp.rotate(-13, expand=True, resample=Image.Resampling.BICUBIC)
         x = image.width - stamp.width - 85
-        y = 250
+        y = 575
         image.alpha_composite(stamp, (x, y))
     except Exception as exc:
         logger.debug("Could not paste approved stamp: %s", exc)
