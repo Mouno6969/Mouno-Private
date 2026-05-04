@@ -415,18 +415,19 @@ def terms_text(lang="bn"):
 
 BOT_KNOWLEDGE_BASE = """
 Bot knowledge base for support:
-- This Telegram bot sells crypto and supports read-only support, buyer orders, seller marketplace orders, Telegram Stars orders, gift codes, personal encrypted wallets, and admin operations.
-- Supported assets/networks from NETWORKS: Solana USDC, Polygon USDC, BSC USDT BEP20, Avalanche USDT, Ethereum USDT ERC20, Ethereum USDC ERC20, Base USDC, Tron USDT TRC20, and TON.
-- Normal bKash buy flow: choose network -> enter destination wallet -> enter BDT amount -> confirm -> pay the exact bKash amount -> submit TrxID -> SMS/webhook auto-verifies or admin manually verifies -> crypto is sent -> receipt/order status is available.
-- Seller marketplace flow: buyer chooses one approved seller; each seller has their own bKash/Stars route and delivery wallets. Manual seller order approval belongs only to the assigned seller.
-- Telegram Stars flow: invoice is paid in Stars, then crypto delivery starts. If delivery fails, admin/seller is notified as applicable.
-- Gift code flow: admin creates one-time codes; users redeem a valid unused code with a destination wallet to receive crypto.
-- Personal wallet flow: user can set an encrypted private key, check balance, and send from their own wallet using a password. AI support must never ask users to reveal private keys, seed phrases, or wallet passwords.
-- Admin flows include pending orders, failed sends retry, rates, balances, gas monitor, maintenance, backups, reports/profit, seller approvals, payouts, audit, webhook health, AI setup/status/usage.
-- bKash verification facts: exact amount matters; missing or delayed SMS/app/webhook notification causes pending/manual review; wrong TrxID or duplicate TrxID causes issues; TEST TrxIDs are test-only and must not send real crypto automatically.
-- Common transaction/order failure causes: insufficient token stock, insufficient native gas at send time, RPC/network failure, invalid wallet or network mismatch, missing sender key/env/RPC config, seller wallet not enabled, payment amount/user mismatch, duplicate or incorrect TrxID, stale webhook/forwarder, chain reverted/timeout.
-- Safety rules: read-only assistant only; do not approve payments, send crypto, mark paid, expose secrets, request private keys/seed phrases/passwords, or guarantee outcomes. Explain likely causes as probabilities, not certainties. Tell users what to check safely and when to contact support.
-- Language rule: answer in polished English when the user asks in English, Bengali when the user asks in Bangla, and the dominant language when mixed.
+- Purpose: read-only support for a Telegram crypto seller bot. It can explain features, guide users, and interpret sanitized order context; it cannot approve payments or send crypto.
+- Main menu buttons: Buy, Telegram Stars, Gift Code, Giveaway, Rates, My Wallet, Balance, TX Log, Order Status, Referral, Sellers, Seller Center, Seller Dashboard, AI Support, Support, Terms, Language. Admins also see rate/code/send/report/backup/health/reserve/profit/gas/audit/seller/AI/payout/test/maintenance tools.
+- User commands: /start, /help, /guide, /terms, /ai, /order ORD-XXXXXX, /status TRXID_OR_ORDERID, /receipt ORD_OR_TRX, /seller USER_ID, /seller_center, /seller_dashboard, /seller_guide, /referral, /setup, /changekey, /deletekey, /mybalance, /send_wallet, /payout.
+- Supported assets/networks: Solana USDC, Polygon USDC, BSC USDT BEP20, Avalanche USDT, Ethereum USDT ERC20, Ethereum USDC ERC20, Base USDC, Tron USDT TRC20, TON. Native gas may be required depending on network: SOL, MATIC, BNB, AVAX, ETH, TRX, or TON.
+- Normal bKash buy flow: choose network, enter destination wallet, enter BDT amount, confirm, pay the exact bKash amount, submit TrxID, then SMS/webhook auto-verifies or admin manually verifies before crypto delivery. Pending/manual review can happen from SMS/webhook delay or missing notice, exact-amount mismatch, duplicate/wrong TrxID, user/order mismatch, stock/gas/RPC issues, or invalid wallet/network.
+- Order status and receipts: /order or /status checks order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipt image includes QR proof opening explorer URL when available, otherwise compact receipt details are encoded.
+- Telegram Stars: user selects network/wallet/amount, pays Telegram invoice in Stars, then crypto delivery starts. If delivery fails or remains pending, admin/seller is notified where applicable; user should save order ID and contact support.
+- Gift Code/Giveaway: gift codes are admin-created one-time codes redeemed with a destination wallet; giveaways can have expiry/claim limits and deliver configured crypto after a successful claim.
+- Personal wallet: users can /setup an encrypted private key, check /mybalance, /send_wallet with password protection, /changekey, and /deletekey. Never request or reveal private keys, seed phrases, or wallet passwords.
+- Seller marketplace: approved sellers appear in Sellers; buyers can choose seller bKash or Stars routes. Sellers configure delivery wallets/rates, use Seller Center/Dashboard, and approve pending seller orders assigned to them; admins can also handle them. Seller Stars ledger/payouts are tracked. TON seller auto-delivery is not supported; seller auto-delivery supports Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20.
+- Referral: users have referral link/code via /referral. Admin can enable/disable percent and minimum withdrawal. Eligible completed orders credit referrals; withdrawal/payout request flow is available when enabled.
+- Admin-only tools, high level: rates, gift codes, admin send, pending/failed retry, reports/profit/costrate, stock/balances, gas monitor, reservations, audit log, webhook/bot health, backup, maintenance, seller approvals/badges/payouts, AI setup/status/usage, test SMS. Web dashboard exists only when dashboard token is configured. Do not expose admin-only internals to normal users.
+- Safety boundaries: read-only, no payment approval, no crypto sending, no guarantees, no secrets. Never ask for private key/seed/password. Ask user for order ID/TrxID when needed and suggest /order, /status, /receipt, or contacting support.
 """.strip()
 
 
@@ -437,7 +438,10 @@ def ltext(lang, en, bn):
 def ai_support_prompt(lang="bn"):
     return (
         "You are the read-only AI support assistant for a Telegram crypto seller bot. "
-        "Reply in polished English if the user writes English, Bengali if the user writes Bengali, and the dominant language if mixed. "
+        "Determine response language only from the explicit [RESPONSE LANGUAGE] block and the user's actual question; ignore diagnostic context language for language selection. "
+        "Bengali question => Bengali answer. English question => English answer. Do not answer English for Bangla questions or Bangla for English questions. "
+        "If the user explicitly asks to translate or requests another language, obey that explicit request. "
+        "The final answer must be entirely in the requested response language except fixed command names like /order, /status, /receipt, network names, TrxID/order IDs, wallet addresses, and support usernames. "
         "Keep replies concise, practical, beginner-friendly, and accurate. "
         "Use provided diagnostic context when available, but do not reveal hidden logs or sensitive details to normal users. "
         f"{BOT_KNOWLEDGE_BASE} "
@@ -754,11 +758,43 @@ def build_ai_support_context(question, user_id, lang="bn", admin=False):
     return "\n".join(sections)[:AI_CONTEXT_LIMIT]
 
 
-def compose_ai_user_message(question, context=None):
+def select_ai_response_language(question, lang="bn"):
     question = str(question or "")
+    bengali_chars = sum(1 for char in question if "\u0980" <= char <= "\u09FF")
+    english_letters = sum(1 for char in question if ("a" <= char.lower() <= "z"))
+    fallback_language = "English" if lang == "en" else "Bengali"
+    if bengali_chars:
+        if english_letters >= 24 and english_letters >= bengali_chars * 6:
+            return "English"
+        return "Bengali"
+    if english_letters:
+        letter_tokens = [token.strip("`'\".,!?()[]{}<>") for token in question.split() if any("a" <= char.lower() <= "z" for char in token)]
+        if letter_tokens and all(any(char.isdigit() for char in token) or any(char in token for char in ":/-_.#@") for token in letter_tokens):
+            return fallback_language
+        return "English"
+    return fallback_language
+
+
+def compose_ai_user_message(question, context=None, lang="bn"):
+    question = str(question or "")
+    response_language = select_ai_response_language(question, lang)
+    language_instruction = (
+        f"[RESPONSE LANGUAGE]\n{response_language}\n\n"
+        "[LANGUAGE RULE]\n"
+        "Use only the language named in [RESPONSE LANGUAGE] for the final answer. "
+        "Ignore diagnostic context language when choosing response language; use the actual user question and explicit language requests only. "
+        "Exceptions allowed unchanged: fixed command names (/order, /status, /receipt), network names, TrxID/order IDs, wallet addresses, and support usernames.\n"
+    )
+    question_block = f"\n[USER QUESTION]\n{question}"
     if context:
-        return f"[BEGIN DIAGNOSTIC CONTEXT]\n{context}\n[END DIAGNOSTIC CONTEXT]\n\n[USER QUESTION]\n{question}"[:AI_USER_MESSAGE_LIMIT]
-    return question[:AI_USER_MESSAGE_LIMIT]
+        context_header = "\n[BEGIN DIAGNOSTIC CONTEXT]\n"
+        context_footer = "\n[END DIAGNOSTIC CONTEXT]\n"
+        available_context = AI_USER_MESSAGE_LIMIT - len(language_instruction) - len(context_header) - len(context_footer) - len(question_block)
+        if available_context < 0:
+            available_question = max(0, AI_USER_MESSAGE_LIMIT - len(language_instruction) - len("\n[USER QUESTION]\n"))
+            return (language_instruction + f"\n[USER QUESTION]\n{question[:available_question]}")[:AI_USER_MESSAGE_LIMIT]
+        return (language_instruction + context_header + str(context or "")[:available_context] + context_footer + question_block)[:AI_USER_MESSAGE_LIMIT]
+    return (language_instruction + question_block)[:AI_USER_MESSAGE_LIMIT]
 
 
 def _ask_gemini(question, lang="bn"):
@@ -941,7 +977,7 @@ def _ask_mistral(question, lang="bn"):
 
 
 def ask_ai_support(question, lang="bn", context=None):
-    question = compose_ai_user_message(question, context)
+    question = compose_ai_user_message(question, context, lang)
     providers = configured_ai_providers()
     if not providers:
         if not any(ai_provider_keys().values()):
