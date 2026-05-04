@@ -229,6 +229,7 @@ SELLER_BUY_AMOUNT = 66
 RATE_FILE = "rate.json"
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_logo.jpg")
+RECEIPT_FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -1586,6 +1587,7 @@ def receipt_text_from_data(data):
 
 def receipt_font(size, bold=False):
     names = [
+        os.path.join(RECEIPT_FONT_DIR, "NotoSansBengali-Bold.ttf" if bold else "NotoSansBengali-Regular.ttf"),
         "/usr/share/fonts/truetype/noto/NotoSansBengali-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -1613,16 +1615,32 @@ def receipt_image_text(value):
 
 def draw_receipt_text(draw, xy, text, font, fill, max_width, line_gap=6):
     x, y = xy
-    words = str(text).split()
     lines = []
     current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if draw.textlength(candidate, font=font) <= max_width or not current:
-            current = candidate
-        else:
-            lines.append(current)
-            current = word
+
+    def split_long_token(token):
+        chunks = []
+        chunk = ""
+        for ch in token:
+            candidate = f"{chunk}{ch}"
+            if draw.textlength(candidate, font=font) <= max_width or not chunk:
+                chunk = candidate
+            else:
+                chunks.append(chunk)
+                chunk = ch
+        if chunk:
+            chunks.append(chunk)
+        return chunks or [""]
+
+    for word in str(text).split():
+        pieces = split_long_token(word) if draw.textlength(word, font=font) > max_width else [word]
+        for piece in pieces:
+            candidate = f"{current} {piece}".strip()
+            if draw.textlength(candidate, font=font) <= max_width or not current:
+                current = candidate
+            else:
+                lines.append(current)
+                current = piece
     if current:
         lines.append(current)
     if not lines:
@@ -1677,8 +1695,10 @@ def build_receipt_image(data):
     small_font = receipt_font(23)
     title = receipt_image_text(data.get("title") or "Smart Crypto Buy")
     draw.text((80, 78), title, font=title_font, fill=(63, 39, 28, 255))
-    draw.rounded_rectangle((82, 155, 435, 205), radius=20, fill=(31, 129, 73, 255))
-    draw.text((105, 163), data.get("status") or "SUCCESSFUL / COMPLETED", font=status_font, fill=(255, 255, 255, 255))
+    status_text = "COMPLETED"
+    status_width = int(draw.textlength(status_text, font=status_font))
+    draw.rounded_rectangle((82, 155, 122 + status_width, 205), radius=20, fill=(31, 129, 73, 255))
+    draw.text((105, 163), status_text, font=status_font, fill=(255, 255, 255, 255))
     draw.text((80, 225), f"Generated: {data.get('timestamp') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", font=small_font, fill=(113, 95, 76, 255))
 
     network = data.get("network")
