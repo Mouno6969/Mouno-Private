@@ -1896,7 +1896,7 @@ async def send_transaction_receipt(bot, recipients, receipt_data):
                 temp_file.write(photo.getvalue())
                 temp_file.flush()
                 with open(temp_file.name, "rb") as file:
-                    await bot.send_photo(chat_id=chat_id, photo=file, caption=f"Receipt: {receipt_data.get('order_id') or 'N/A'}")
+                    await bot.send_photo(chat_id=chat_id, photo=file)
         except Exception as exc:
             logger.exception("Receipt photo delivery failed for %s: %s", chat_id, exc)
             try:
@@ -2465,11 +2465,6 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         record_referral_reward_for_transaction(seller_id, "seller_sale", f"{order_id}:seller", network, amount_crypto, amount_bdt or 0, f"buyer={buyer_id} method={method}")
         if method == "stars" and stars_amount:
             create_seller_star_ledger(gen_order_id("SL"), seller_id, order_id, stars_amount)
-        explorer = f"{ni.get('explorer','')}{sig}"
-        await bot.send_message(int(buyer_id), f"🎉 Seller order completed!\n\n🏪 {seller_public_name(seller)}\n🧾 {order_id}\n🌐 {ni['name']}\n💵 {amount_crypto} {ni['symbol']}\n👛 {wallet}\n🔗 {explorer}")
-        await bot.send_message(int(seller_id), f"✅ Order delivered automatically.\n\n🧾 {order_id}\n👤 Buyer: @{buyer_username or buyer_id}\n💵 {amount_crypto} {ni['symbol']}\n🔗 {explorer}")
-        if ADMIN_ID:
-            await bot.send_message(ADMIN_ID, f"✅ Seller order completed.\n\n{seller_order_summary(get_seller_order(order_id))}\n🔗 {explorer}")
         receipt_data = await make_receipt_data(
             bot,
             order_id,
@@ -3775,16 +3770,21 @@ async def retry_failed_transaction(query, trx_id, lang):
         if source not in {"admin_send", "gift", "giveaway", "referral_withdrawal"}:
             record_referral_reward_for_transaction(_user_id, source or "retry", f"retry:{trx_id}", network, crypto, _bdt, f"order={_order_id} retry_source={source}")
         add_audit(query.from_user.id, "retry_send_completed", "transaction", trx_id)
-        await query.edit_message_text(f"✅ Retry successful!\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}", reply_markup=back_keyboard(lang))
+        await query.edit_message_text("✅ Retry successful. Receipt image sent.", reply_markup=back_keyboard(lang))
         if _user_id:
-            target_lang = user_lang(_user_id)
-            await send_order_user_message(
+            receipt_data = await make_receipt_data(
                 query.get_bot(),
+                _order_id,
+                trx_id,
+                network,
+                crypto,
+                wallet,
+                sig,
                 _user_id,
-                f"🎉 Crypto has been sent!\n\nAdmin retry succeeded.\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}\n\nThank you!"
-                if target_lang == "en"
-                else f"🎉 Crypto পাঠানো হয়েছে!\n\nAdmin retry সফল হয়েছে।\n\n{receipt_block(_order_id, trx_id, network, crypto, wallet, sig)}\n\nধন্যবাদ! 🙏",
+                bdt_amount=_bdt,
+                title="Smart Crypto Buy",
             )
+            await send_transaction_receipt(query.get_bot(), [_user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
         reason = failure_reason_text(exc, network, lang)
         add_audit(query.from_user.id, "retry_send_failed", "transaction", trx_id, str(exc))
@@ -4187,15 +4187,7 @@ async def approve_order(query, user_id):
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
         add_audit(user_id, "order_approved", "transaction", trx_id, f"order={order_id}")
-        await query.edit_message_text(f"✅ Crypto sent!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, target_wallet, 'completed')}\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}")
-        target_lang = user_lang(target_uid)
-        await send_order_user_message(
-            query.get_bot(),
-            target_uid,
-            f"🎉 Your payment was manually verified by admin.\n\nCrypto has been sent.\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nThank you!"
-            if target_lang == "en"
-            else f"🎉 পেমেন্ট admin manually verified হয়েছে!\n\nCrypto পাঠানো হয়েছে।\n\n{receipt_block(order_id, trx_id, network, crypto_amount, target_wallet, sig)}\n\nধন্যবাদ! 🙏",
-        )
+        await query.edit_message_text("✅ Crypto sent. Receipt image sent.")
         receipt_data = await make_receipt_data(query.get_bot(), order_id, trx_id, network, crypto_amount, target_wallet, sig, target_uid, bdt_amount=amount_bdt, title="Smart Crypto Buy")
         await send_transaction_receipt(query.get_bot(), [target_uid, ADMIN_ID], receipt_data)
     except Exception as exc:
@@ -4899,13 +4891,11 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(ltext(lang, f"✅ Payment verified!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...", f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে..."))
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
         order_id = save_transaction(trx_id, user_id, amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
         record_referral_reward_for_transaction(user_id, "bkash", trx_id, network, crypto_amount, amount_bdt, f"order={order_id}")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         context.user_data.clear()
-        await update.message.reply_text(ltext(lang, f"🎉 {net_info['symbol']} sent!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nThank you!", f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\nধন্যবাদ! 🙏"))
         receipt_data = await make_receipt_data(update.get_bot(), order_id, trx_id, network, crypto_amount, wallet, sig, user_id, buyer_username=username, bdt_amount=amount_bdt, title="Smart Crypto Buy")
         await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
@@ -5074,19 +5064,7 @@ async def handle_redeem(update, context, user_id, username):
                 private_key = decrypt_seller_key(claim["encrypted_key"], claim["salt"])
                 loop = asyncio.get_running_loop()
                 sig = await loop.run_in_executor(None, lambda: send_with_private_key(network, private_key, wallet, amount_crypto))
-            explorer = f"{net_info['explorer']}{sig}"
             order_id = save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=claim["session_id"], source="giveaway", seller_id=claim.get("creator_id") if claim["source"] == "user_wallet" else None)
-            await update.message.reply_text(ltext(lang, f"🎉 Giveaway sent!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nClaim: {claim_line}", f"🎉 Giveaway পাঠানো হয়েছে!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nClaim: {claim_line}"))
-            admin_msg = f"🎉 Giveaway redeemed!\n\n🧾 {claim['session_id']}\n👤 @{username} ({user_id})\n🎟️ {code}\n🎯 Claim {claim_line}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}"
-            try:
-                await update.get_bot().send_message(ADMIN_ID, admin_msg)
-            except Exception:
-                pass
-            if claim["source"] == "user_wallet" and str(claim.get("creator_id")) != str(ADMIN_ID):
-                try:
-                    await update.get_bot().send_message(int(claim["creator_id"]), admin_msg)
-                except Exception:
-                    pass
             seller_id = claim.get("creator_id") if claim["source"] == "user_wallet" else ADMIN_ID
             receipt_data = await make_receipt_data(update.get_bot(), order_id, f"GIFT-{code}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=seller_id, bdt_amount=0, title="Smart Crypto Buy")
             await send_transaction_receipt(update.get_bot(), [user_id, seller_id, ADMIN_ID], receipt_data)
@@ -5115,14 +5093,8 @@ async def handle_redeem(update, context, user_id, username):
     await update.message.reply_text(ltext(lang, f"⏳ Sending {net_info['symbol']}...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}", f"⏳ {net_info['symbol']} পাঠানো হচ্ছে...\n\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}"))
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
-        explorer = f"{net_info['explorer']}{sig}"
         use_code(code, user_id)
         order_id = save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig, "completed", network, source="gift")
-        await update.message.reply_text(ltext(lang, f"🎉 {net_info['symbol']} sent!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nThank you!", f"🎉 {net_info['symbol']} পাঠানো হয়েছে!\n\n{receipt_block(order_id, f'GIFT-{code}', network, amount_crypto, wallet, sig)}\n\nধন্যবাদ! 🙏"))
-        try:
-            await update.get_bot().send_message(ADMIN_ID, f"🎁 গিফট কোড রিডিম!\n\n👤 @{username} ({user_id})\n🎟️ {code}\n🌐 {net_info['name']}\n💵 {amount_crypto} {net_info['symbol']}\n👛 {wallet}\n🔗 {explorer}")
-        except Exception:
-            pass
         receipt_data = await make_receipt_data(update.get_bot(), order_id, f"GIFT-{code}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=ADMIN_ID, bdt_amount=0, title="Smart Crypto Buy")
         await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
@@ -5452,30 +5424,10 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         sig = await send_crypto(network, wallet, amount_crypto)
-        explorer = f"{net_info['explorer']}{sig}"
         update_star_order_status(order_id, "completed", payment.telegram_payment_charge_id, payment.provider_payment_charge_id, sig)
         save_transaction(f"STAR-{payment.telegram_payment_charge_id}", user_id, 0, amount_crypto, wallet, sig, "completed", network, order_id=order_id, source="stars")
         record_referral_reward_for_transaction(user_id, "stars", f"STAR-{payment.telegram_payment_charge_id}", network, amount_crypto, 0, f"order={order_id}")
         consume_stock_reservation(order_id=order_id)
-        await update.message.reply_text(
-            f"{tr('stars_completed', lang)}\n\n"
-            f"⭐ {stars_amount} Stars\n"
-            f"{receipt_block(order_id, f'STAR-{payment.telegram_payment_charge_id}', network, amount_crypto, wallet, sig)}"
-        )
-        try:
-            await update.get_bot().send_message(
-                ADMIN_ID,
-                f"✅ Telegram Stars order completed.\n\n"
-                f"👤 @{username} ({user_id})\n"
-                f"🧾 Order: {order_id}\n"
-                f"🌐 {net_info['name']}\n"
-                f"💵 {amount_crypto} {net_info['symbol']}\n"
-                f"⭐ {stars_amount} Stars\n"
-                f"👛 {wallet}\n"
-                f"🔗 {explorer}",
-            )
-        except Exception:
-            pass
         receipt_data = await make_receipt_data(update.get_bot(), order_id, f"STAR-{payment.telegram_payment_charge_id}", network, amount_crypto, wallet, sig, user_id, buyer_username=username, seller_id=ADMIN_ID, stars_amount=stars_amount, title="Smart Crypto Buy")
         await send_transaction_receipt(update.get_bot(), [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:
@@ -5625,28 +5577,11 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
 
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
-        explorer = f"{net_info['explorer']}{sig}"
         mark_sms_used(trx_id)
         order_id = save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, sig, "completed", network, order_id=order_id, source="bkash")
         record_referral_reward_for_transaction(user_id, "bkash", trx_id, network, crypto_amount, sms_amount_bdt, f"order={order_id}")
         consume_stock_reservation(order_id=order_id, trx_id=trx_id)
         delete_pending_order(trx_id)
-        await app.bot.send_message(
-            int(user_id),
-            f"🎉 Payment verified automatically!\n\n"
-            f"{receipt_block(order_id, trx_id, network, crypto_amount, wallet, sig)}\n\n"
-            "Thank you!",
-        )
-        await app.bot.send_message(
-            ADMIN_ID,
-            f"✅ Auto-completed delayed bKash order.\n\n"
-            f"👤 User: {user_id}\n"
-            f"🔑 TrxID: {trx_id}\n"
-            f"🌐 {net_info['name']}\n"
-            f"💰 {sms_amount_bdt} BDT\n"
-            f"💵 {crypto_amount} {net_info['symbol']}\n"
-            f"🔗 {explorer}",
-        )
         receipt_data = await make_receipt_data(app.bot, order_id, trx_id, network, crypto_amount, wallet, sig, user_id, bdt_amount=sms_amount_bdt, title="Smart Crypto Buy")
         await send_transaction_receipt(app.bot, [user_id, ADMIN_ID], receipt_data)
     except Exception as exc:

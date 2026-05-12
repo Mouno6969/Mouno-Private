@@ -109,6 +109,24 @@ class ReceiptImageTests(unittest.TestCase):
         self.assertGreater(len(content), 20_000)
         self.assertEqual(image.name, "receipt-ORD-123.png")
 
+    def test_transaction_receipt_photo_has_no_caption(self):
+        function = next(node for node in BOT_TREE.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "send_transaction_receipt")
+        send_photo_calls = [node for node in ast.walk(function) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "send_photo"]
+        self.assertTrue(send_photo_calls)
+        for call in send_photo_calls:
+            self.assertNotIn("caption", {keyword.arg for keyword in call.keywords})
+
+    def test_completed_receipt_summaries_are_not_sent_as_extra_text(self):
+        blocked_snippets = [
+            "Giveaway redeemed!",
+            "🎁 গিফট কোড রিডিম!",
+            "Telegram Stars order completed.",
+            "Auto-completed delayed bKash order.",
+            "Receipt:",
+        ]
+        for snippet in blocked_snippets:
+            self.assertNotIn(snippet, BOT_SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()
