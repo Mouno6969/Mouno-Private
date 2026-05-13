@@ -266,7 +266,7 @@ SELLER_BUY_WALLET = 65
 SELLER_BUY_AMOUNT = 66
 
 RATE_FILE = "rate.json"
-DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
+DIVIDER = "────────────────"
 RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_logo.jpg")
 RECEIPT_FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 WELCOME_VIDEO_PATH = os.path.join(os.path.dirname(__file__), "assets", "welcome_video.mp4")
@@ -319,10 +319,10 @@ TEXT = {
     "admin_send": {"bn": "🚀 Admin Send", "en": "🚀 Admin Send"},
     "back": {"bn": "🔙 ফিরে যান", "en": "🔙 Back"},
     "cancel": {"bn": "❌ বাতিল", "en": "❌ Cancel"},
-    "home_title": {"bn": "💱 Crypto Seller Bot", "en": "💱 Crypto Seller Bot"},
+    "home_title": {"bn": "Smart Crypto Buy", "en": "Smart Crypto Buy"},
     "welcome": {"bn": "স্বাগতম", "en": "Welcome"},
-    "current_rates": {"bn": "বর্তমান রেট", "en": "Current Rates"},
-    "select_action": {"bn": "নিচের মেনু থেকে শুরু করুন 👇", "en": "Choose an option below 👇"},
+    "current_rates": {"bn": "বর্তমান রেট", "en": "Current rates"},
+    "select_action": {"bn": "নিচের মেনু থেকে একটি অপশন বেছে নিন।", "en": "Select an option from the menu."},
     "select_network": {"bn": "💱 নেটওয়ার্ক বেছে নিন", "en": "💱 Select a network"},
     "enter_wallet": {"bn": "আপনার {network} Wallet Address দিন", "en": "Enter your {network} wallet address"},
     "example": {"bn": "উদাহরণ", "en": "Example"},
@@ -1178,8 +1178,7 @@ def tr(key, lang="bn", **kwargs):
 
 
 def panel(title, body=""):
-    title_line = f"✦ {title} ✦"
-    return f"╭─ {title_line}\n╰{'─' * min(len(title_line) + 3, 28)}\n{body}".rstrip()
+    return f"{title}\n{DIVIDER}\n{body}".rstrip() if body else str(title).rstrip()
 
 
 def command_help_text(user_id=None):
@@ -2099,33 +2098,35 @@ def user_network_menu(lang="bn"):
 
 def rates_text(title=None, lang="bn"):
     rates = get_all_rates()
-    title = title if title is not None else f"💸 {tr('current_rates', lang)}"
+    title = title if title is not None else tr("current_rates", lang)
     lines = [
         f"{title}",
         DIVIDER,
-        f"🔹 Solana USDC          1 = {rates.get('solana', 0)} BDT",
-        f"🔸 Polygon USDC         1 = {rates.get('polygon', 0)} BDT",
-        f"🟡 BSC USDT             1 = {rates.get('bsc', 0)} BDT",
-        f"🔺 Avalanche USDT       1 = {rates.get('avalanche', 0)} BDT",
-        f"🔷 Ethereum USDT        1 = {rates.get('ethereum', 0)} BDT",
-        f"🔷 Ethereum USDC        1 = {rates.get('ethereum_usdc', 0)} BDT",
-        f"🔵 Base USDC            1 = {rates.get('base', 0)} BDT",
-        f"🔴 Tron USDT            1 = {rates.get('trc20', 0)} BDT",
-        f"💎 TON                  1 = {rates.get('ton', 0)} BDT",
+        f"• Solana USDC: 1 USDC = {rates.get('solana', 0)} BDT",
+        f"• Polygon USDC: 1 USDC = {rates.get('polygon', 0)} BDT",
+        f"• BSC USDT: 1 USDT = {rates.get('bsc', 0)} BDT",
+        f"• Avalanche USDT: 1 USDT = {rates.get('avalanche', 0)} BDT",
+        f"• Ethereum USDT: 1 USDT = {rates.get('ethereum', 0)} BDT",
+        f"• Ethereum USDC: 1 USDC = {rates.get('ethereum_usdc', 0)} BDT",
+        f"• Base USDC: 1 USDC = {rates.get('base', 0)} BDT",
+        f"• Tron USDT: 1 USDT = {rates.get('trc20', 0)} BDT",
+        f"• TON: 1 TON = {rates.get('ton', 0)} BDT",
     ]
     return "\n".join(lines)
 
 
 def home_text(user_name=None, lang="bn"):
-    greeting = f"👋 {tr('welcome', lang)}, {user_name}!" if user_name else "👋 Welcome!"
-    subtitle = "Fast • Secure • Multi-chain" if lang == "en" else "দ্রুত • নিরাপদ • Multi-chain"
+    greeting = f"{tr('welcome', lang)}, {user_name}." if user_name else f"{tr('welcome', lang)}."
+    intro = "Buy and receive crypto through supported networks." if lang == "en" else "নির্ধারিত নেটওয়ার্কে crypto কিনুন ও গ্রহণ করুন।"
+    safety = "Verify the network and wallet before payment." if lang == "en" else "Payment করার আগে network ও wallet যাচাই করুন।"
     body = (
         f"{greeting}\n"
-        f"⚡ {subtitle}\n\n"
-        f"{rates_text(lang=lang)}\n{DIVIDER}\n"
-        f"📲 bKash: `{BKASH_NUMBER}`\n"
-        f"🛡️ {'Always check network and wallet before payment.' if lang == 'en' else 'Payment করার আগে network ও wallet যাচাই করুন।'}\n\n"
-        f"👇 {tr('select_action', lang)}"
+        f"{intro}\n\n"
+        f"{rates_text(lang=lang)}\n\n"
+        f"Payment\n{DIVIDER}\n"
+        f"• bKash: `{BKASH_NUMBER}`\n"
+        f"• {safety}\n\n"
+        f"{tr('select_action', lang)}"
     )
     return panel(tr("home_title", lang), body)
 
