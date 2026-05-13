@@ -8,3 +8,6 @@ rate.json
 venv/
 .env.*
 !.env.example
+android-forwarder/.gradle/
+android-forwarder/build/
+android-forwarder/app/build/

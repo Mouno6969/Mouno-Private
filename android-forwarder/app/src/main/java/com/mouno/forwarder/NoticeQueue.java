@@ -1,0 +1,39 @@
+package com.mouno.forwarder;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.util.Base64;
+
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+final class NoticeQueue {
+    private static final String PREFS = "forwarder_queue";
+    private static final String KEY = "notices";
+
+    private NoticeQueue() {}
+
+    static synchronized void enqueue(Context context, JSONObject notice) {
+        Set<String> rows = snapshot(context);
+        rows.add(Base64.encodeToString(notice.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
+        save(context, rows);
+    }
+
+    static synchronized Set<String> snapshot(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return new LinkedHashSet<>(prefs.getStringSet(KEY, Collections.emptySet()));
+    }
+
+    static synchronized void save(Context context, Set<String> rows) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, new LinkedHashSet<>(rows)).apply();
+    }
+
+    static JSONObject decode(String row) throws Exception {
+        byte[] bytes = Base64.decode(row, Base64.NO_WRAP);
+        return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+    }
+}
