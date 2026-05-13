@@ -123,6 +123,17 @@ class ReceiptImageTests(unittest.TestCase):
         for loop in [node for node in ast.walk(function) if isinstance(node, ast.For)]:
             self.assertFalse(any(call in ast.walk(loop) for call in build_calls))
 
+    def test_transaction_receipt_image_generation_uses_executor(self):
+        function = next(node for node in BOT_TREE.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "send_transaction_receipt")
+        executor_calls = [node for node in ast.walk(function) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "run_in_executor"]
+        self.assertTrue(executor_calls)
+
+    def test_bot_enables_concurrent_update_processing(self):
+        self.assertIn("ChatScopedUpdateProcessor(8)", BOT_SOURCE)
+        self.assertIn("asyncio.Lock()", BOT_SOURCE)
+        self.assertIn('self._locks.pop(key, None)', BOT_SOURCE)
+        self.assertNotIn("concurrent_updates(8)", BOT_SOURCE)
+
     def test_completed_receipt_summaries_are_not_sent_as_extra_text(self):
         blocked_snippets = [
             "Giveaway redeemed!",

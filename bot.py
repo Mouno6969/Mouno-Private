@@ -16,6 +16,7 @@ import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     Application,
+    BaseUpdateProcessor,
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
@@ -25,6 +26,34 @@ from telegram.ext import (
     filters,
 )
 from telegram.request import HTTPXRequest
+
+
+class ChatScopedUpdateProcessor(BaseUpdateProcessor):
+    def __init__(self, max_concurrent_updates=8):
+        super().__init__(max_concurrent_updates)
+        self._locks = {}
+
+    async def do_process_update(self, update, coroutine):
+        chat = getattr(update, "effective_chat", None)
+        user = getattr(update, "effective_user", None)
+        key = (getattr(chat, "id", None), getattr(user, "id", None))
+        if key == (None, None):
+            key = ("global", "global")
+        entry = self._locks.setdefault(key, {"lock": asyncio.Lock(), "active": 0})
+        entry["active"] += 1
+        try:
+            async with entry["lock"]:
+                await coroutine
+        finally:
+            entry["active"] -= 1
+            if entry["active"] <= 0:
+                self._locks.pop(key, None)
+
+    async def initialize(self):
+        pass
+
+    async def shutdown(self):
+        self._locks.clear()
 
 from balance import GAS_META, check_sufficient, get_all_balances, get_native_gas_balances
 from bsc_sender import send_bsc_usdt
@@ -1883,7 +1912,8 @@ def build_receipt_image(data):
 async def send_transaction_receipt(bot, recipients, receipt_data):
     sent = set()
     try:
-        photo_bytes = build_receipt_image(receipt_data).getvalue()
+        loop = asyncio.get_running_loop()
+        photo_bytes = await loop.run_in_executor(None, lambda: build_receipt_image(receipt_data).getvalue())
     except Exception as exc:
         logger.exception("Receipt image generation failed: %s", exc)
         photo_bytes = None
@@ -5622,7 +5652,7 @@ async def main():
         raise RuntimeError("BOT_TOKEN is not configured")
 
     request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
-    app = Application.builder().token(BOT_TOKEN).request(request).build()
+    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
 
     buy_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
