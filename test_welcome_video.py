@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import os
 import pathlib
 import tempfile
@@ -16,6 +17,7 @@ WELCOME_NAMES = {
     "welcome_video_available",
     "is_video_message",
     "fits_video_caption",
+    "send_welcome_video_background",
     "send_first_time_language_selection",
     "complete_language_selection_message",
 }
@@ -34,6 +36,7 @@ def load_welcome_namespace():
     ast.fix_missing_locations(module)
     namespace = {
         "__file__": str(BOT_PATH),
+        "asyncio": asyncio,
         "os": os,
     }
     exec(compile(module, str(BOT_PATH), "exec"), namespace)
@@ -92,6 +95,34 @@ class WelcomeVideoTests(unittest.IsolatedAsyncioTestCase):
         await self.namespace["send_first_time_language_selection"](Update())
 
         self.assertEqual(calls, [("text", "choose_language:bn", "keyboard")])
+
+    async def test_first_time_language_selection_sends_text_before_background_video(self):
+        calls = []
+
+        class Message:
+            async def reply_text(self, text, reply_markup=None):
+                calls.append(("text", text, reply_markup))
+
+        class Update:
+            message = Message()
+
+        async def fake_background(message):
+            calls.append(("video", message))
+
+        self.namespace.update(
+            {
+                "tr": lambda key, lang: f"{key}:{lang}",
+                "language_keyboard": lambda: "keyboard",
+                "welcome_video_available": lambda: True,
+                "send_welcome_video_background": fake_background,
+            }
+        )
+
+        await self.namespace["send_first_time_language_selection"](Update())
+        await asyncio.sleep(0)
+
+        self.assertEqual(calls[0], ("text", "choose_language:bn", "keyboard"))
+        self.assertEqual(calls[1][0], "video")
 
     async def test_language_selection_from_video_sends_home_text_as_separate_text_menu(self):
         calls = []
