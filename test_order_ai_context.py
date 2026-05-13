@@ -24,10 +24,13 @@ def load_order_ai_namespace(context_line):
     names = {
         "AI_CONTEXT_LIMIT",
         "ORDER_AI_CALLBACK_PREFIX",
+        "TRACK_ORDER_CALLBACK_PREFIX",
         "extract_support_identifiers",
         "normalize_order_context_identifier",
+        "is_order_context_available",
         "build_ai_support_context",
         "order_status_ai_keyboard",
+        "track_order_keyboard",
     }
     body = []
     for node in BOT_TREE.body:
@@ -86,6 +89,17 @@ class OrderAIContextTests(unittest.TestCase):
                 namespace = load_order_ai_namespace(lambda identifier, user_id, admin=False, line=line: line)
 
                 self.assertIsNone(namespace["order_status_ai_keyboard"]("ORD-ABC123", "42", "en"))
+
+    def test_track_order_keyboard_opens_safe_order_status_callback(self):
+        namespace = load_order_ai_namespace(lambda identifier, user_id, admin=False: f"CTX:{identifier}")
+
+        markup = namespace["track_order_keyboard"]("ORD-ABC123<script>" + "X" * 80, "42", "bn")
+        button = markup.inline_keyboard[0][0]
+
+        self.assertEqual(button.text, "🔎 Order Track করুন")
+        self.assertTrue(button.callback_data.startswith(namespace["TRACK_ORDER_CALLBACK_PREFIX"]))
+        self.assertLessEqual(len(button.callback_data), 64)
+        self.assertRegex(button.callback_data, r"^trackorder_[A-Za-z0-9_-]+$")
 
 
 if __name__ == "__main__":
