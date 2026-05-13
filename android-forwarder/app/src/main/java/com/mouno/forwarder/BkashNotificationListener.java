@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
+import java.util.Locale;
+
 public class BkashNotificationListener extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
@@ -16,10 +18,18 @@ public class BkashNotificationListener extends NotificationListenerService {
         String text = value(extras, Notification.EXTRA_TEXT);
         String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
         String all = (title + " " + text + " " + bigText).trim();
-        String lower = all.toLowerCase();
-        if (packageName.contains("bkash") || lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || all.contains("বিকাশ")) {
+        if (isTrustedBkashPackage(packageName) && isBkashNotice(all)) {
             ForwarderClient.sendNotification(this, sbn.getPackageName(), title, all);
         }
+    }
+
+    private static boolean isTrustedBkashPackage(String packageName) {
+        return packageName != null && packageName.toLowerCase(Locale.ROOT).contains("bkash");
+    }
+
+    private static boolean isBkashNotice(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
     }
 
     private static String value(Bundle extras, String key) {

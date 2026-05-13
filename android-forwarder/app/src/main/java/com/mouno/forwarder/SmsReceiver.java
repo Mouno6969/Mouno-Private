@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.telephony.SmsMessage;
 
+import java.util.Locale;
+
 public class SmsReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -23,9 +25,18 @@ public class SmsReceiver extends BroadcastReceiver {
             body.append(message.getMessageBody());
         }
         String text = body.toString();
-        String lower = text.toLowerCase();
-        if (lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ")) {
+        if (isTrustedBkashSender(sender) && isBkashNotice(text)) {
             ForwarderClient.sendSms(context, sender, text);
         }
+    }
+
+    private static boolean isTrustedBkashSender(String sender) {
+        String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
+        return value.contains("bkash") || value.equals("16247");
+    }
+
+    private static boolean isBkashNotice(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
     }
 }
