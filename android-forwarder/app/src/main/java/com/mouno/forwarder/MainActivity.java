@@ -8,13 +8,15 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private TextView status;
+    private EditText serverInput;
+    private EditText sellerTokenInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +30,23 @@ public class MainActivity extends Activity {
         status.setTextSize(16);
         status.setText(statusText());
         layout.addView(status);
+
+        serverInput = new EditText(this);
+        serverInput.setHint("https://your-bot-server.example.com");
+        serverInput.setSingleLine(true);
+        serverInput.setText(ForwarderConfig.baseUrl(this));
+        layout.addView(serverInput);
+
+        sellerTokenInput = new EditText(this);
+        sellerTokenInput.setHint("Seller SMS token");
+        sellerTokenInput.setSingleLine(true);
+        sellerTokenInput.setText(ForwarderConfig.sellerToken(this));
+        layout.addView(sellerTokenInput);
+
+        Button saveButton = new Button(this);
+        saveButton.setText("Save Server & Seller Token");
+        saveButton.setOnClickListener(v -> saveConfig());
+        layout.addView(saveButton);
 
         Button smsButton = new Button(this);
         smsButton.setText("Allow SMS Permission");
@@ -60,12 +79,18 @@ public class MainActivity extends Activity {
 
     private String statusText() {
         return "Mouno Forwarder\n\n"
-            + "Server: " + ForwarderConfig.baseUrl() + "\n"
-            + "Seller token: " + (BuildConfig.SELLER_TOKEN == null || BuildConfig.SELLER_TOKEN.isEmpty() ? "main bot" : "configured") + "\n"
+            + "Server: " + ForwarderConfig.baseUrl(this) + "\n"
+            + "Seller token: " + (ForwarderConfig.sellerToken(this).isEmpty() ? "not set" : "configured") + "\n"
             + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + "\n"
             + "Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
-            + "Configured: " + (ForwarderConfig.isConfigured() ? "yes" : "no - edit gradle.properties") + "\n\n"
-            + "Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.";
+            + "Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save server URL and seller token") + "\n\n"
+            + "Seller builds only need the seller SMS token. Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.";
+    }
+
+    private void saveConfig() {
+        ForwarderConfig.save(this, serverInput.getText().toString(), sellerTokenInput.getText().toString());
+        status.setText(statusText() + "\nSaved.");
+        ForwarderClient.flushQueue(this);
     }
 
     private void requestSmsPermissions() {

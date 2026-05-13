@@ -4,31 +4,23 @@ Custom Android app for forwarding bKash SMS and app notifications to the bot web
 
 ## Configure
 
-Edit `android-forwarder/gradle.properties` before building:
+The APK can be built once and shared with approved sellers. After installing it, each seller enters:
 
-```properties
-FORWARDER_SERVER_BASE_URL=https://your-bot-server.example.com
-FORWARDER_SECRET=same-secret-as-bot-env
-FORWARDER_SELLER_TOKEN=
-FORWARDER_SMS=true
-FORWARDER_NOTIFICATIONS=true
+```text
+Server URL: https://your-bot-server.example.com
+Seller SMS token: token shown in Seller Center
 ```
 
-Set the same secret in the bot server `.env`:
-
-```env
-FORWARDER_SECRET=same-secret-as-bot-env
-```
-
-Leave `FORWARDER_SELLER_TOKEN` empty for the main bot bKash number. For a seller-specific app build, set it to that seller's `sms_token`; the app will post to `/seller/<token>/sms` and `/seller/<token>/notification`.
+The app saves those values on the phone and posts to `/seller/<token>/sms` and `/seller/<token>/notification`. Do not put the global `FORWARDER_SECRET` in a public APK.
 
 ## Build/run
 
-Open `android-forwarder/` in Android Studio, install the app on the Android phone that receives bKash SMS/notifications, then:
+Build `android-forwarder/` with Android Studio or run the GitHub Actions workflow **Build Android Forwarder APK**, install the app on the Android phone that receives bKash SMS/notifications, then:
 
-1. Tap **Allow SMS Permission**.
-2. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
-3. Open battery settings from the app and disable battery restrictions/autostart blocking.
-4. Keep the app installed. It forwards matching SMS/notifications and retries queued notices every 5 minutes.
+1. Enter the public server URL and seller SMS token, then tap **Save Server & Seller Token**.
+2. Tap **Allow SMS Permission**.
+3. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
+4. Open battery settings from the app and disable battery restrictions/autostart blocking.
+5. Keep the app installed. It forwards matching SMS/notifications and retries queued notices every 5 minutes.
 
 The bot still deduplicates by TrxID, so forwarding both SMS and notification is safe.

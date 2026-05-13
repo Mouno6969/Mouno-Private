@@ -2,26 +2,6 @@ name: Build Android Forwarder APK
 
 on:
   workflow_dispatch:
-    inputs:
-      server_base_url:
-        description: Public HTTPS base URL for the bot webhook server
-        required: true
-        type: string
-      seller_token:
-        description: Optional seller sms_token; leave empty for the main bKash number
-        required: false
-        default: ""
-        type: string
-      forward_sms:
-        description: Forward matching bKash SMS messages
-        required: true
-        default: true
-        type: boolean
-      forward_notifications:
-        description: Forward matching bKash app notifications
-        required: true
-        default: true
-        type: boolean
 
 jobs:
   build:
@@ -47,22 +27,9 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
-      - name: Validate forwarder secret
-        run: |
-          if [ -z "${{ secrets.FORWARDER_SECRET }}" ]; then
-            echo "Repository secret FORWARDER_SECRET is required." >&2
-            exit 1
-          fi
-
       - name: Build debug APK
         working-directory: android-forwarder
-        run: >-
-          gradle --no-daemon :app:assembleDebug
-          -PFORWARDER_SERVER_BASE_URL='${{ inputs.server_base_url }}'
-          -PFORWARDER_SECRET='${{ secrets.FORWARDER_SECRET }}'
-          -PFORWARDER_SELLER_TOKEN='${{ inputs.seller_token }}'
-          -PFORWARDER_SMS='${{ inputs.forward_sms }}'
-          -PFORWARDER_NOTIFICATIONS='${{ inputs.forward_notifications }}'
+        run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

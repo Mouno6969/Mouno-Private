@@ -2476,10 +2476,9 @@ def seller_guide_text(seller=None):
         "2️⃣ যে network sell করবেন তার আলাদা crypto wallet/private key প্রস্তুত রাখুন; gas token রাখবেন।\n"
         "3️⃣ Seller Center → Delivery Wallet এ private key add/update করুন। Server master key দিয়ে encrypt হবে; Telegram message delete হবে।\n"
         "4️⃣ Seller rate set করুন; 0 দিলে global/admin rate use হবে।\n"
-        "5️⃣ bKash SMS/Notification forwarder endpoint set করুন।\n"
-        f"SMS endpoint: http://YOUR_SERVER:5000/seller/{token}/sms\n"
-        f"Notification endpoint: http://YOUR_SERVER:5000/seller/{token}/notification\n"
-        f"Alternative: /sms?seller_token={token}\n"
+        "5️⃣ Mouno Forwarder APK install করে Server URL এবং SMS Token save করুন।\n"
+        f"SMS Token: {token}\n"
+        "Forwarder app automatically posts to seller SMS/notification endpoints.\n"
         "6️⃣ TON seller auto-delivery unsupported; supported: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20.\n"
         "7️⃣ Telegram Stars seller sales create a pending payout ledger; admin marks payout paid manually."
     )

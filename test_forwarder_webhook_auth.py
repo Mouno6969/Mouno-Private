@@ -79,6 +79,19 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         self.assertEqual(body_response.status_code, 403)
         self.assertEqual(self.calls, [])
 
+    def test_accepts_seller_route_token_without_shared_secret_header(self):
+        webhook.FORWARDER_SECRET = "test-secret"
+
+        response = webhook.app.test_client().post(
+            "/seller/SELLER123/sms",
+            json={"text": "bKash Payment Received Tk 500 TrxID ABC123XYZ", "seller_token": "SELLER123"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.calls[0][2], {"seller_token": "SELLER123"})
+        self.assertNotIn("SELLER123", self.calls[0][0])
+
     def test_accepts_legacy_notice_when_secret_is_not_configured(self):
         webhook.FORWARDER_SECRET = None
 
