@@ -39,9 +39,15 @@ class ChatScopedUpdateProcessor(BaseUpdateProcessor):
         key = (getattr(chat, "id", None), getattr(user, "id", None))
         if key == (None, None):
             key = ("global", "global")
-        lock = self._locks.setdefault(key, asyncio.Lock())
-        async with lock:
-            await coroutine
+        entry = self._locks.setdefault(key, {"lock": asyncio.Lock(), "active": 0})
+        entry["active"] += 1
+        try:
+            async with entry["lock"]:
+                await coroutine
+        finally:
+            entry["active"] -= 1
+            if entry["active"] <= 0:
+                self._locks.pop(key, None)
 
     async def initialize(self):
         pass

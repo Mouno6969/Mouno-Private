@@ -131,6 +131,7 @@ class ReceiptImageTests(unittest.TestCase):
     def test_bot_enables_concurrent_update_processing(self):
         self.assertIn("ChatScopedUpdateProcessor(8)", BOT_SOURCE)
         self.assertIn("asyncio.Lock()", BOT_SOURCE)
+        self.assertIn('self._locks.pop(key, None)', BOT_SOURCE)
         self.assertNotIn("concurrent_updates(8)", BOT_SOURCE)
 
     def test_completed_receipt_summaries_are_not_sent_as_extra_text(self):
