@@ -36,6 +36,8 @@ http://YOUR_SERVER:5000/bkash-notification
 
 Both endpoints use the same parser and the same duplicate-protection logic.
 
+Seller forwarder APKs post to `/seller/<seller_sms_token>/sms` and `/seller/<seller_sms_token>/notification`. Those seller routes use the seller SMS token as the seller-specific credential, so do not share the global `FORWARDER_SECRET` with sellers.
+
 ## Duplicate protection
 
 The bot matches by TrxID.

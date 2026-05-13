@@ -37,7 +37,7 @@ final class ForwarderClient {
             try {
                 flushQueueNow(appContext);
                 JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
-                if (!post(notice)) NoticeQueue.enqueue(appContext, notice);
+                if (!post(appContext, notice)) NoticeQueue.enqueue(appContext, notice);
             } catch (Exception exc) {
                 try {
                     NoticeQueue.enqueue(appContext, makeNotice(appContext, endpoint, source, title, text));
@@ -67,7 +67,7 @@ final class ForwarderClient {
         Set<String> failed = new LinkedHashSet<>();
         for (String row : current) {
             try {
-                if (!post(NoticeQueue.decode(row))) failed.add(row);
+                if (!post(context, NoticeQueue.decode(row))) failed.add(row);
             } catch (Exception exc) {
                 failed.add(row);
             }
@@ -83,23 +83,22 @@ final class ForwarderClient {
         json.put("text", text == null ? "" : text);
         json.put("device_id", ForwarderConfig.deviceId(context));
         json.put("received_at", System.currentTimeMillis());
-        if (BuildConfig.SELLER_TOKEN != null && !BuildConfig.SELLER_TOKEN.trim().isEmpty()) json.put("seller_token", BuildConfig.SELLER_TOKEN.trim());
         return json;
     }
 
-    private static boolean post(JSONObject notice) {
-        if (!ForwarderConfig.isConfigured()) return false;
+    private static boolean post(Context context, JSONObject notice) {
+        if (!ForwarderConfig.isConfigured(context)) return false;
         HttpURLConnection connection = null;
         try {
             String endpoint = notice.optString("endpoint", "notification");
-            URL url = new URL(ForwarderConfig.endpoint(endpoint));
+            URL url = new URL(ForwarderConfig.endpoint(context, endpoint));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(10_000);
             connection.setReadTimeout(10_000);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            connection.setRequestProperty("X-Forwarder-Token", BuildConfig.FORWARDER_SECRET);
+            if (ForwarderConfig.hasForwarderSecret()) connection.setRequestProperty("X-Forwarder-Token", BuildConfig.FORWARDER_SECRET.trim());
             byte[] body = notice.toString().getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(body.length);
             try (OutputStream stream = connection.getOutputStream()) {

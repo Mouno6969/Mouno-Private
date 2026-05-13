@@ -30,6 +30,9 @@ def _clean_bearer(value):
 
 
 def _forwarder_token_ok(data):
+    route_token = request.view_args.get("token") if request.view_args else None
+    if route_token:
+        return True
     if not FORWARDER_SECRET:
         return True
     supplied = (
@@ -41,7 +44,7 @@ def _forwarder_token_ok(data):
 
 
 def _notice_values(data):
-    hidden = {"forwarder_secret", "token", "api_key", "secret", "authorization"}
+    hidden = {"forwarder_secret", "seller_token", "token", "api_key", "secret", "authorization"}
     return [str(value) for key, value in data.items() if str(key).lower() not in hidden]
 
 
@@ -129,7 +132,7 @@ def handle_payment_notice(source):
     token = request.view_args.get("token") if request.view_args else None
     token = token or request.args.get("seller_token") or data.get("seller_token")
     logger.info("Raw: %s", _safe_raw_log(raw))
-    all_text = raw + " " + " ".join(_notice_values(data))
+    all_text = ("" if data else raw) + " " + " ".join(_notice_values(data))
 
     parsed = parse_bkash_payment_notice(all_text)
     if parsed and _callback:
