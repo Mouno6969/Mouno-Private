@@ -305,6 +305,7 @@ TEXT = {
     "help": {"bn": "❓ সাহায্য", "en": "❓ Help"},
     "support": {"bn": "📞 Support", "en": "📞 Support"},
     "ai_support": {"bn": "🤖 AI Support", "en": "🤖 AI Support"},
+    "faq": {"bn": "FAQ", "en": "FAQ"},
     "sellers": {"bn": "🛍️ Sellers", "en": "🛍️ Sellers"},
     "seller_center": {"bn": "🏪 Seller Center", "en": "🏪 Seller Center"},
     "order_status": {"bn": "🔎 Order Status", "en": "🔎 Order Status"},
@@ -2040,6 +2041,45 @@ def seller_dashboard_text():
     return "\n".join(lines)
 
 
+def faq_text(lang="bn"):
+    if lang == "en":
+        body = (
+            "1. How do I buy crypto?\n"
+            "Choose Buy, select a network, enter your receiving wallet, enter the BDT amount, pay the exact bKash amount, then submit your TrxID.\n\n"
+            "2. Which networks are supported?\n"
+            "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT, and TON. Always send the correct wallet for the selected network.\n\n"
+            "3. How long does delivery take?\n"
+            "Most verified orders are delivered within a few minutes. Delivery can take longer if bKash notice is delayed, the TrxID is wrong, stock is low, or the network/RPC is busy.\n\n"
+            "4. What should I check before payment?\n"
+            "Confirm the selected network, wallet address, BDT amount, and bKash number before sending payment. Wrong network or wrong wallet transfers cannot be reversed.\n\n"
+            "5. What if my order is pending?\n"
+            "Save your Order ID and TrxID. Use Order Status, /order ORD-XXXXXX, or /status TRXID. If needed, admin will manually verify the payment.\n\n"
+            "6. Can I pay with Telegram Stars?\n"
+            "Yes. Choose Telegram Stars, select a network, enter wallet and amount, then complete the Telegram invoice.\n\n"
+            "7. Where can I get help?\n"
+            f"Use AI Support for quick guidance or contact @{SUPPORT_USERNAME.lstrip('@')} for manual help. Never share private keys, seed phrases, or wallet passwords."
+        )
+        return panel("FAQ", body)
+
+    body = (
+        "১. Crypto কীভাবে কিনব?\n"
+        "Buy চাপুন, network বেছে নিন, receiving wallet দিন, BDT amount লিখুন, exact bKash amount pay করুন, তারপর TrxID submit করুন।\n\n"
+        "২. কোন network support করে?\n"
+        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়ী সঠিক wallet দিন।\n\n"
+        "৩. Delivery কত সময় লাগে?\n"
+        "Payment verify হলে সাধারণত কয়েক মিনিটের মধ্যে delivery হয়। bKash notice delay, ভুল TrxID, stock কম, অথবা network/RPC busy থাকলে সময় বেশি লাগতে পারে।\n\n"
+        "৪. Payment করার আগে কী check করব?\n"
+        "Selected network, wallet address, BDT amount এবং bKash number ভালোভাবে মিলিয়ে নিন। ভুল network বা ভুল wallet transfer reverse করা যায় না।\n\n"
+        "৫. Order pending থাকলে কী করব?\n"
+        "Order ID এবং TrxID সংরক্ষণ করুন। Order Status, /order ORD-XXXXXX অথবা /status TRXID ব্যবহার করুন। দরকার হলে admin manually payment verify করবেন।\n\n"
+        "৬. Telegram Stars দিয়ে payment করা যাবে?\n"
+        "হ্যাঁ। Telegram Stars বেছে নিন, network select করুন, wallet ও amount দিন, তারপর Telegram invoice complete করুন।\n\n"
+        "৭. Help কোথায় পাব?\n"
+        f"Quick guidance-এর জন্য AI Support ব্যবহার করুন অথবা manual help-এর জন্য @{SUPPORT_USERNAME.lstrip('@')} এ contact করুন। Private key, seed phrase বা wallet password কখনো share করবেন না।"
+    )
+    return panel("FAQ", body)
+
+
 def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
@@ -2049,7 +2089,8 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
         [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status"), InlineKeyboardButton(tr("referral", lang), callback_data="referral_menu")],
         [InlineKeyboardButton(tr("sellers", lang), callback_data="sellers_market"), InlineKeyboardButton(tr("seller_center", lang), callback_data="seller_center")],
-        [InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support"), InlineKeyboardButton(tr("seller_dashboard", lang), callback_data="seller_dashboard")],
+        [InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support"), InlineKeyboardButton(tr("faq", lang), callback_data="faq")],
+        [InlineKeyboardButton(tr("seller_dashboard", lang), callback_data="seller_dashboard")],
         [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
         [InlineKeyboardButton(tr("terms", lang), callback_data="terms"), InlineKeyboardButton(tr("language", lang), callback_data="language_menu")],
     ]
@@ -2641,6 +2682,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "terms":
         await query.edit_message_text(terms_text(lang), reply_markup=back_keyboard(lang))
+
+    elif query.data == "faq":
+        await query.edit_message_text(faq_text(lang), reply_markup=back_keyboard(lang))
 
     elif query.data == "order_status":
         context.user_data.clear()
