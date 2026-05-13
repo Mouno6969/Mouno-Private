@@ -34,7 +34,11 @@ final class ForwarderConfig {
     }
 
     static boolean isSellerMode(Context context) {
-        return prefs(context).getBoolean(KEY_SELLER_MODE, true);
+        SharedPreferences preferences = prefs(context);
+        if (preferences.contains(KEY_SELLER_MODE)) return preferences.getBoolean(KEY_SELLER_MODE, true);
+        if (!sellerToken(context).isEmpty()) return true;
+        if (hasForwarderSecret(context)) return false;
+        return true;
     }
 
     static boolean isConfigured(Context context) {
