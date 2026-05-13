@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -17,6 +18,8 @@ public class MainActivity extends Activity {
     private TextView status;
     private EditText serverInput;
     private EditText sellerTokenInput;
+    private EditText secretInput;
+    private CheckBox sellerModeInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,14 +40,28 @@ public class MainActivity extends Activity {
         serverInput.setText(ForwarderConfig.baseUrl(this));
         layout.addView(serverInput);
 
+        sellerModeInput = new CheckBox(this);
+        sellerModeInput.setText("Seller mode (use Seller SMS token)");
+        sellerModeInput.setChecked(ForwarderConfig.isSellerMode(this));
+        sellerModeInput.setOnCheckedChangeListener((buttonView, isChecked) -> updateModeFields());
+        layout.addView(sellerModeInput);
+
         sellerTokenInput = new EditText(this);
         sellerTokenInput.setHint("Seller SMS token");
         sellerTokenInput.setSingleLine(true);
         sellerTokenInput.setText(ForwarderConfig.sellerToken(this));
         layout.addView(sellerTokenInput);
 
+        secretInput = new EditText(this);
+        secretInput.setHint("Admin FORWARDER_SECRET");
+        secretInput.setSingleLine(true);
+        secretInput.setText(ForwarderConfig.forwarderSecret(this));
+        layout.addView(secretInput);
+
+        updateModeFields();
+
         Button saveButton = new Button(this);
-        saveButton.setText("Save Server & Seller Token");
+        saveButton.setText("Save Forwarder Config");
         saveButton.setOnClickListener(v -> saveConfig());
         layout.addView(saveButton);
 
@@ -80,17 +97,27 @@ public class MainActivity extends Activity {
     private String statusText() {
         return "Mouno Forwarder\n\n"
             + "Server: " + ForwarderConfig.baseUrl(this) + "\n"
+            + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
             + "Seller token: " + (ForwarderConfig.sellerToken(this).isEmpty() ? "not set" : "configured") + "\n"
+            + "Admin secret: " + (ForwarderConfig.hasForwarderSecret(this) ? "configured" : "not set") + "\n"
             + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + "\n"
             + "Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
-            + "Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save server URL and seller token") + "\n\n"
-            + "Seller builds only need the seller SMS token. Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.";
+            + "Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save URL and required token/secret") + "\n\n"
+            + "Sellers use Seller mode with SMS token. Main/admin phone uses main/admin mode with FORWARDER_SECRET. Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.";
     }
 
     private void saveConfig() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), sellerTokenInput.getText().toString());
+        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         status.setText(statusText() + "\nSaved.");
+        updateModeFields();
         ForwarderClient.flushQueue(this);
+    }
+
+    private void updateModeFields() {
+        if (sellerTokenInput == null || secretInput == null || sellerModeInput == null) return;
+        boolean sellerMode = sellerModeInput.isChecked();
+        sellerTokenInput.setEnabled(sellerMode);
+        secretInput.setEnabled(!sellerMode);
     }
 
     private void requestSmsPermissions() {
