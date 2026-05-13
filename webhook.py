@@ -5,7 +5,7 @@ from html import escape
 from flask import Flask, jsonify, request
 
 from balance import get_all_balances, get_native_gas_balances
-from config import DASHBOARD_TOKEN
+from config import DASHBOARD_TOKEN, FORWARDER_SECRET
 from db import dashboard_snapshot, get_webhook_health, touch_webhook_notice
 
 app = Flask(__name__)
@@ -20,6 +20,40 @@ def set_callback(fn):
 
 def _amount_to_float(value):
     return float(value.replace(",", ""))
+
+
+def _clean_bearer(value):
+    value = str(value or "").strip()
+    if value.lower().startswith("bearer "):
+        return value[7:].strip()
+    return value
+
+
+def _forwarder_token_ok(data):
+    if not FORWARDER_SECRET:
+        return True
+    supplied = (
+        request.headers.get("X-Forwarder-Token")
+        or request.headers.get("X-Webhook-Token")
+        or _clean_bearer(request.headers.get("Authorization"))
+        or request.args.get("forwarder_secret")
+        or request.args.get("token")
+        or data.get("forwarder_secret")
+    )
+    return supplied == FORWARDER_SECRET
+
+
+def _notice_values(data):
+    hidden = {"forwarder_secret", "token", "api_key", "secret", "authorization"}
+    return [str(value) for key, value in data.items() if str(key).lower() not in hidden]
+
+
+def _safe_raw_log(raw):
+    text = str(raw or "")[:300]
+    if FORWARDER_SECRET:
+        text = text.replace(FORWARDER_SECRET, "[REDACTED]")
+    text = re.sub(r'(?i)(forwarder_secret|token|authorization|api_key|secret)"?\s*[:=]\s*"?[^",\s}]+', r"\1=[REDACTED]", text)
+    return text
 
 
 def parse_bkash_sms(text):
@@ -92,10 +126,13 @@ def parse_bkash_payment_notice(text):
 def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.get_json(silent=True) or {}
+    if not _forwarder_token_ok(data):
+        logger.warning("Rejected %s notice: invalid forwarder token", source)
+        return jsonify({"status": "forbidden"}), 403
     token = request.view_args.get("token") if request.view_args else None
     token = token or request.args.get("seller_token") or data.get("seller_token")
-    logger.info("Raw: %s", raw[:300])
-    all_text = raw + " " + " ".join(str(v) for v in data.values())
+    logger.info("Raw: %s", _safe_raw_log(raw))
+    all_text = raw + " " + " ".join(_notice_values(data))
 
     parsed = parse_bkash_payment_notice(all_text)
     if parsed and _callback:

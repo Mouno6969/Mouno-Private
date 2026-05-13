@@ -4,6 +4,18 @@ Your bot can now parse both bKash SMS text and bKash app notification text, as l
 
 ## Endpoints
 
+If `FORWARDER_SECRET` is set in the bot `.env`, every forwarder request must include either:
+
+```text
+X-Forwarder-Token: YOUR_SECRET
+```
+
+or:
+
+```text
+Authorization: Bearer YOUR_SECRET
+```
+
 Forward SMS messages to:
 
 ```text
@@ -91,7 +103,7 @@ Then verify the TrxID in your bKash app manually and tap Approve/Reject.
 
 ## Recommended Android setup
 
-Use a forwarder that supports both:
+Use the custom app in `android-forwarder/` or any forwarder that supports both:
 
 - SMS forwarding
 - Notification forwarding / notification listener
