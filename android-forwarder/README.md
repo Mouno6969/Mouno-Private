@@ -4,20 +4,31 @@ Custom Android app for forwarding bKash SMS and app notifications to the bot web
 
 ## Configure
 
-The APK can be built once and shared with approved sellers. After installing it, each seller enters:
+The APK can be built once and shared. After installing it, choose the right mode:
+
+Main/admin bKash phone:
 
 ```text
 Server URL: https://your-bot-server.example.com
+Seller mode: off
+Admin FORWARDER_SECRET: same secret as the bot server .env
+```
+
+Approved seller phone:
+
+```text
+Server URL: https://your-bot-server.example.com
+Seller mode: on
 Seller SMS token: token shown in Seller Center
 ```
 
-The app saves those values on the phone and posts to `/seller/<token>/sms` and `/seller/<token>/notification`. Do not put the global `FORWARDER_SECRET` in a public APK.
+The app saves those values on the phone. Seller mode posts to `/seller/<token>/sms` and `/seller/<token>/notification`; main/admin mode posts to `/sms` and `/notification` with `X-Forwarder-Token`.
 
 ## Build/run
 
 Build `android-forwarder/` with Android Studio or run the GitHub Actions workflow **Build Android Forwarder APK**, install the app on the Android phone that receives bKash SMS/notifications, then:
 
-1. Enter the public server URL and seller SMS token, then tap **Save Server & Seller Token**.
+1. Enter the public server URL, choose seller or main/admin mode, enter the required token/secret, then tap **Save Forwarder Config**.
 2. Tap **Allow SMS Permission**.
 3. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.

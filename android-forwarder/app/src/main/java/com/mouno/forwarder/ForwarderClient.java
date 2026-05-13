@@ -98,7 +98,9 @@ final class ForwarderClient {
             connection.setReadTimeout(10_000);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            if (ForwarderConfig.hasForwarderSecret()) connection.setRequestProperty("X-Forwarder-Token", BuildConfig.FORWARDER_SECRET.trim());
+            if (!ForwarderConfig.isSellerMode(context) && ForwarderConfig.hasForwarderSecret(context)) {
+                connection.setRequestProperty("X-Forwarder-Token", ForwarderConfig.forwarderSecret(context));
+            }
             byte[] body = notice.toString().getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(body.length);
             try (OutputStream stream = connection.getOutputStream()) {
