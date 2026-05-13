@@ -1254,6 +1254,16 @@ def fits_video_caption(text):
     return len(text or "") <= TELEGRAM_VIDEO_CAPTION_LIMIT
 
 
+async def send_welcome_video_background(message):
+    if not welcome_video_available():
+        return
+    try:
+        with open(WELCOME_VIDEO_PATH, "rb") as video:
+            await message.reply_video(video=video)
+    except Exception as exc:
+        logger.warning("Background welcome video send failed: %s", exc)
+
+
 def back_keyboard(lang):
     return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
 
@@ -2113,14 +2123,9 @@ def home_text(user_name=None, lang="bn"):
 async def send_first_time_language_selection(update):
     text = tr("choose_language", "bn")
     reply_markup = language_keyboard()
-    if welcome_video_available():
-        try:
-            with open(WELCOME_VIDEO_PATH, "rb") as video:
-                await update.message.reply_video(video=video, caption=text, reply_markup=reply_markup)
-            return
-        except Exception as exc:
-            logger.warning("Welcome video send failed, falling back to text: %s", exc)
     await update.message.reply_text(text, reply_markup=reply_markup)
+    if welcome_video_available():
+        asyncio.create_task(send_welcome_video_background(update.message))
 
 
 async def complete_language_selection_message(query, user_id, lang):
