@@ -45,6 +45,22 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.calls[0][1], "bkash_sms")
 
+    def test_rejects_secret_in_query_or_body_when_configured(self):
+        webhook.FORWARDER_SECRET = "test-secret"
+
+        query_response = webhook.app.test_client().post(
+            "/sms?forwarder_secret=test-secret",
+            data="bKash Payment Received Tk 500 TrxID ABC123XYZ",
+        )
+        body_response = webhook.app.test_client().post(
+            "/sms",
+            json={"forwarder_secret": "test-secret", "text": "bKash Payment Received Tk 500 TrxID ABC123XYZ"},
+        )
+
+        self.assertEqual(query_response.status_code, 403)
+        self.assertEqual(body_response.status_code, 403)
+        self.assertEqual(self.calls, [])
+
     def test_accepts_legacy_notice_when_secret_is_not_configured(self):
         webhook.FORWARDER_SECRET = None
 

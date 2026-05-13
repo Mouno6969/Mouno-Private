@@ -36,9 +36,6 @@ def _forwarder_token_ok(data):
         request.headers.get("X-Forwarder-Token")
         or request.headers.get("X-Webhook-Token")
         or _clean_bearer(request.headers.get("Authorization"))
-        or request.args.get("forwarder_secret")
-        or request.args.get("token")
-        or data.get("forwarder_secret")
     )
     return supplied == FORWARDER_SECRET
 
