@@ -1,160 +1,183 @@
 GUIDE = """
-╔══════════════════════════════╗
-║   📖 ব্যবহার বিধি / User Guide  ║
-╚══════════════════════════════╝
+ব্যবহার বিধি / User Guide
+────────────────
+এই গাইডটি আপনার personal wallet setup, balance check, crypto send, key management এবং security practice বোঝার জন্য। Bot দিয়ে transaction করার আগে প্রতিটি ধাপ ভালোভাবে পড়ে নিন।
 
-এই বটে আপনি নিজের Crypto Wallet ব্যবহার করে সরাসরি যেকাউকে USDC/USDT পাঠাতে পারবেন।
+১. Bot দিয়ে কী করা যাবে
+────────────────
+• নিজের encrypted wallet ব্যবহার করে supported network-এ crypto পাঠানো যাবে।
+• Balance দেখা, wallet key change/delete করা এবং transaction status check করা যাবে।
+• Buy flow, Telegram Stars, FAQ, Order Status এবং AI Support menu থেকে আলাদা সাহায্য পাওয়া যাবে।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔐 SETUP (প্রথমবার সেটআপ)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+২. Supported network
+────────────────
+• Solana: USDC
+• Polygon: USDC
+• BSC: USDT (BEP20)
+• Avalanche: USDT
+• Ethereum: USDT / USDC (ERC20)
+• Base: USDC
+• Tron: USDT (TRC20)
+• TON: TON
 
-১. /setup কমান্ড দিন
-২. আপনার Network বেছে নিন
-   • Solana → USDC
-   • Polygon → USDC
-   • BSC → USDT (BEP20)
-   • Avalanche → USDT
-   • Ethereum → USDT/USDC
-   • Base → USDC
-   • Tron → USDT (TRC20)
-   • TON → TON
+Network select করার সময় receiving wallet একই network-এর কিনা নিশ্চিত করুন। ভুল network বা ভুল wallet-এ পাঠালে transaction ফিরিয়ে আনা যায় না।
 
-৩. আপনার Private Key দিন
-   ⚠️ Private Key কখনো কাউকে দেবেন না
-   ⚠️ Bot কখনো raw key store করে না
-   ✅ AES-256 encryption দিয়ে নিরাপদ রাখা হয়
+৩. প্রথমবার wallet setup
+────────────────
+১) /setup কমান্ড দিন।
+২) আপনার wallet network বেছে নিন।
+৩) private key পাঠান। Bot message পাওয়ার পর key encrypt করে রাখে এবং key message delete করার চেষ্টা করে।
+৪) শক্তিশালী password তৈরি করুন। এই password দিয়ে encrypted key unlock হবে।
+৫) setup complete হলে wallet address দেখাবে। Address ঠিক আছে কিনা মিলিয়ে নিন।
 
-৪. একটি Password তৈরি করুন
-   • এই password দিয়ে আপনার key encrypt হবে
-   • Password ভুললে key recover করা যাবে না
-   • শক্তিশালী password ব্যবহার করুন
+Password ভুলে গেলে bot আপনার key recover করতে পারবে না। প্রয়োজনে /deletekey দিয়ে পুরনো key মুছে নতুন setup করতে হবে।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 BALANCE দেখা
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+৪. Balance check
+────────────────
+• /mybalance কমান্ড দিন।
+• Bot password চাইবে।
+• সঠিক password দিলে selected wallet-এর balance দেখাবে।
 
-/mybalance → আপনার wallet এর balance দেখুন (Password লাগবে)
+Balance দেখাতে RPC/API delay হতে পারে। Balance কম দেখালে কিছু সময় পরে আবার check করুন।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💸 SEND করা
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+৫. নিজের wallet থেকে crypto পাঠানো
+────────────────
+১) /send_wallet কমান্ড দিন।
+২) destination wallet address দিন।
+৩) amount লিখুন।
+৪) password দিন।
+৫) summary দেখে confirm করুন।
+৬) transaction successful হলে hash/receipt দেখাবে।
 
-/send_wallet → নিজের wallet থেকে পাঠান
+Send করার আগে amount, destination wallet এবং network অবশ্যই মিলিয়ে নিন। Blockchain transaction irreversible।
 
-ধাপ:
-১. /send_wallet দিন
-২. Destination wallet address দিন
-৩. পরিমাণ দিন
-৪. Password দিন
-৫. Confirm করুন → পাঠানো হবে!
+৬. Gas fee / network fee
+────────────────
+Token পাঠাতে network fee লাগে। Wallet-এ token ছাড়াও native gas token রাখতে হবে।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔑 KEY পরিবর্তন / মুছে ফেলা
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Solana: SOL
+• Polygon: MATIC
+• BSC: BNB
+• Avalanche: AVAX
+• Ethereum: ETH
+• Base: ETH
+• Tron: TRX / Energy / Bandwidth
+• TON: TON
 
-/changekey → নতুন wallet setup করুন
-/deletekey → আপনার key মুছে ফেলুন
+Gas কম থাকলে token balance থাকলেও send fail করতে পারে।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ গুরুত্বপূর্ণ সতর্কতা
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+৭. Key change বা delete
+────────────────
+• /changekey: পুরনো key মুছে নতুন wallet setup শুরু করে।
+• /deletekey: saved encrypted key delete করে।
 
-🔴 Private Key কখনো কাউকে দেবেন না
-🔴 Password ভুলে গেলে key recover হবে না
-🔴 Transaction irreversible — পাঠানোর আগে যাচাই করুন
-🔴 Gas fee এর জন্য native token রাখুন
-   • Solana → SOL
-   • BSC → BNB
-   • Polygon → MATIC
-   • Ethereum → ETH
-   • Tron → TRX (Energy)
-   • Base → ETH
-   • Avalanche → AVAX
-   • TON → TON
+Key change/delete করার আগে নিশ্চিত হয়ে নিন, কারণ delete করলে bot থেকে পুরনো encrypted key ফেরত পাওয়া যাবে না।
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 সমস্যায় যোগাযোগ করুন
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-@MdMouno
+৮. Security rules
+────────────────
+• private key, seed phrase বা wallet password কাউকে দেবেন না।
+• support/admin কখনো private key বা seed phrase চাইবে না।
+• public wallet address share করা যায়, কিন্তু private key share করা যাবে না।
+• password শক্তিশালী রাখুন এবং আলাদা জায়গায় নিরাপদে সংরক্ষণ করুন।
+• suspicious link, fake support account বা screenshot-এ private key থাকলে share করবেন না।
+
+৯. Order, payment এবং support
+────────────────
+• Buy order check করতে Order Status menu, /order ORD-XXXXXX বা /status TRXID ব্যবহার করুন।
+• Payment করার আগে network, wallet, amount এবং bKash number মিলিয়ে নিন।
+• bKash/SMS notice delay হলে order pending/manual review-এ থাকতে পারে।
+• FAQ button-এ সাধারণ প্রশ্নের উত্তর আছে।
+• দ্রুত guidance দরকার হলে AI Support ব্যবহার করুন। Manual help দরকার হলে @MdMouno-তে যোগাযোগ করুন।
+
+১০. Common problem
+────────────────
+• Wrong password: আবার সঠিক password দিন। ভুলে গেলে key recover হবে না।
+• Insufficient gas: native gas token top up করুন।
+• Invalid wallet: selected network অনুযায়ী wallet address দিন।
+• Send failed: hash না এলে duplicate send করার আগে support/admin-এর সাথে verify করুন।
+• Pending order: Order ID/TrxID সংরক্ষণ করুন এবং status check করুন।
 """
 
 NETWORK_GUIDE = {
     "solana": """
-🔵 Solana Network Guide:
-• Token: USDC
-• Private Key format: Base58 (88 characters)
-• Example: 4B3fosvyUYMZ73hj...
-• Wallet: Phantom, Solflare
-• Speed: ~1 second
-• Fee: ~$0.001
+Solana network guide
+────────────────
+• Asset: USDC
+• Private key format: Base58, usually 88 characters
+• Common wallet: Phantom, Solflare
+• Gas token: SOL
+• Note: Keep a small SOL balance for network fee.
 """,
     "bsc": """
-🟡 BSC (BEP20) Network Guide:
-• Token: USDT
-• Private Key format: Hex (64 characters, without 0x)
-• Example: a1b2c3d4e5f6...
-• Wallet: MetaMask, Trust Wallet
-• Speed: ~3 seconds
-• Fee: ~$0.10
+BSC (BEP20) network guide
+────────────────
+• Asset: USDT
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask, Trust Wallet
+• Gas token: BNB
+• Note: Use BEP20 address only.
 """,
     "polygon": """
-🟣 Polygon Network Guide:
-• Token: USDC
-• Private Key format: Hex (64 characters, without 0x)
-• Example: a1b2c3d4e5f6...
-• Wallet: MetaMask
-• Speed: ~2 seconds
-• Fee: ~$0.01
+Polygon network guide
+────────────────
+• Asset: USDC
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask
+• Gas token: MATIC
+• Note: Use Polygon network address.
 """,
     "trc20": """
-🔴 Tron (TRC20) Network Guide:
-• Token: USDT
-• Private Key format: Hex (64 characters)
-• Example: a1b2c3d4e5f6...
-• Wallet: TronLink, Klever
-• Speed: ~3 seconds
-• Fee: TRX Energy/Bandwidth
+Tron (TRC20) network guide
+────────────────
+• Asset: USDT
+• Private key format: Hex, 64 characters
+• Common wallet: TronLink, Klever
+• Gas resource: TRX / Energy / Bandwidth
+• Note: Use TRC20 wallet address.
 """,
     "ethereum": """
-🔷 Ethereum (ERC20) Network Guide:
-• Token: USDT
-• Private Key format: Hex (64 characters, without 0x)
-• Example: a1b2c3d4e5f6...
-• Wallet: MetaMask
-• Speed: ~15 seconds
-• Fee: ~$5-20 (gas price অনুযায়ী)
+Ethereum (ERC20) network guide
+────────────────
+• Asset: USDT
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask
+• Gas token: ETH
+• Note: ERC20 fee can change depending on gas price.
 """,
     "ethereum_usdc": """
-🔷 Ethereum USDC Network Guide:
-• Token: USDC
-• Private Key format: Hex (64 characters, without 0x)
-• Wallet: MetaMask
-• Fee: ETH gas required
+Ethereum USDC network guide
+────────────────
+• Asset: USDC
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask
+• Gas token: ETH
+• Note: Use ERC20 USDC address only.
 """,
     "base": """
-🔵 Base Network Guide:
-• Token: USDC
-• Private Key format: Hex (64 characters, without 0x)
-• Example: a1b2c3d4e5f6...
-• Wallet: MetaMask, Coinbase Wallet
-• Speed: ~2 seconds
-• Fee: ~$0.01
+Base network guide
+────────────────
+• Asset: USDC
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask, Coinbase Wallet
+• Gas token: ETH on Base
+• Note: Use Base network address.
 """,
     "avalanche": """
-🔺 Avalanche Network Guide:
-• Token: USDT
-• Private Key format: Hex (64 characters, without 0x)
-• Example: a1b2c3d4e5f6...
-• Wallet: MetaMask, Core Wallet
-• Speed: ~2 seconds
-• Fee: ~$0.05
+Avalanche network guide
+────────────────
+• Asset: USDT
+• Private key format: Hex, 64 characters, without 0x
+• Common wallet: MetaMask, Core Wallet
+• Gas token: AVAX
+• Note: Use Avalanche C-Chain compatible address.
 """,
     "ton": """
-🔵 TON Network Guide:
-• Token: TON
-• Wallet address format: UQ... or EQ...
-• Wallet: Tonkeeper, MyTonWallet
-• Fee: TON
+TON network guide
+────────────────
+• Asset: TON
+• Wallet format: UQ... or EQ...
+• Common wallet: Tonkeeper, MyTonWallet
+• Gas token: TON
+• Note: Check memo/comment requirements before sending to exchanges.
 """,
 }
