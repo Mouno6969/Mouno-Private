@@ -116,6 +116,13 @@ class ReceiptImageTests(unittest.TestCase):
         for call in send_photo_calls:
             self.assertNotIn("caption", {keyword.arg for keyword in call.keywords})
 
+    def test_transaction_receipt_image_is_built_before_recipient_loop(self):
+        function = next(node for node in BOT_TREE.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "send_transaction_receipt")
+        build_calls = [node for node in ast.walk(function) if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "build_receipt_image"]
+        self.assertEqual(len(build_calls), 1)
+        for loop in [node for node in ast.walk(function) if isinstance(node, ast.For)]:
+            self.assertFalse(any(call in ast.walk(loop) for call in build_calls))
+
     def test_completed_receipt_summaries_are_not_sent_as_extra_text(self):
         blocked_snippets = [
             "Giveaway redeemed!",

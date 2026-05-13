@@ -1882,6 +1882,11 @@ def build_receipt_image(data):
 
 async def send_transaction_receipt(bot, recipients, receipt_data):
     sent = set()
+    try:
+        photo_bytes = build_receipt_image(receipt_data).getvalue()
+    except Exception as exc:
+        logger.exception("Receipt image generation failed: %s", exc)
+        photo_bytes = None
     for recipient in recipients:
         chat_id = receipt_chat_id(recipient)
         if chat_id is None:
@@ -1891,9 +1896,10 @@ async def send_transaction_receipt(bot, recipients, receipt_data):
             continue
         sent.add(key)
         try:
-            photo = build_receipt_image(receipt_data)
+            if photo_bytes is None:
+                raise RuntimeError("receipt image unavailable")
             with tempfile.NamedTemporaryFile(suffix=".png") as temp_file:
-                temp_file.write(photo.getvalue())
+                temp_file.write(photo_bytes)
                 temp_file.flush()
                 with open(temp_file.name, "rb") as file:
                     await bot.send_photo(chat_id=chat_id, photo=file)
