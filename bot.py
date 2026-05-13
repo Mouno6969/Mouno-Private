@@ -28,12 +28,22 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 
+def is_command_update(update):
+    message = getattr(update, "effective_message", None)
+    text = getattr(message, "text", None)
+    return isinstance(text, str) and text.lstrip().startswith("/")
+
+
 class ChatScopedUpdateProcessor(BaseUpdateProcessor):
     def __init__(self, max_concurrent_updates=8):
         super().__init__(max_concurrent_updates)
         self._locks = {}
 
     async def do_process_update(self, update, coroutine):
+        if is_command_update(update):
+            await coroutine
+            return
+
         chat = getattr(update, "effective_chat", None)
         user = getattr(update, "effective_user", None)
         key = (getattr(chat, "id", None), getattr(user, "id", None))
