@@ -26,7 +26,7 @@ def _clean_bearer(value):
     value = str(value or "").strip()
     if value.lower().startswith("bearer "):
         return value[7:].strip()
-    return value
+    return ""
 
 
 def _forwarder_token_ok(data):

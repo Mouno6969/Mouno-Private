@@ -45,6 +45,24 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.calls[0][1], "bkash_sms")
 
+    def test_authorization_header_requires_bearer_scheme(self):
+        webhook.FORWARDER_SECRET = "test-secret"
+
+        bad_response = webhook.app.test_client().post(
+            "/sms",
+            data="bKash Payment Received Tk 500 TrxID ABC123XYZ",
+            headers={"Authorization": "test-secret"},
+        )
+        good_response = webhook.app.test_client().post(
+            "/sms",
+            data="bKash Payment Received Tk 500 TrxID ABC123XYZ",
+            headers={"Authorization": "Bearer test-secret"},
+        )
+
+        self.assertEqual(bad_response.status_code, 403)
+        self.assertEqual(good_response.status_code, 200)
+        self.assertEqual(len(self.calls), 1)
+
     def test_rejects_secret_in_query_or_body_when_configured(self):
         webhook.FORWARDER_SECRET = "test-secret"
 
