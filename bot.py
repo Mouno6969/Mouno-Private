@@ -2123,9 +2123,9 @@ def home_text(user_name=None, lang="bn"):
 async def send_first_time_language_selection(update):
     text = tr("choose_language", "bn")
     reply_markup = language_keyboard()
+    await update.message.reply_text(text, reply_markup=reply_markup)
     if welcome_video_available():
         asyncio.create_task(send_welcome_video_background(update.message))
-    await update.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def complete_language_selection_message(query, user_id, lang):
