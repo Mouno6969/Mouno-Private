@@ -651,6 +651,8 @@ def _extract_openai_chat_text(data):
 AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
 AI_PROVIDER_TIMEOUT_SECONDS = 1.5
+ORDER_AI_CALLBACK_PREFIX = "aiorder_"
+TRACK_ORDER_CALLBACK_PREFIX = "trackorder_"
 
 
 def sanitize_diagnostic_text(value):
@@ -771,9 +773,29 @@ def _bot_log_context_lines():
     return lines
 
 
-def build_ai_support_context(question, user_id, lang="bn", admin=False):
+def normalize_order_context_identifier(identifier):
+    value = re.sub(r"[^A-Za-z0-9_-]", "", str(identifier or "").strip())
+    return value[:40]
+
+
+def is_order_context_available(identifier, viewer_id):
+    identifier = normalize_order_context_identifier(identifier)
+    if not identifier:
+        return False
+    context_line = _order_context_line(identifier, viewer_id, admin=is_admin(viewer_id))
+    return "permission denied" not in context_line and "no matching order/TrxID found" not in context_line
+
+
+def build_ai_support_context(question, user_id, lang="bn", admin=False, order_identifiers=None):
     sections = ["AI SUPPORT CONTEXT (sanitized, read-only):"]
-    identifiers = extract_support_identifiers(question)
+    identifiers = []
+    for identifier in order_identifiers or []:
+        normalized = normalize_order_context_identifier(identifier)
+        if normalized and normalized not in identifiers:
+            identifiers.append(normalized)
+    for identifier in extract_support_identifiers(question):
+        if identifier not in identifiers:
+            identifiers.append(identifier)
     if identifiers:
         sections.append("Order/TrxID context:")
         for identifier in identifiers:
@@ -1055,13 +1077,14 @@ def ask_ai_support(question, lang="bn", context=None):
 
 async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending_token, user_data):
     try:
+        order_identifier = user_data.get("ai_order_context_identifier")
         loop = asyncio.get_running_loop()
         answer = await loop.run_in_executor(
             None,
             lambda: ask_ai_support(
                 question,
                 lang,
-                build_ai_support_context(question, user_id, lang, admin=is_admin(user_id)),
+                build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None),
             ),
         )
     except Exception as exc:
@@ -1964,7 +1987,18 @@ async def send_transaction_receipt(bot, recipients, receipt_data):
 def order_status_text(identifier, viewer_id, lang="bn"):
     kind, row = find_order(identifier)
     if not row:
-        return "❌ Order/TrxID পাওয়া যায়নি।" if lang == "bn" else "❌ Order/TrxID not found."
+        seller_order = get_seller_order(normalize_order_context_identifier(identifier))
+        if not seller_order:
+            return "❌ Order/TrxID পাওয়া যায়নি।" if lang == "bn" else "❌ Order/TrxID not found."
+        order_id, seller_id, buyer_id, _buyer_username, method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created, updated = seller_order
+        admin = is_admin(viewer_id)
+        if not admin and str(viewer_id) not in {str(buyer_id), str(seller_id)}:
+            return "🚫 এই অর্ডার দেখার অনুমতি নেই।" if lang == "bn" else "🚫 You can only view your own order."
+        info = NETWORKS.get(network or "solana", {"name": network, "symbol": "?", "explorer": ""})
+        hint = error or ("Seller is verifying/payment delivery is pending." if status in {"waiting_payment", "pending_manual", "paid"} else "Seller order processed.")
+        link = f"\n🔗 {info.get('explorer', '')}{tx_sig}" if tx_sig else ""
+        payment = f"\n💰 BDT: {amount_bdt}" if method == "bkash" else f"\n⭐ Stars: {stars_amount}"
+        return panel("🔎 Seller Order Status", f"Status: {status}\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id or 'N/A'}\n🌐 {info['name']}{payment}\n💵 Amount: {amount_crypto} {info['symbol']}\n👛 Wallet: {short_wallet(wallet)}\n🏷 Seller: {seller_badge(seller_id)}\n🕒 Created: {str(created)[:19]}\n♻️ Updated: {str(updated)[:19]}\n💡 {hint}{link}")
     admin = is_admin(viewer_id)
     if kind == "transaction":
         trx_id, bdt, crypto, network, wallet, status, created, order_id, user_id, sig = row[:10]
@@ -1990,6 +2024,26 @@ def order_status_text(identifier, viewer_id, lang="bn"):
     hint = error or ("Waiting for Stars payment/payout." if status in {"pending", "paid"} else "Stars order processed.")
     link = f"\n🔗 {info.get('explorer', '')}{tx_sig}" if tx_sig else ""
     return panel("🔎 Stars Order Status", f"Status: {status}\n🧾 Order: {order_id}\n⭐ Stars: {stars_amount}\n🌐 {info['name']}\n💵 Amount: {amount_crypto} {info['symbol']}\n👛 Wallet: {short_wallet(wallet)}\n👤 @{username}\n🕒 Created: {str(created)[:19]}\n♻️ Updated: {str(updated)[:19]}\n💡 {hint}{link}")
+
+
+def order_status_ai_keyboard(identifier, viewer_id, lang="bn", include_menu=True):
+    identifier = normalize_order_context_identifier(identifier)
+    if not is_order_context_available(identifier, viewer_id):
+        return None
+    rows = [[InlineKeyboardButton(ltext(lang, "🤖 Ask AI about this order", "🤖 এই order নিয়ে AI-কে জিজ্ঞেস করুন"), callback_data=f"{ORDER_AI_CALLBACK_PREFIX}{identifier}")]]
+    if include_menu:
+        rows.append([InlineKeyboardButton("🏠 Menu" if lang == "en" else "🏠 মেনু", callback_data="back")])
+    return InlineKeyboardMarkup(rows)
+
+
+def track_order_keyboard(identifier, viewer_id, lang="bn", include_menu=False):
+    identifier = normalize_order_context_identifier(identifier)
+    if not is_order_context_available(identifier, viewer_id):
+        return None
+    rows = [[InlineKeyboardButton(ltext(lang, "🔎 Track Order", "🔎 Order Track করুন"), callback_data=f"{TRACK_ORDER_CALLBACK_PREFIX}{identifier}")]]
+    if include_menu:
+        rows.append([InlineKeyboardButton("🏠 Menu" if lang == "en" else "🏠 মেনু", callback_data="back")])
+    return InlineKeyboardMarkup(rows)
 
 
 def completed_receipt_text(identifier, viewer_id):
@@ -2582,7 +2636,7 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         try:
             await bot.send_message(int(seller_id), f"🚨 Seller order send failed.\n\n🧾 {order_id}\n❌ {exc}\n💡 {reason}")
             await bot.send_message(ADMIN_ID, f"🚨 Seller order send failed.\n\n{seller_order_summary(order)}\n❌ {exc}\n💡 {reason}")
-            await bot.send_message(int(buyer_id), f"✅ Payment received but seller delivery failed. Seller/admin has been notified.\n🧾 {order_id}\n💡 Likely cause: {reason}")
+            await bot.send_message(int(buyer_id), f"✅ Payment received but seller delivery failed. Seller/admin has been notified.\n🧾 {order_id}\n💡 Likely cause: {reason}", reply_markup=track_order_keyboard(order_id, buyer_id, user_lang(buyer_id)))
         except Exception:
             pass
         return False, f"{exc} | {reason}"
@@ -2611,7 +2665,7 @@ async def handle_seller_order_trx(update, context, user_id, username):
         if ok:
             await update.message.reply_text(ltext(lang, "✅ Payment notice matched. Crypto has been sent.", "✅ Payment notice matched. Crypto পাঠানো হয়েছে।"))
         else:
-            await update.message.reply_text(ltext(lang, f"⏳ Seller manual verification is required.\n🧾 {order_id}\nReason: {result}", f"⏳ Seller manual verification লাগবে।\n🧾 {order_id}\nReason: {result}"))
+            await update.message.reply_text(ltext(lang, f"⏳ Seller manual verification is required.\n🧾 {order_id}\nReason: {result}", f"⏳ Seller manual verification লাগবে।\n🧾 {order_id}\nReason: {result}"), reply_markup=track_order_keyboard(order_id, user_id, lang))
         return
     update_seller_order(order_id, status="pending_manual")
     seller_id = order[1]
@@ -2621,7 +2675,7 @@ async def handle_seller_order_trx(update, context, user_id, username):
     except Exception as exc:
         logger.error(exc)
     context.user_data.clear()
-    await update.message.reply_text(ltext(lang, f"⏳ The seller is verifying your TrxID.\n\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id}", f"⏳ TrxID seller যাচাই করছেন।\n\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id}"))
+    await update.message.reply_text(ltext(lang, f"⏳ The seller is verifying your TrxID.\n\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id}", f"⏳ TrxID seller যাচাই করছেন।\n\n🧾 Order: {order_id}\n🔑 TrxID: {trx_id}"), reply_markup=track_order_keyboard(order_id, user_id, lang))
 
 
 async def process_seller_bkash(app, text, sender, meta):
@@ -2690,6 +2744,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["order_status_lookup"] = True
         await query.edit_message_text(ltext(lang, "🔎 Order Status\n\nSend your Order ID or TrxID.\nExample: ORD-ABC123 or your bKash TrxID\n\nCommands: /order ORD-XXXXXX or /status TRXID", "🔎 Order Status\n\nOrder ID বা TrxID পাঠান।\nউদাহরণ: ORD-ABC123 অথবা TrxID\n\nCommand: /order ORD-XXXXXX বা /status TRXID"), reply_markup=back_keyboard(lang))
+
+    elif query.data.startswith(TRACK_ORDER_CALLBACK_PREFIX):
+        identifier = normalize_order_context_identifier(query.data.replace(TRACK_ORDER_CALLBACK_PREFIX, "", 1))
+        await query.edit_message_text(
+            order_status_text(identifier, user_id, lang),
+            reply_markup=order_status_ai_keyboard(identifier, user_id, lang) or back_keyboard(lang),
+        )
 
     elif query.data in {"referral_menu", "referral_link"}:
         context.user_data.clear()
@@ -3056,6 +3117,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support_cancel":
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
+
+    elif query.data.startswith(ORDER_AI_CALLBACK_PREFIX):
+        identifier = normalize_order_context_identifier(query.data.replace(ORDER_AI_CALLBACK_PREFIX, "", 1))
+        if not identifier:
+            await query.edit_message_text(ltext(lang, "❌ Invalid order context.", "❌ Order context ভুল।"), reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context_line = _order_context_line(identifier, user_id, admin=is_admin(user_id))
+        if "permission denied" in context_line or "no matching order/TrxID found" in context_line:
+            await query.edit_message_text(ltext(lang, "🚫 This order is not available for AI support.", "🚫 এই order AI Support-এর জন্য পাওয়া যায়নি।"), reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["ai_support"] = True
+        context.user_data["ai_order_context_identifier"] = identifier
+        await query.edit_message_text(
+            ltext(
+                lang,
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nNow ask your question. You do not need to type the TrxID/order ID again.\n\nSend /cancel to close.",
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nএখন আপনার প্রশ্ন লিখুন। TrxID/Order ID আবার লিখতে হবে না।\n\nবন্ধ করতে /cancel লিখুন।",
+            ),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]),
+        )
 
     elif query.data == "balance":
         await query.edit_message_text("⏳ Loading balance..." if lang == "en" else "⏳ ব্যালেন্স লোড হচ্ছে...", reply_markup=back_keyboard(lang))
@@ -3566,7 +3648,8 @@ async def order_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Usage: /order ORD-XXXXXX\n/status TRXID_OR_ORDERID")
         return
-    await update.message.reply_text(order_status_text(context.args[0], user_id, lang))
+    identifier = context.args[0]
+    await update.message.reply_text(order_status_text(identifier, user_id, lang), reply_markup=order_status_ai_keyboard(identifier, user_id, lang, include_menu=False))
 
 
 async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4798,7 +4881,10 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.user_data.get("order_status_lookup"):
         context.user_data.clear()
-        await update.message.reply_text(order_status_text(incoming_text, user_id, lang), reply_markup=main_menu(user_id, lang))
+        await update.message.reply_text(
+            order_status_text(incoming_text, user_id, lang),
+            reply_markup=order_status_ai_keyboard(incoming_text, user_id, lang) or main_menu(user_id, lang),
+        )
         return
 
     if context.user_data.get("payout_request"):
@@ -4972,7 +5058,10 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception as exc:
             logger.error(exc)
-        await update.message.reply_text(ltext(lang, f"⏳ Checking your TrxID.\n\n🔑 TrxID: {trx_id}\n\nAdmin will verify it manually. Please wait.", f"⏳ TrxID যাচাই করা হচ্ছে।\n\n🔑 TrxID: {trx_id}\n\nAdmin যাচাই করছেন, একটু অপেক্ষা করুন..."))
+        await update.message.reply_text(
+            ltext(lang, f"⏳ Checking your TrxID.\n\n🔑 TrxID: {trx_id}\n\nAdmin will verify it manually. Please wait.", f"⏳ TrxID যাচাই করা হচ্ছে।\n\n🔑 TrxID: {trx_id}\n\nAdmin যাচাই করছেন, একটু অপেক্ষা করুন..."),
+            reply_markup=track_order_keyboard(order_id, user_id, lang),
+        )
         return
 
     amount_bdt = sms_row[1]
@@ -5466,7 +5555,7 @@ async def successful_seller_star_payment(update: Update, context: ContextTypes.D
         return
     update_seller_order(order_id, status="paid")
     lang = user_lang(buyer_id)
-    await update.message.reply_text(ltext(lang, "✅ Stars payment received. Seller crypto delivery is in progress...", "✅ Stars payment received. Seller crypto delivery চলছে..."))
+    await update.message.reply_text(ltext(lang, "✅ Stars payment received. Seller crypto delivery is in progress...", "✅ Stars payment received. Seller crypto delivery চলছে..."), reply_markup=track_order_keyboard(order_id, buyer_id, lang))
     ok, result = await complete_seller_order(update.get_bot(), order_id, "seller_stars")
     if ok:
         await update.message.reply_text(f"🎉 Seller Stars order completed.\n🧾 {order_id}\n⭐ {stars_amount} Stars\nSeller payout ledger created for admin manual payout.")
@@ -5476,7 +5565,8 @@ async def successful_seller_star_payment(update: Update, context: ContextTypes.D
         await update.message.reply_text(
             f"✅ Stars payment received, but seller crypto delivery failed and needs manual review.\n🧾 {order_id}\n💡 {reason}"
             if lang == "en"
-            else f"✅ Stars payment received, কিন্তু seller crypto delivery failed/manual review দরকার।\n🧾 {order_id}\n💡 {reason}"
+            else f"✅ Stars payment received, কিন্তু seller crypto delivery failed/manual review দরকার।\n🧾 {order_id}\n💡 {reason}",
+            reply_markup=track_order_keyboard(order_id, buyer_id, lang),
         )
         try:
             await update.get_bot().send_message(ADMIN_ID, f"🚨 Seller Stars delivery failed.\nOrder: {order_id}\nSeller: {seller_id}\nBuyer: {buyer_id}\nReason: {result}\nLikely: {failure_reason_text(result, network, 'en')}")
@@ -5535,7 +5625,8 @@ async def successful_star_payment(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(
             f"✅ Stars payment received, but crypto sending failed. Admin has been notified.\n\n💡 {reason}"
             if lang == "en"
-            else f"✅ Stars payment received, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n💡 {reason}"
+            else f"✅ Stars payment received, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n💡 {reason}",
+            reply_markup=track_order_keyboard(order_id, user_id, lang),
         )
         try:
             await update.get_bot().send_message(
@@ -5697,6 +5788,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
                 f"✅ Payment verified, but crypto delivery failed. Admin has been notified.\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
                 if target_lang == "en"
                 else f"✅ Payment verified, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}",
+                reply_markup=track_order_keyboard(order_id or trx_id, user_id, target_lang),
             )
         except Exception:
             pass
