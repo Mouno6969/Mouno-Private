@@ -536,7 +536,7 @@ def _clean_ai_key(value):
 
 def ai_provider_order():
     known_order = SLOW_NVIDIA_PROVIDER_ORDER + STANDARD_PROVIDER_ORDER + FAST_NVIDIA_PROVIDER_ORDER
-    order = []
+    order = ["groq"]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
         if provider in AI_PROVIDER_LABELS and provider not in order:
