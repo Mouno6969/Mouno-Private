@@ -1883,7 +1883,8 @@ def build_receipt_image(data):
 async def send_transaction_receipt(bot, recipients, receipt_data):
     sent = set()
     try:
-        photo_bytes = build_receipt_image(receipt_data).getvalue()
+        loop = asyncio.get_running_loop()
+        photo_bytes = await loop.run_in_executor(None, lambda: build_receipt_image(receipt_data).getvalue())
     except Exception as exc:
         logger.exception("Receipt image generation failed: %s", exc)
         photo_bytes = None
@@ -5622,7 +5623,7 @@ async def main():
         raise RuntimeError("BOT_TOKEN is not configured")
 
     request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
-    app = Application.builder().token(BOT_TOKEN).request(request).build()
+    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(8).build()
 
     buy_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
