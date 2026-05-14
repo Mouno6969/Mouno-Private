@@ -2682,19 +2682,22 @@ async def process_seller_bkash(app, text, sender, meta):
     if not parsed:
         return True
     token = (meta or {}).get("seller_token")
+    admin_parse_alert_sent = bool((meta or {}).get("admin_parse_alert_sent"))
     seller = get_seller_by_sms_token(token) if token else None
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
     if not seller or seller[5] != "approved":
         logger.warning("Seller bKash notice rejected for unknown/unapproved token: %s", token)
-        await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", "unknown/unapproved")
+        if not admin_parse_alert_sent:
+            await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", "unknown/unapproved")
         if ADMIN_ID:
             await app.bot.send_message(ADMIN_ID, f"⚠️ Seller bKash notice rejected. Unknown/unapproved token.\nSource: {sender}\nTrxID: {trx_id}\nAmount: {amount_bdt}")
         return True
     seller_id = seller[0]
     saved_new = save_seller_payment_notice(seller_id, trx_id, amount_bdt, sender, "seller_bkash", text)
     touch_webhook_notice(f"seller_{sender}", trx_id, amount_bdt)
-    await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", seller_id)
+    if not admin_parse_alert_sent:
+        await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", seller_id)
     order = find_waiting_seller_order_by_trx(seller_id, trx_id)
     if order:
         if trx_id.startswith("TEST") or str(sender).startswith("test"):
@@ -5725,7 +5728,8 @@ async def process_bkash(app, text, sender, meta=None):
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
     touch_webhook_notice(sender, trx_id, amount_bdt)
-    await notify_admin_parsed_bkash(app, parsed, sender, text)
+    if not (meta or {}).get("admin_parse_alert_sent"):
+        await notify_admin_parsed_bkash(app, parsed, sender, text)
 
     if trx_exists(trx_id):
         logger.info("Duplicate bKash notice ignored because transaction already exists: %s", trx_id)
