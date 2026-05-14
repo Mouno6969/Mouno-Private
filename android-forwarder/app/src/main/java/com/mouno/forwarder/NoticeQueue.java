@@ -38,10 +38,13 @@ final class NoticeQueue {
 
     static synchronized String latestSummary(Context context) {
         String latest = "";
+        long latestReceivedAt = -1L;
         for (String row : snapshot(context)) {
             try {
                 JSONObject notice = decode(row);
-                if (notice.optBoolean("parsed_bkash", false)) {
+                long receivedAt = notice.optLong("received_at", 0L);
+                if (notice.optBoolean("parsed_bkash", false) && receivedAt >= latestReceivedAt) {
+                    latestReceivedAt = receivedAt;
                     latest = notice.optString("trx_id", "") + " / " + notice.optDouble("amount_bdt", 0) + " BDT / " + notice.optString("notice_sender", "");
                 }
             } catch (Exception ignored) {

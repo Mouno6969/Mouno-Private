@@ -40,17 +40,17 @@ final class ForwarderClient {
         EXECUTOR.execute(() -> {
             try {
                 JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
-                BkashNoticeHistory.recordIfParsed(appContext, notice);
                 flushQueueNow(appContext);
                 if (!post(appContext, notice)) {
                     NoticeQueue.enqueue(appContext, notice);
+                    BkashNoticeHistory.recordIfParsed(appContext, notice);
                     scheduleNetworkFlush(appContext);
                 }
             } catch (Exception exc) {
                 try {
                     JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
-                    BkashNoticeHistory.recordIfParsed(appContext, notice);
                     NoticeQueue.enqueue(appContext, notice);
+                    BkashNoticeHistory.recordIfParsed(appContext, notice);
                     scheduleNetworkFlush(appContext);
                 } catch (Exception ignored) {
                 }
