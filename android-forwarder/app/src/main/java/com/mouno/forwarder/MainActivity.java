@@ -21,9 +21,10 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -43,7 +44,8 @@ public class MainActivity extends Activity {
     private EditText serverInput;
     private EditText sellerTokenInput;
     private EditText secretInput;
-    private CheckBox sellerModeInput;
+    private RadioButton sellerModeInput;
+    private RadioButton adminModeInput;
     private ConnectivityManager.NetworkCallback networkCallback;
     private final Handler statusRefreshHandler = new Handler(Looper.getMainLooper());
     private final SharedPreferences.OnSharedPreferenceChangeListener statusChangeListener = (preferences, key) -> statusRefreshHandler.post(this::refreshStatus);
@@ -96,17 +98,26 @@ public class MainActivity extends Activity {
         serverInput = input("https://your-bot-server.example.com", ForwarderConfig.baseUrl(this));
         configCard.addView(serverInput);
 
-        sellerModeInput = new CheckBox(this);
-        sellerModeInput.setText("Seller mode / সেলার মোড");
-        sellerModeInput.setTextColor(textColor);
-        sellerModeInput.setChecked(ForwarderConfig.isSellerMode(this));
-        sellerModeInput.setOnCheckedChangeListener((buttonView, isChecked) -> updateModeFields());
-        configCard.addView(sellerModeInput);
+        RadioGroup modeGroup = new RadioGroup(this);
+        modeGroup.setOrientation(RadioGroup.VERTICAL);
+        modeGroup.setPadding(0, 0, 0, dp(8));
 
-        sellerTokenInput = input("Seller SMS token", ForwarderConfig.sellerToken(this));
+        sellerModeInput = modeOption("Seller phone / সেলার ফোন");
+        adminModeInput = modeOption("Admin/main phone / অ্যাডমিন ফোন");
+        modeGroup.addView(sellerModeInput);
+        modeGroup.addView(adminModeInput);
+        if (ForwarderConfig.isSellerMode(this)) {
+            sellerModeInput.setChecked(true);
+        } else {
+            adminModeInput.setChecked(true);
+        }
+        modeGroup.setOnCheckedChangeListener((group, checkedId) -> updateModeFields());
+        configCard.addView(modeGroup);
+
+        sellerTokenInput = input("Seller SMS token / সেলার SMS token", ForwarderConfig.sellerToken(this));
         configCard.addView(sellerTokenInput);
 
-        secretInput = input("Admin FORWARDER_SECRET", ForwarderConfig.forwarderSecret(this));
+        secretInput = input("Admin FORWARDER_SECRET / অ্যাডমিন secret", ForwarderConfig.forwarderSecret(this));
         configCard.addView(secretInput);
 
         Button saveButton = primaryButton("Save setup / সেটআপ সেভ করুন");
@@ -213,6 +224,15 @@ public class MainActivity extends Activity {
         return input;
     }
 
+    private RadioButton modeOption(String label) {
+        RadioButton option = new RadioButton(this);
+        option.setText(label);
+        option.setTextColor(textColor);
+        option.setTextSize(15);
+        option.setPadding(0, dp(2), 0, dp(2));
+        return option;
+    }
+
     private Button primaryButton(String label) {
         Button button = new Button(this);
         button.setText(label);
@@ -288,7 +308,7 @@ public class MainActivity extends Activity {
     }
 
     private void checkServer() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(WARNING);
@@ -304,7 +324,7 @@ public class MainActivity extends Activity {
     }
 
     private void saveConfig() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         retryStatus.setTextColor(SUCCESS);
@@ -317,12 +337,16 @@ public class MainActivity extends Activity {
     }
 
     private void updateModeFields() {
-        if (sellerTokenInput == null || secretInput == null || sellerModeInput == null) return;
-        boolean sellerMode = sellerModeInput.isChecked();
+        if (sellerTokenInput == null || secretInput == null || sellerModeInput == null || adminModeInput == null) return;
+        boolean sellerMode = isSellerModeSelected();
         sellerTokenInput.setEnabled(sellerMode);
         secretInput.setEnabled(!sellerMode);
-        sellerTokenInput.setAlpha(sellerMode ? 1.0f : 0.5f);
-        secretInput.setAlpha(sellerMode ? 0.5f : 1.0f);
+        sellerTokenInput.setVisibility(sellerMode ? View.VISIBLE : View.GONE);
+        secretInput.setVisibility(sellerMode ? View.GONE : View.VISIBLE);
+    }
+
+    private boolean isSellerModeSelected() {
+        return sellerModeInput != null && sellerModeInput.isChecked();
     }
 
     private void requestSmsPermissions() {
