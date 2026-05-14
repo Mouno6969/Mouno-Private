@@ -6,10 +6,12 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkRequest;
@@ -238,10 +240,8 @@ public class MainActivity extends Activity {
         button.setText(label);
         button.setTextColor(Color.WHITE);
         button.setTextSize(14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(PRIMARY);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
+        button.setBackground(buttonBackground(PRIMARY, withAlpha(Color.WHITE, 90)));
+        button.setMinHeight(dp(48));
         button.setPadding(dp(12), dp(8), dp(12), dp(8));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, dp(6), 0, dp(4));
@@ -251,13 +251,20 @@ public class MainActivity extends Activity {
 
     private Button actionButton(String label, View.OnClickListener listener) {
         Button button = primaryButton(label);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(PRIMARY_LIGHT);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
+        button.setBackground(buttonBackground(PRIMARY_LIGHT, withAlpha(PRIMARY, 90)));
         button.setTextColor(PRIMARY);
         button.setOnClickListener(listener);
         return button;
+    }
+
+    private RippleDrawable buttonBackground(int color, int rippleColor) {
+        GradientDrawable content = new GradientDrawable();
+        content.setColor(color);
+        content.setCornerRadius(dp(14));
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadius(dp(14));
+        return new RippleDrawable(ColorStateList.valueOf(rippleColor), content, mask);
     }
 
     private TextView bodyText() {
