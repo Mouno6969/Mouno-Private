@@ -45,7 +45,7 @@ public class BkashNotificationListener extends NotificationListenerService {
 
     private static boolean isTrustedBkashSender(String sender) {
         String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
-        return value.equals("bkash") || value.equals("16247");
+        return value.contains("bkash") || value.contains("16247");
     }
 
     private static boolean isBkashNotice(String text) {
