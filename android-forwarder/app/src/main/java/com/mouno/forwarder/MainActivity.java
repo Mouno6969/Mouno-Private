@@ -92,7 +92,7 @@ public class MainActivity extends Activity {
         layout.addView(logo, logoParams);
 
         TextView title = new TextView(this);
-        title.setText("Mouno Forwarder");
+        title.setText("SCB-Forwarder");
         title.setTextColor(isDarkMode() ? PRIMARY_LIGHT : PRIMARY);
         title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -451,13 +451,13 @@ public class MainActivity extends Activity {
             + "2) Autostart/Auto launch: Allow\n"
             + "3) Background data/activity: Allow\n"
             + "4) Notification access/SMS permission: On\n"
-            + "5) Recent apps screen-এ Mouno Forwarder lock করে রাখুন যদি option থাকে।";
+            + "5) Recent apps screen-এ SCB-Forwarder lock করে রাখুন যদি option থাকে।";
     }
 
     private String manufacturerGuide() {
         String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
         if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
-            return "Xiaomi/Redmi/Poco: Security app > Autostart > Mouno Forwarder On; Battery saver > No restrictions.";
+            return "Xiaomi/Redmi/Poco: Security app > Autostart > SCB-Forwarder On; Battery saver > No restrictions.";
         }
         if (manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus")) {
             return "Oppo/Realme/OnePlus: Phone Manager/Settings > App management > Auto launch On; Battery > Allow background activity.";
@@ -466,12 +466,12 @@ public class MainActivity extends Activity {
             return "Vivo/iQOO: i Manager > App manager > Autostart On; Battery > Background power consumption allowed.";
         }
         if (manufacturer.contains("samsung")) {
-            return "Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add Mouno Forwarder; Battery usage > Unrestricted.";
+            return "Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add SCB-Forwarder; Battery usage > Unrestricted.";
         }
         if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
             return "Huawei/Honor: Phone Manager > App launch > Manage manually > Auto-launch, Secondary launch, Run in background On.";
         }
-        return "Settings search করুন: Autostart, Auto launch, Battery optimization, Background activity — সব জায়গায় Mouno Forwarder allow করুন.";
+        return "Settings search করুন: Autostart, Auto launch, Battery optimization, Background activity — সব জায়গায় SCB-Forwarder allow করুন.";
     }
 
     private String manufacturerLabel() {

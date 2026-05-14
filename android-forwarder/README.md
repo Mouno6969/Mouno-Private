@@ -1,4 +1,4 @@
-# Mouno Android Forwarder
+# SCB-Forwarder
 
 Custom Android app for forwarding bKash SMS and app notifications to the bot webhook.
 
@@ -30,7 +30,7 @@ Build `android-forwarder/` with Android Studio or run the GitHub Actions workflo
 
 1. Enter the public server URL, choose seller or main/admin mode, enter the required token/secret, then tap **Save setup / সেটআপ সেভ করুন**.
 2. Tap **Allow SMS Permission**.
-3. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
+3. Tap **Enable Notification Access** and enable **SCB-Forwarder**.
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.
 5. Keep the app installed. It parses matching SMS/notifications from trusted bKash sources on the phone, stores parsed notices locally if the phone is offline, and retries queued uploads every 5 minutes.
 
