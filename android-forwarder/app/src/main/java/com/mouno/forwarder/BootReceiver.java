@@ -7,6 +7,7 @@ import android.content.Intent;
 public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
+        ForwarderForegroundService.start(context);
         ForwarderClient.scheduleRetry(context);
         ForwarderClient.flushQueue(context);
     }

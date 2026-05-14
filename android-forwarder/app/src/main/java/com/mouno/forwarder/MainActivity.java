@@ -172,6 +172,7 @@ public class MainActivity extends Activity {
         LinearLayout setupCard = card(layout, "Phone setup / ফোন সেটআপ", PRIMARY);
         setupCard.addView(actionButton("Allow SMS Permission", v -> requestSmsPermissions()));
         setupCard.addView(actionButton("Enable Notification Access", v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
+        setupCard.addView(actionButton("Start Background Service", v -> startBackgroundService()));
         setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
 
         configDetails = bodyText();
@@ -187,6 +188,7 @@ public class MainActivity extends Activity {
         setContentView(scroll);
         refreshStatus();
         requestSmsPermissions();
+        ForwarderForegroundService.start(this);
         registerConnectivityFlush();
         ForwarderClient.scheduleRetry(this);
         ForwarderClient.flushQueue(this, this::refreshStatus);
@@ -328,7 +330,7 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
-                + "Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.");
+                + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
     }
@@ -448,6 +450,18 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
         } catch (Exception exc) {
             openAppSettings();
+        }
+    }
+
+    private void startBackgroundService() {
+        boolean started = ForwarderForegroundService.start(this);
+        ForwarderClient.scheduleRetry(this);
+        refreshStatus();
+        if (retryStatus != null) {
+            retryStatus.setTextColor(started ? SUCCESS : ERROR);
+            retryStatus.setText(started
+                ? "Background service started. Keep the SCB-Forwarder notification visible."
+                : "Background service could not start. Disable battery restrictions/autostart blocking, then tap Start Background Service again.");
         }
     }
 
