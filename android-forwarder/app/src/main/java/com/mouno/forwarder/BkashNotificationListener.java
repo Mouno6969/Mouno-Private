@@ -20,6 +20,8 @@ public class BkashNotificationListener extends NotificationListenerService {
         String all = (title + " " + text + " " + bigText).trim();
         if (isTrustedBkashPackage(packageName) && isBkashNotice(all)) {
             ForwarderClient.sendNotification(this, sbn.getPackageName(), title, all);
+        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
+            ForwarderClient.sendNotification(this, "sms_notification", title, all);
         }
     }
 
@@ -30,9 +32,29 @@ public class BkashNotificationListener extends NotificationListenerService {
             || value.equals("com.bkash.businessapp");
     }
 
+    private static boolean isTrustedSmsPackage(String packageName) {
+        String value = packageName == null ? "" : packageName.trim().toLowerCase(Locale.ROOT);
+        return value.equals("com.google.android.apps.messaging")
+            || value.equals("com.samsung.android.messaging")
+            || value.equals("com.android.mms")
+            || value.equals("com.android.messaging")
+            || value.equals("com.miui.mms")
+            || value.equals("com.coloros.mms")
+            || value.equals("com.oplus.mms");
+    }
+
+    private static boolean isTrustedBkashSender(String sender) {
+        String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
+        return value.equals("bkash") || value.equals("16247");
+    }
+
     private static boolean isBkashNotice(String text) {
         String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
         return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
+    }
+
+    private static boolean isBkashPaymentNotice(String text) {
+        return isBkashNotice(text) && BkashNoticeParser.parse(text) != null;
     }
 
     private static String value(Bundle extras, String key) {
