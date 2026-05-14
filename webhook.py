@@ -172,6 +172,30 @@ def parse_bkash_payment_notice(text):
     }
 
 
+def parsed_notice_from_forwarder_data(data):
+    if not data or not data.get("parsed_bkash"):
+        return None
+    try:
+        amount = float(str(data.get("amount_bdt", "")).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    trx_id = str(data.get("trx_id") or "").strip().upper()
+    if not trx_id or not re.fullmatch(r"[A-Z0-9]+", trx_id):
+        return None
+    return {
+        "amount_bdt": amount,
+        "sender": str(data.get("notice_sender") or data.get("source") or "bkash_app"),
+        "trx_id": trx_id,
+        "datetime": data.get("notice_datetime"),
+    }
+
+
+def callback_notice_text(all_text, parsed, used_structured_parse):
+    if not used_structured_parse:
+        return all_text
+    return f"bKash Payment Received Tk {parsed['amount_bdt']} TrxID {parsed['trx_id']}"
+
+
 def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.get_json(silent=True) or {}
@@ -184,16 +208,21 @@ def handle_payment_notice(source):
     all_text = ("" if data else raw) + " " + " ".join(_notice_values(data))
 
     parsed = parse_bkash_payment_notice(all_text)
+    used_structured_parse = False
+    if not parsed:
+        parsed = parsed_notice_from_forwarder_data(data)
+        used_structured_parse = bool(parsed)
     if parsed and _callback:
         touch_webhook_notice(f"seller_{source}" if token else source, parsed.get("trx_id"), parsed.get("amount_bdt"))
         alert_sent = notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
         meta = {"admin_parse_alert_sent": True} if alert_sent else {}
         if token:
             meta["seller_token"] = token
+        notice_text = callback_notice_text(all_text, parsed, used_structured_parse)
         try:
-            _callback(all_text, source, meta)
+            _callback(notice_text, source, meta)
         except TypeError:
-            _callback(all_text, source)
+            _callback(notice_text, source)
         logger.info("bKash %s parsed: %s", source, parsed)
     elif parsed:
         notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
@@ -201,7 +230,7 @@ def handle_payment_notice(source):
     else:
         logger.info("Not a supported bKash payment notice: %s", all_text[:100])
 
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "parsed": bool(parsed)})
 
 
 @app.route("/sms", methods=["POST"])
