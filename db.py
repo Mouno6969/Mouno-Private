@@ -1848,6 +1848,20 @@ def get_seller_payment_notice(seller_id, trx_id):
         return con.execute("SELECT seller_id, trx_id, amount_bdt, sender, source, raw_notice, used, created_at FROM seller_payment_notices WHERE seller_id=? AND trx_id=? AND used=0", (str(seller_id), str(trx_id))).fetchone()
 
 
+def get_seller_payment_notice_owner(trx_id):
+    with closing(connect()) as con:
+        return con.execute(
+            """
+            SELECT seller_id, trx_id, amount_bdt, sender, source, raw_notice, used, created_at
+            FROM seller_payment_notices
+            WHERE trx_id=?
+            ORDER BY datetime(created_at), rowid
+            LIMIT 1
+            """,
+            (str(trx_id),),
+        ).fetchone()
+
+
 def mark_seller_payment_notice_used(seller_id, trx_id):
     with closing(connect()) as con:
         con.execute("UPDATE seller_payment_notices SET used=1 WHERE seller_id=? AND trx_id=?", (str(seller_id), str(trx_id)))
@@ -1875,6 +1889,11 @@ def get_seller_order(order_id):
 def get_seller_order_by_trx(seller_id, trx_id):
     with closing(connect()) as con:
         return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE seller_id=? AND trx_id=? ORDER BY datetime(created_at) DESC LIMIT 1", (str(seller_id), str(trx_id))).fetchone()
+
+
+def get_completed_seller_order_by_trx(trx_id):
+    with closing(connect()) as con:
+        return con.execute("SELECT order_id, seller_id, buyer_id, buyer_username, payment_method, trx_id, network, wallet, amount_bdt, amount_crypto, stars_amount, status, tx_sig, error, created_at, updated_at FROM seller_orders WHERE trx_id=? AND status='completed' ORDER BY datetime(updated_at) DESC, rowid DESC LIMIT 1", (str(trx_id),)).fetchone()
 
 
 def find_waiting_seller_order_by_trx(seller_id, trx_id):

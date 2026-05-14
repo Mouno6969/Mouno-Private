@@ -195,11 +195,13 @@ from db import (
     disable_seller,
     disable_seller_wallet,
     find_waiting_seller_order_by_trx,
+    get_completed_seller_order_by_trx,
     get_seller,
     get_seller_by_sms_token,
     get_seller_order,
     get_seller_order_by_trx,
     get_seller_payment_notice,
+    get_seller_payment_notice_owner,
     get_seller_rate,
     get_or_create_referral_code,
     get_referrer_for_user,
@@ -2595,6 +2597,11 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         return False, "Seller not approved"
     if status == "completed":
         return True, "already completed"
+    conflict = seller_trx_conflict(seller_id, trx_id, order_id) if method == "bkash" and trx_id else None
+    if conflict:
+        reason = seller_trx_conflict_text(conflict)
+        update_seller_order(order_id, status="rejected", error=reason)
+        return False, reason
     if notice_amount is not None and amount_bdt and abs(float(notice_amount) - float(amount_bdt)) > 0.01:
         update_seller_order(order_id, status="pending_manual", error="amount mismatch")
         return False, "Amount mismatch"
@@ -2641,6 +2648,29 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         return False, f"{exc} | {reason}"
 
 
+def seller_trx_conflict(seller_id, trx_id, order_id=None):
+    if not trx_id:
+        return None
+    seller_id = str(seller_id)
+    owner_notice = get_seller_payment_notice_owner(trx_id)
+    if owner_notice and str(owner_notice[0]) != seller_id:
+        return {"kind": "notice", "seller_id": str(owner_notice[0]), "trx_id": trx_id}
+    completed_order = get_completed_seller_order_by_trx(trx_id)
+    if completed_order and str(completed_order[1]) != seller_id and str(completed_order[0]) != str(order_id or ""):
+        return {"kind": "completed_order", "seller_id": str(completed_order[1]), "order_id": completed_order[0], "trx_id": trx_id}
+    return None
+
+
+def seller_trx_conflict_text(conflict):
+    if not conflict:
+        return ""
+    if conflict.get("kind") == "notice":
+        return f"TrxID already belongs to another seller payment notice: seller={conflict.get('seller_id')}"
+    if conflict.get("kind") == "completed_order":
+        return f"TrxID already completed for another seller order: seller={conflict.get('seller_id')} order={conflict.get('order_id')}"
+    return "TrxID already belongs to another seller"
+
+
 async def handle_seller_order_trx(update, context, user_id, username):
     order_id = context.user_data.get("seller_order_id")
     order = get_seller_order(order_id)
@@ -2655,6 +2685,17 @@ async def handle_seller_order_trx(update, context, user_id, username):
         return
     if get_seller_order_by_trx(order[1], trx_id):
         await update.message.reply_text(ltext(lang, "⚠️ This TrxID was already used for this seller.", "⚠️ এই seller-এর জন্য TrxID আগে ব্যবহার হয়েছে।"))
+        return
+    conflict = seller_trx_conflict(order[1], trx_id, order_id)
+    if conflict:
+        reason = seller_trx_conflict_text(conflict)
+        update_seller_order(order_id, status="rejected", error=reason)
+        try:
+            await update.get_bot().send_message(ADMIN_ID, f"🚫 Cross-seller TrxID blocked.\nOrder: {order_id}\nSeller: {order[1]}\nTrxID: {trx_id}\nReason: {reason}")
+        except Exception:
+            pass
+        await update.message.reply_text(ltext(lang, "🚫 This TrxID belongs to another seller/payment and cannot be used here.", "🚫 এই TrxID অন্য seller/payment-এর সাথে যুক্ত, তাই এখানে ব্যবহার করা যাবে না।"))
+        context.user_data.clear()
         return
     update_seller_order(order_id, trx_id=trx_id)
     notice = get_seller_payment_notice(order[1], trx_id)
@@ -2694,6 +2735,12 @@ async def process_seller_bkash(app, text, sender, meta):
             await app.bot.send_message(ADMIN_ID, f"⚠️ Seller bKash notice rejected. Unknown/unapproved token.\nSource: {sender}\nTrxID: {trx_id}\nAmount: {amount_bdt}")
         return {"payment_status": "ignored", "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller token is unknown or not approved."}
     seller_id = seller[0]
+    conflict = seller_trx_conflict(seller_id, trx_id)
+    if conflict:
+        reason = seller_trx_conflict_text(conflict)
+        if ADMIN_ID:
+            await app.bot.send_message(ADMIN_ID, f"🚫 Cross-seller bKash notice blocked.\nSeller: {seller_id}\nTrxID: {trx_id}\nAmount: {amount_bdt}\nReason: {reason}")
+        return {"payment_status": "duplicate", "duplicate": True, "trx_id": trx_id, "amount_bdt": amount_bdt, "message": reason}
     saved_new = save_seller_payment_notice(seller_id, trx_id, amount_bdt, sender, "seller_bkash", text)
     touch_webhook_notice(f"seller_{sender}", trx_id, amount_bdt)
     if not admin_parse_alert_sent:
