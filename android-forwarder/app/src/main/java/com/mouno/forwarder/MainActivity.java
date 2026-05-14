@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
     private SharedPreferences forwardingStatsPrefs;
     private SharedPreferences noticeQueuePrefs;
     private SharedPreferences noticeHistoryPrefs;
+    private boolean statusListenersRegistered;
     private int backgroundColor;
     private int cardColor;
     private int textColor;
@@ -145,7 +146,6 @@ public class MainActivity extends Activity {
         setupCard.addView(configDetails);
 
         setContentView(scroll);
-        registerRealtimeStatusUpdates();
         refreshStatus();
         requestSmsPermissions();
         registerConnectivityFlush();
@@ -377,6 +377,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        registerRealtimeStatusUpdates();
         refreshStatus();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         statusRefreshHandler.postDelayed(statusRefreshRunnable, STATUS_REFRESH_INTERVAL_MS);
@@ -386,21 +387,26 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
+        unregisterRealtimeStatusUpdates();
     }
 
     private void registerRealtimeStatusUpdates() {
+        if (statusListenersRegistered) return;
         forwardingStatsPrefs = ForwardingStats.prefsForUpdates(this);
         noticeQueuePrefs = NoticeQueue.prefsForUpdates(this);
         noticeHistoryPrefs = BkashNoticeHistory.prefsForUpdates(this);
         forwardingStatsPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
         noticeQueuePrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
         noticeHistoryPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
+        statusListenersRegistered = true;
     }
 
     private void unregisterRealtimeStatusUpdates() {
+        if (!statusListenersRegistered) return;
         if (forwardingStatsPrefs != null) forwardingStatsPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
         if (noticeQueuePrefs != null) noticeQueuePrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
         if (noticeHistoryPrefs != null) noticeHistoryPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
+        statusListenersRegistered = false;
     }
 
     private boolean isDarkMode() {
