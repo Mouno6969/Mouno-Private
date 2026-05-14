@@ -2,6 +2,7 @@ package com.mouno.forwarder;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -144,6 +145,13 @@ public class MainActivity extends Activity {
 
         configDetails = bodyText();
         setupCard.addView(configDetails);
+
+        LinearLayout batteryCard = card(layout, "Battery/autostart guide", WARNING);
+        TextView batteryGuide = bodyText();
+        batteryGuide.setText(batteryGuideText());
+        batteryCard.addView(batteryGuide);
+        batteryCard.addView(actionButton("Open App Settings", v -> openAppSettings()));
+        batteryCard.addView(actionButton("Open Autostart/Battery Settings", v -> openAutostartSettings()));
 
         setContentView(scroll);
         refreshStatus();
@@ -328,12 +336,108 @@ public class MainActivity extends Activity {
 
     private void openBatterySettings() {
         try {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        } catch (Exception exc) {
+            openAppSettings();
+        }
+    }
+
+    private void openAppSettings() {
+        try {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
         } catch (Exception exc) {
             startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
+    }
+
+    private void openAutostartSettings() {
+        String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
+        Intent[] intents;
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
+            intents = new Intent[]{
+                componentIntent("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
+                componentIntent("com.miui.securitycenter", "com.miui.powercenter.PowerSettings")
+            };
+        } else if (manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus")) {
+            intents = new Intent[]{
+                componentIntent("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
+                componentIntent("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"),
+                componentIntent("com.coloros.oppoguardelf", "com.coloros.powermanager.fuelgaue.PowerUsageModelActivity")
+            };
+        } else if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+            intents = new Intent[]{
+                componentIntent("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"),
+                componentIntent("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity"),
+                componentIntent("com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager")
+            };
+        } else if (manufacturer.contains("samsung")) {
+            intents = new Intent[]{
+                componentIntent("com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity"),
+                componentIntent("com.samsung.android.sm", "com.samsung.android.sm.ui.battery.BatteryActivity")
+            };
+        } else if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
+            intents = new Intent[]{
+                componentIntent("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+                componentIntent("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity")
+            };
+        } else {
+            intents = new Intent[0];
+        }
+
+        for (Intent intent : intents) {
+            try {
+                startActivity(intent);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+        openBatterySettings();
+    }
+
+    private Intent componentIntent(String packageName, String className) {
+        Intent intent = new Intent();
+        intent.setComponent(new ComponentName(packageName, className));
+        return intent;
+    }
+
+    private String batteryGuideText() {
+        return "Forwarding miss কমাতে app background-এ চালু রাখতে হবে।\n\n"
+            + "Your phone: " + manufacturerLabel() + "\n"
+            + manufacturerGuide() + "\n\n"
+            + "সব ফোনে করুন:\n"
+            + "1) Battery optimization: Not optimized/Unrestricted\n"
+            + "2) Autostart/Auto launch: Allow\n"
+            + "3) Background data/activity: Allow\n"
+            + "4) Notification access/SMS permission: On\n"
+            + "5) Recent apps screen-এ Mouno Forwarder lock করে রাখুন যদি option থাকে।";
+    }
+
+    private String manufacturerGuide() {
+        String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
+            return "Xiaomi/Redmi/Poco: Security app > Autostart > Mouno Forwarder On; Battery saver > No restrictions.";
+        }
+        if (manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus")) {
+            return "Oppo/Realme/OnePlus: Phone Manager/Settings > App management > Auto launch On; Battery > Allow background activity.";
+        }
+        if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+            return "Vivo/iQOO: i Manager > App manager > Autostart On; Battery > Background power consumption allowed.";
+        }
+        if (manufacturer.contains("samsung")) {
+            return "Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add Mouno Forwarder; Battery usage > Unrestricted.";
+        }
+        if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
+            return "Huawei/Honor: Phone Manager > App launch > Manage manually > Auto-launch, Secondary launch, Run in background On.";
+        }
+        return "Settings search করুন: Autostart, Auto launch, Battery optimization, Background activity — সব জায়গায় Mouno Forwarder allow করুন.";
+    }
+
+    private String manufacturerLabel() {
+        String manufacturer = Build.MANUFACTURER == null || Build.MANUFACTURER.trim().isEmpty() ? "Unknown" : Build.MANUFACTURER.trim();
+        String model = Build.MODEL == null || Build.MODEL.trim().isEmpty() ? "" : " " + Build.MODEL.trim();
+        return manufacturer + model;
     }
 
     private void registerConnectivityFlush() {
