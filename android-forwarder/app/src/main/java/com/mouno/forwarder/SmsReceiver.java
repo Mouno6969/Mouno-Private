@@ -32,7 +32,7 @@ public class SmsReceiver extends BroadcastReceiver {
 
     private static boolean isTrustedBkashSender(String sender) {
         String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
-        return value.contains("bkash") || value.equals("16247");
+        return value.equals("bkash") || value.equals("16247");
     }
 
     private static boolean isBkashNotice(String text) {

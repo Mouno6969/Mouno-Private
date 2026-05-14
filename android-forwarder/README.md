@@ -34,4 +34,4 @@ Build `android-forwarder/` with Android Studio or run the GitHub Actions workflo
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.
 5. Keep the app installed. It forwards matching SMS/notifications from trusted bKash sources and retries queued notices every 5 minutes.
 
-The app only forwards SMS from trusted bKash senders (`bKash`/`16247`) and app notifications from packages whose name contains `bkash`. The bot still deduplicates by TrxID, so forwarding both SMS and notification is safe.
+The app only forwards SMS from trusted bKash senders (`bKash`/`16247`) and app notifications from known official bKash packages (`com.bKash.customerapp`, `com.bKash.merchantapp`, `com.bkash.businessapp`). The bot still deduplicates by TrxID, so forwarding both SMS and notification is safe.

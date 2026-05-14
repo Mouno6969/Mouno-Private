@@ -24,7 +24,10 @@ public class BkashNotificationListener extends NotificationListenerService {
     }
 
     private static boolean isTrustedBkashPackage(String packageName) {
-        return packageName != null && packageName.toLowerCase(Locale.ROOT).contains("bkash");
+        String value = packageName == null ? "" : packageName.trim().toLowerCase(Locale.ROOT);
+        return value.equals("com.bkash.customerapp")
+            || value.equals("com.bkash.merchantapp")
+            || value.equals("com.bkash.businessapp");
     }
 
     private static boolean isBkashNotice(String text) {
