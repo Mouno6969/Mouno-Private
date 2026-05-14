@@ -32,6 +32,7 @@ Build `android-forwarder/` with Android Studio or run the GitHub Actions workflo
 2. Tap **Allow SMS Permission**.
 3. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.
-5. Keep the app installed. It forwards matching SMS/notifications from trusted bKash sources and retries queued notices every 5 minutes.
+5. Keep the app installed. It parses matching SMS/notifications from trusted bKash sources on the phone, stores parsed notices locally if the phone is offline, and retries queued uploads every 5 minutes.
 
 The app only forwards SMS from trusted bKash senders (`bKash`/`16247`) and app notifications from known official bKash packages (`com.bKash.customerapp`, `com.bKash.merchantapp`, `com.bkash.businessapp`). The bot still deduplicates by TrxID, so forwarding both SMS and notification is safe.
+Offline parsing only happens inside the Android app; bot order matching still runs after the phone regains internet and uploads the queued notice.

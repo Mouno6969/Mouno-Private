@@ -4,6 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkRequest;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,6 +23,7 @@ public class MainActivity extends Activity {
     private EditText sellerTokenInput;
     private EditText secretInput;
     private CheckBox sellerModeInput;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +94,7 @@ public class MainActivity extends Activity {
 
         setContentView(layout);
         requestSmsPermissions();
+        registerConnectivityFlush();
         ForwarderClient.scheduleRetry(this);
         ForwarderClient.flushQueue(this);
     }
@@ -102,8 +107,18 @@ public class MainActivity extends Activity {
             + "Admin secret: " + (ForwarderConfig.hasForwarderSecret(this) ? "configured" : "not set") + "\n"
             + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + "\n"
             + "Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+            + "Offline parsed bKash notices: " + BkashNoticeHistory.totalParsed(this) + "\n"
+            + "Queued notices waiting upload: " + NoticeQueue.count(this) + "\n"
+            + "Latest parsed: " + latestParsedText() + "\n"
             + "Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save URL and required token/secret") + "\n\n"
-            + "Sellers use Seller mode with SMS token. Main/admin phone uses main/admin mode with FORWARDER_SECRET. Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.";
+            + "Sellers use Seller mode with SMS token. Main/admin phone uses main/admin mode with FORWARDER_SECRET. The app parses trusted bKash notices on-device, stores them if offline, and uploads them when internet returns.";
+    }
+
+    private String latestParsedText() {
+        String queued = NoticeQueue.latestSummary(this);
+        if (!queued.isEmpty()) return queued + " (queued)";
+        String last = BkashNoticeHistory.lastSummary(this);
+        return last.isEmpty() ? "none" : last;
     }
 
     private void saveConfig() {
@@ -136,6 +151,38 @@ public class MainActivity extends Activity {
             startActivity(intent);
         } catch (Exception exc) {
             startActivity(new Intent(Settings.ACTION_SETTINGS));
+        }
+    }
+
+    private void registerConnectivityFlush() {
+        if (Build.VERSION.SDK_INT < 21 || networkCallback != null) return;
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (manager == null) return;
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                ForwarderClient.flushQueue(MainActivity.this);
+                runOnUiThread(() -> {
+                    if (status != null) status.setText(statusText() + "\nInternet available. Retry started.");
+                });
+            }
+        };
+        try {
+            manager.registerNetworkCallback(new NetworkRequest.Builder().build(), networkCallback);
+        } catch (Exception exc) {
+            networkCallback = null;
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (Build.VERSION.SDK_INT >= 21 && networkCallback != null) {
+            ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            try {
+                if (manager != null) manager.unregisterNetworkCallback(networkCallback);
+            } catch (Exception ignored) {
+            }
         }
     }
 

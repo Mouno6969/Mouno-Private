@@ -32,6 +32,27 @@ final class NoticeQueue {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, new LinkedHashSet<>(rows)).apply();
     }
 
+    static synchronized int count(Context context) {
+        return snapshot(context).size();
+    }
+
+    static synchronized String latestSummary(Context context) {
+        String latest = "";
+        long latestReceivedAt = -1L;
+        for (String row : snapshot(context)) {
+            try {
+                JSONObject notice = decode(row);
+                long receivedAt = notice.optLong("received_at", 0L);
+                if (notice.optBoolean("parsed_bkash", false) && receivedAt >= latestReceivedAt) {
+                    latestReceivedAt = receivedAt;
+                    latest = notice.optString("trx_id", "") + " / " + notice.optDouble("amount_bdt", 0) + " BDT / " + notice.optString("notice_sender", "");
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return latest;
+    }
+
     static JSONObject decode(String row) throws Exception {
         byte[] bytes = Base64.decode(row, Base64.NO_WRAP);
         return new JSONObject(new String(bytes, StandardCharsets.UTF_8));

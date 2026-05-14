@@ -2,6 +2,9 @@ package com.mouno.forwarder;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 
@@ -18,6 +21,7 @@ import java.util.concurrent.Executors;
 
 final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final int NETWORK_FLUSH_JOB_ID = 202;
 
     private ForwarderClient() {}
 
@@ -35,12 +39,19 @@ final class ForwarderClient {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
             try {
-                flushQueueNow(appContext);
                 JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
-                if (!post(appContext, notice)) NoticeQueue.enqueue(appContext, notice);
+                flushQueueNow(appContext);
+                if (!post(appContext, notice)) {
+                    NoticeQueue.enqueue(appContext, notice);
+                    BkashNoticeHistory.recordIfParsed(appContext, notice);
+                    scheduleNetworkFlush(appContext);
+                }
             } catch (Exception exc) {
                 try {
-                    NoticeQueue.enqueue(appContext, makeNotice(appContext, endpoint, source, title, text));
+                    JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
+                    NoticeQueue.enqueue(appContext, notice);
+                    BkashNoticeHistory.recordIfParsed(appContext, notice);
+                    scheduleNetworkFlush(appContext);
                 } catch (Exception ignored) {
                 }
             }
@@ -52,6 +63,10 @@ final class ForwarderClient {
         EXECUTOR.execute(() -> flushQueueNow(appContext));
     }
 
+    static void flushQueueSync(Context context) {
+        flushQueueNow(context.getApplicationContext());
+    }
+
     static void scheduleRetry(Context context) {
         Intent intent = new Intent(context, RetryReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 101, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -59,6 +74,16 @@ final class ForwarderClient {
         if (alarmManager != null) {
             alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000L, 5 * 60_000L, pendingIntent);
         }
+    }
+
+    static void scheduleNetworkFlush(Context context) {
+        JobScheduler scheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+        if (scheduler == null) return;
+        JobInfo job = new JobInfo.Builder(NETWORK_FLUSH_JOB_ID, new ComponentName(context, NetworkFlushJobService.class))
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setPersisted(true)
+            .build();
+        scheduler.schedule(job);
     }
 
     private static void flushQueueNow(Context context) {
@@ -73,6 +98,7 @@ final class ForwarderClient {
             }
         }
         NoticeQueue.save(context, failed);
+        if (!failed.isEmpty()) scheduleNetworkFlush(context);
     }
 
     private static JSONObject makeNotice(Context context, String endpoint, String source, String title, String text) throws Exception {
@@ -83,6 +109,14 @@ final class ForwarderClient {
         json.put("text", text == null ? "" : text);
         json.put("device_id", ForwarderConfig.deviceId(context));
         json.put("received_at", System.currentTimeMillis());
+        BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
+        if (parsed != null) {
+            json.put("parsed_bkash", true);
+            json.put("amount_bdt", parsed.amountBdt);
+            json.put("trx_id", parsed.trxId);
+            json.put("notice_sender", parsed.sender);
+            if (parsed.noticeTime != null) json.put("notice_datetime", parsed.noticeTime);
+        }
         return json;
     }
 
