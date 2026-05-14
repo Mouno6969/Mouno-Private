@@ -12,7 +12,6 @@ public class SmsReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         PendingResult pendingResult = goAsync();
-        boolean handedOff = false;
         try {
             Bundle bundle = intent.getExtras();
             if (bundle == null) return;
@@ -32,15 +31,14 @@ public class SmsReceiver extends BroadcastReceiver {
             if (isTrustedBkashSender(sender) && parsed != null) {
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
                 ForwarderForegroundService.start(context);
-                ForwarderClient.sendSms(context, sender, text, pendingResult::finish);
-                handedOff = true;
+                ForwarderClient.queueSms(context, sender, text);
                 return;
             }
             if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
                 ForwardingStats.recordPhoneEvent(context, "SMS ignored before send: not a parseable payment from " + sender);
             }
         } finally {
-            if (!handedOff) pendingResult.finish();
+            pendingResult.finish();
         }
     }
 

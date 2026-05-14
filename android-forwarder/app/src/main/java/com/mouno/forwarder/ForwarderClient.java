@@ -46,6 +46,20 @@ final class ForwarderClient {
         send(context, "sms", "sms", sender, body, onComplete);
     }
 
+    static void queueSms(Context context, String sender, String body) {
+        if (!BuildConfig.FORWARD_SMS) return;
+        Context appContext = context.getApplicationContext();
+        try {
+            JSONObject notice = makeNotice(appContext, "sms", "sms", sender, body);
+            NoticeQueue.enqueue(appContext, notice);
+            BkashNoticeHistory.recordIfParsed(appContext, notice);
+            scheduleNetworkFlush(appContext);
+            flushQueue(appContext);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(appContext, "Queue SMS failed: " + exc.getClass().getSimpleName());
+        }
+    }
+
     static void sendNotification(Context context, String appName, String title, String text) {
         sendNotification(context, appName, title, text, null);
     }
