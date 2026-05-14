@@ -199,6 +199,21 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         self.assertFalse(response.json["manual_review"])
         self.assertEqual(len(self.calls), 1)
 
+    def test_accepts_real_bkash_received_sms_wording(self):
+        webhook.FORWARDER_SECRET = None
+
+        response = webhook.app.test_client().post(
+            "/sms",
+            data="You have received Tk 1.00 from 01773076694. Ref 1234. Fee Tk 0.00. Balance Tk 94.69. TrxID DEF88BZRY8 at 15/05/2026 03:05",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["parsed"])
+        self.assertEqual(response.json["payment_status"], "parsed")
+        self.assertEqual(response.json["trx_id"], "DEF88BZRY8")
+        self.assertEqual(response.json["amount_bdt"], 1.0)
+        self.assertEqual(len(self.calls), 1)
+
     def test_ack_includes_callback_payment_outcome(self):
         webhook.FORWARDER_SECRET = None
         webhook.set_callback(lambda text, source, meta=None: {
