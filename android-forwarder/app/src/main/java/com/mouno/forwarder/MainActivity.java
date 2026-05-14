@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private static final int SUCCESS = Color.rgb(22, 163, 74);
     private static final int WARNING = Color.rgb(217, 119, 6);
     private static final int ERROR = Color.rgb(220, 38, 38);
+    private static final String BASE_URL_WARNING = "Base URL only দিন। Example: https://your-bot-server.example.com — শেষে /sms, /notification, বা /seller/... দেবেন না।";
     private static final long STATUS_REFRESH_INTERVAL_MS = 1_500L;
 
     private TextView configDetails;
@@ -324,7 +325,12 @@ public class MainActivity extends Activity {
     }
 
     private void checkServer() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        String warning = setupValidationWarning();
+        if (warning != null) {
+            showSetupWarning(warning);
+            return;
+        }
+        ForwarderConfig.save(this, normalizedServerInput(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(WARNING);
@@ -340,9 +346,16 @@ public class MainActivity extends Activity {
     }
 
     private void saveConfig() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        String warning = setupValidationWarning();
+        if (warning != null) {
+            showSetupWarning(warning);
+            return;
+        }
+        ForwarderConfig.save(this, normalizedServerInput(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
+        healthStatus.setTextColor(SUCCESS);
+        healthStatus.setText("Setup saved / সেটআপ সেভ হয়েছে.");
         retryStatus.setTextColor(SUCCESS);
         retryStatus.setText("Setup saved / সেটআপ সেভ হয়েছে.");
         ForwarderClient.flushQueue(this, this::refreshStatus);
@@ -363,6 +376,65 @@ public class MainActivity extends Activity {
 
     private boolean isSellerModeSelected() {
         return sellerModeInput != null && sellerModeInput.isChecked();
+    }
+
+    private String setupValidationWarning() {
+        String baseUrl = normalizedServerInput();
+        if (baseUrl.isEmpty()) {
+            serverInput.requestFocus();
+            return "Server base URL দিন। Example: https://your-bot-server.example.com";
+        }
+        if (baseUrl.matches(".*\\s+.*")) {
+            serverInput.requestFocus();
+            return "URL-এর ভেতরে space থাকবে না। Example: https://your-bot-server.example.com";
+        }
+
+        Uri uri = Uri.parse(baseUrl);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (!("https".equals(scheme) || "http".equals(scheme)) || uri.getHost() == null || uri.getHost().trim().isEmpty()) {
+            serverInput.requestFocus();
+            return "URL অবশ্যই http:// বা https:// দিয়ে শুরু হতে হবে। Example: https://your-bot-server.example.com";
+        }
+        if (uri.getQuery() != null || uri.getFragment() != null) {
+            serverInput.requestFocus();
+            return "URL-এ ?token= বা # কিছু দেবেন না। Token/secret নিচের নির্দিষ্ট field-এ paste করুন।";
+        }
+
+        String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
+        while (path.endsWith("/") && path.length() > 1) path = path.substring(0, path.length() - 1);
+        if (path.equals("/seller")
+            || path.startsWith("/seller/")
+            || path.endsWith("/sms")
+            || path.endsWith("/notification")
+            || path.endsWith("/bkash-notification")
+            || path.endsWith("/forwarder-health")) {
+            serverInput.requestFocus();
+            return BASE_URL_WARNING;
+        }
+
+        if (isSellerModeSelected()) {
+            if (sellerTokenInput.getText().toString().trim().isEmpty()) {
+                sellerTokenInput.requestFocus();
+                return "Seller phone select করা আছে — Seller SMS token paste করুন।";
+            }
+        } else if (secretInput.getText().toString().trim().isEmpty()) {
+            secretInput.requestFocus();
+            return "Admin/main phone select করা আছে — FORWARDER_SECRET paste করুন।";
+        }
+        return null;
+    }
+
+    private String normalizedServerInput() {
+        String value = serverInput.getText().toString().trim();
+        while (value.endsWith("/") && value.length() > 1) value = value.substring(0, value.length() - 1);
+        return value;
+    }
+
+    private void showSetupWarning(String warning) {
+        updateModeFields();
+        refreshStatus();
+        healthStatus.setTextColor(ERROR);
+        healthStatus.setText("⚠️ " + warning);
     }
 
     private void requestSmsPermissions() {

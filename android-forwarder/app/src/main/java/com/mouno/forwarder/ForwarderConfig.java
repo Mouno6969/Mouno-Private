@@ -2,6 +2,7 @@ package com.mouno.forwarder;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.provider.Settings;
 
 final class ForwarderConfig {
@@ -43,8 +44,25 @@ final class ForwarderConfig {
 
     static boolean isConfigured(Context context) {
         String base = baseUrl(context);
-        if (base.isEmpty() || base.contains("YOUR_SERVER")) return false;
+        if (base.isEmpty() || base.contains("YOUR_SERVER") || !isBaseUrlValid(base)) return false;
         return isSellerMode(context) ? !sellerToken(context).isEmpty() : hasForwarderSecret(context);
+    }
+
+    static boolean isBaseUrlValid(String baseUrl) {
+        String value = baseUrl == null ? "" : baseUrl.trim();
+        if (value.isEmpty() || value.matches(".*\\s+.*")) return false;
+        Uri uri = Uri.parse(value);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (!("https".equals(scheme) || "http".equals(scheme)) || uri.getHost() == null || uri.getHost().trim().isEmpty()) return false;
+        if (uri.getQuery() != null || uri.getFragment() != null) return false;
+        String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase();
+        while (path.endsWith("/") && path.length() > 1) path = path.substring(0, path.length() - 1);
+        return !(path.equals("/seller")
+            || path.startsWith("/seller/")
+            || path.endsWith("/sms")
+            || path.endsWith("/notification")
+            || path.endsWith("/bkash-notification")
+            || path.endsWith("/forwarder-health"));
     }
 
     static String endpoint(Context context, String kind) {
