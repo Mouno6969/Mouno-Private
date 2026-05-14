@@ -454,12 +454,14 @@ public class MainActivity extends Activity {
     }
 
     private void startBackgroundService() {
-        ForwarderForegroundService.start(this);
+        boolean started = ForwarderForegroundService.start(this);
         ForwarderClient.scheduleRetry(this);
         refreshStatus();
         if (retryStatus != null) {
-            retryStatus.setTextColor(SUCCESS);
-            retryStatus.setText("Background service started. Keep the SCB-Forwarder notification visible.");
+            retryStatus.setTextColor(started ? SUCCESS : ERROR);
+            retryStatus.setText(started
+                ? "Background service started. Keep the SCB-Forwarder notification visible."
+                : "Background service could not start. Disable battery restrictions/autostart blocking, then tap Start Background Service again.");
         }
     }
 

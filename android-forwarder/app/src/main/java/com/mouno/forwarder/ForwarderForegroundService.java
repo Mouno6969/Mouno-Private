@@ -27,7 +27,7 @@ public class ForwarderForegroundService extends Service {
         }
     };
 
-    static void start(Context context) {
+    static boolean start(Context context) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
         try {
             if (Build.VERSION.SDK_INT >= 26) {
@@ -35,7 +35,12 @@ public class ForwarderForegroundService extends Service {
             } else {
                 context.getApplicationContext().startService(intent);
             }
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(context, "Background service start failed: " + exc.getClass().getSimpleName());
+            ForwarderClient.scheduleRetry(context);
+            ForwarderClient.scheduleNetworkFlush(context);
+            return false;
         }
     }
 
