@@ -7,6 +7,8 @@ import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 
 import org.json.JSONObject;
 
@@ -59,8 +61,15 @@ final class ForwarderClient {
     }
 
     static void flushQueue(Context context) {
+        flushQueue(context, null);
+    }
+
+    static void flushQueue(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
-        EXECUTOR.execute(() -> flushQueueNow(appContext));
+        EXECUTOR.execute(() -> {
+            flushQueueNow(appContext);
+            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+        });
     }
 
     static void flushQueueSync(Context context) {
@@ -121,7 +130,10 @@ final class ForwarderClient {
     }
 
     private static boolean post(Context context, JSONObject notice) {
-        if (!ForwarderConfig.isConfigured(context)) return false;
+        if (!ForwarderConfig.isConfigured(context)) {
+            ForwardingStats.recordFailure(context, "Forwarder is not configured");
+            return false;
+        }
         HttpURLConnection connection = null;
         try {
             String endpoint = notice.optString("endpoint", "notification");
@@ -141,8 +153,15 @@ final class ForwarderClient {
                 stream.write(body);
             }
             int code = connection.getResponseCode();
-            return code >= 200 && code < 300;
+            boolean ok = code >= 200 && code < 300;
+            if (ok) {
+                ForwardingStats.recordSuccess(context, endpoint);
+            } else {
+                ForwardingStats.recordFailure(context, "HTTP " + code + " from " + endpoint + " endpoint");
+            }
+            return ok;
         } catch (Exception exc) {
+            ForwardingStats.recordFailure(context, exc.getClass().getSimpleName() + ": " + exc.getMessage());
             return false;
         } finally {
             if (connection != null) connection.disconnect();
