@@ -24,6 +24,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -81,6 +82,14 @@ public class MainActivity extends Activity {
         int pad = dp(20);
         layout.setPadding(pad, pad, pad, pad);
         scroll.addView(layout);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.app_logo);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(80), dp(80));
+        logoParams.setMargins(0, 0, 0, dp(10));
+        layout.addView(logo, logoParams);
 
         TextView title = new TextView(this);
         title.setText("Mouno Forwarder");
