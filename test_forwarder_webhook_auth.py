@@ -98,6 +98,27 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         self.assertEqual(self.calls[0][2], {"admin_parse_alert_sent": True})
         self.assertIn("bKash Payment Received Tk 2.0 TrxID DEE987XNRV", self.calls[0][0])
 
+    def test_structured_parse_callback_ignores_conflicting_trx_in_raw_text(self):
+        webhook.FORWARDER_SECRET = None
+
+        response = webhook.app.test_client().post(
+            "/notification",
+            json={
+                "source": "sms_notification",
+                "title": "bKash",
+                "text": "Payment notification text was truncated TrxID WRONG123",
+                "parsed_bkash": True,
+                "amount_bdt": 2.0,
+                "trx_id": "DEE987XNRV",
+                "notice_sender": "01773076694",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["parsed"])
+        self.assertEqual(self.calls[0][0], "bKash Payment Received Tk 2.0 TrxID DEE987XNRV")
+        self.assertEqual(webhook.parse_bkash_payment_notice(self.calls[0][0])["trx_id"], "DEE987XNRV")
+
     def test_rejects_forwarder_notice_without_secret_when_configured(self):
         webhook.FORWARDER_SECRET = "test-secret"
 

@@ -193,7 +193,7 @@ def parsed_notice_from_forwarder_data(data):
 def callback_notice_text(all_text, parsed, used_structured_parse):
     if not used_structured_parse:
         return all_text
-    return f"{all_text} bKash Payment Received Tk {parsed['amount_bdt']} TrxID {parsed['trx_id']}"
+    return f"bKash Payment Received Tk {parsed['amount_bdt']} TrxID {parsed['trx_id']}"
 
 
 def handle_payment_notice(source):
