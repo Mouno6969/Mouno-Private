@@ -2,10 +2,11 @@ import logging
 import re
 from html import escape
 
+import requests
 from flask import Flask, jsonify, request
 
 from balance import get_all_balances, get_native_gas_balances
-from config import DASHBOARD_TOKEN, FORWARDER_SECRET
+from config import ADMIN_ID, BOT_TOKEN, DASHBOARD_TOKEN, FORWARDER_SECRET
 from db import dashboard_snapshot, get_seller_by_sms_token, get_webhook_health, touch_webhook_notice
 
 app = Flask(__name__)
@@ -68,6 +69,40 @@ def _safe_raw_log(raw):
         text = text.replace(FORWARDER_SECRET, "[REDACTED]")
     text = re.sub(r'(?i)(forwarder_secret|token|authorization|api_key|secret)"?\s*[:=]\s*"?[^",\s}]+', r"\1=[REDACTED]", text)
     return text
+
+
+def _short_notice_text(text):
+    value = " ".join(str(text or "").split())
+    if not value:
+        return "N/A"
+    return value[:700] + ("..." if len(value) > 700 else "")
+
+
+def notify_admin_parsed_notice(parsed, source, text, scope="main", seller_id=None):
+    if not BOT_TOKEN or not ADMIN_ID:
+        return False
+    seller_line = f"\n🏪 Seller: {seller_id}" if seller_id else ""
+    message = (
+        "📲 bKash notice parsed by app/webhook\n\n"
+        f"📩 Source: {source}\n"
+        f"🔎 Scope: {scope}{seller_line}\n"
+        f"💵 Amount: {parsed['amount_bdt']} BDT\n"
+        f"🔑 TrxID: {parsed['trx_id']}\n"
+        f"📝 Message: {_short_notice_text(text)}"
+    )
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": ADMIN_ID, "text": message},
+            timeout=5,
+        )
+        if response.status_code >= 400:
+            logger.error("Admin bKash parse alert failed: HTTP %s %s", response.status_code, response.text[:300])
+            return False
+        return True
+    except Exception as exc:
+        logger.error("Admin bKash parse alert failed: %s", exc)
+        return False
 
 
 def parse_bkash_sms(text):
@@ -151,13 +186,17 @@ def handle_payment_notice(source):
     parsed = parse_bkash_payment_notice(all_text)
     if parsed and _callback:
         touch_webhook_notice(f"seller_{source}" if token else source, parsed.get("trx_id"), parsed.get("amount_bdt"))
-        meta = {"seller_token": token} if token else {}
+        alert_sent = notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
+        meta = {"admin_parse_alert_sent": True} if alert_sent else {}
+        if token:
+            meta["seller_token"] = token
         try:
             _callback(all_text, source, meta)
         except TypeError:
             _callback(all_text, source)
         logger.info("bKash %s parsed: %s", source, parsed)
     elif parsed:
+        notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
         logger.warning("bKash %s parsed but callback is not ready: %s", source, parsed)
     else:
         logger.info("Not a supported bKash payment notice: %s", all_text[:100])

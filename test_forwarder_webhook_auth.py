@@ -14,17 +14,51 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         if webhook is None:
             self.skipTest(f"webhook dependencies unavailable: {IMPORT_ERROR}")
         self.old_secret = webhook.FORWARDER_SECRET
+        self.old_bot_token = webhook.BOT_TOKEN
+        self.old_admin_id = webhook.ADMIN_ID
         self.old_touch = webhook.touch_webhook_notice
         self.old_get_seller = webhook.get_seller_by_sms_token
+        self.old_requests_post = webhook.requests.post
         self.calls = []
+        webhook.BOT_TOKEN = None
+        webhook.ADMIN_ID = None
         webhook.touch_webhook_notice = lambda *args, **kwargs: None
         webhook.set_callback(lambda text, source, meta=None: self.calls.append((text, source, meta)))
 
     def tearDown(self):
         webhook.FORWARDER_SECRET = self.old_secret
+        webhook.BOT_TOKEN = self.old_bot_token
+        webhook.ADMIN_ID = self.old_admin_id
         webhook.touch_webhook_notice = self.old_touch
         webhook.get_seller_by_sms_token = self.old_get_seller
+        webhook.requests.post = self.old_requests_post
         webhook.set_callback(None)
+
+    def test_server_sends_admin_parse_alert_immediately(self):
+        webhook.FORWARDER_SECRET = None
+        webhook.BOT_TOKEN = "bot-token"
+        webhook.ADMIN_ID = "admin-1"
+        posts = []
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        def fake_post(url, **kwargs):
+            posts.append((url, kwargs))
+            return Response()
+
+        webhook.requests.post = fake_post
+
+        response = webhook.app.test_client().post("/notification", json={"text": "bKash Payment Received Tk 500 TrxID ABC123XYZ"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(posts), 1)
+        self.assertIn("botbot-token/sendMessage", posts[0][0])
+        self.assertEqual(posts[0][1]["json"]["chat_id"], "admin-1")
+        self.assertIn("bKash notice parsed", posts[0][1]["json"]["text"])
+        self.assertIn("ABC123XYZ", posts[0][1]["json"]["text"])
+        self.assertEqual(self.calls[0][2], {"admin_parse_alert_sent": True})
 
     def test_rejects_forwarder_notice_without_secret_when_configured(self):
         webhook.FORWARDER_SECRET = "test-secret"
