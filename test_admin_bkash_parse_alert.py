@@ -51,7 +51,7 @@ class AdminBkashParseAlertTests(unittest.IsolatedAsyncioTestCase):
         app = FakeApp()
         bot.trx_exists = lambda trx_id: True
 
-        await bot.process_bkash(app, "bKash Payment Received Tk 500 TrxID ABC123XYZ", "bkash_sms")
+        outcome = await bot.process_bkash(app, "bKash Payment Received Tk 500 TrxID ABC123XYZ", "bkash_sms")
 
         self.assertEqual(len(app.bot.messages), 1)
         chat_id, text, _kwargs = app.bot.messages[0]
@@ -60,11 +60,13 @@ class AdminBkashParseAlertTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ABC123XYZ", text)
         self.assertIn("500.0 BDT", text)
         self.assertIn("Scope: main", text)
+        self.assertEqual(outcome["payment_status"], "duplicate")
+        self.assertTrue(outcome["duplicate"])
 
     async def test_does_not_duplicate_webhook_sent_parse_alert(self):
         app = FakeApp()
 
-        await bot.process_bkash(
+        outcome = await bot.process_bkash(
             app,
             "bKash Payment Received Tk 500 TrxID ABC123XYZ",
             "bkash_sms",
@@ -72,12 +74,13 @@ class AdminBkashParseAlertTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(app.bot.messages, [])
+        self.assertEqual(outcome["payment_status"], "parsed")
 
     async def test_alerts_admin_for_seller_scoped_notice(self):
         app = FakeApp()
         bot.get_seller_by_sms_token = lambda token: ("seller-1", "user", "name", "bkash", "support", "approved")
 
-        await bot.process_bkash(
+        outcome = await bot.process_bkash(
             app,
             "bKash Payment Received Tk 700 TrxID SELLER123",
             "bkash_app_notification",
@@ -90,6 +93,7 @@ class AdminBkashParseAlertTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Scope: seller", text)
         self.assertIn("Seller: seller-1", text)
         self.assertIn("SELLER123", text)
+        self.assertEqual(outcome["payment_status"], "duplicate")
 
 
 if __name__ == "__main__":

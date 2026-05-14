@@ -34,6 +34,7 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     private static final int PRIMARY = Color.rgb(49, 46, 129);
     private static final int PRIMARY_LIGHT = Color.rgb(224, 231, 255);
+    private static final int ACCENT = Color.rgb(14, 165, 233);
     private static final int SUCCESS = Color.rgb(22, 163, 74);
     private static final int WARNING = Color.rgb(217, 119, 6);
     private static final int ERROR = Color.rgb(220, 38, 38);
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
     private static final long STATUS_REFRESH_INTERVAL_MS = 1_500L;
 
     private TextView configDetails;
+    private TextView paymentOutcomeDetails;
     private TextView forwardingDetails;
     private TextView queueDetails;
     private TextView retryStatus;
@@ -84,27 +86,28 @@ public class MainActivity extends Activity {
         layout.setPadding(pad, pad, pad, pad);
         scroll.addView(layout);
 
+        LinearLayout hero = heroCard(layout);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.app_logo);
         logo.setAdjustViewBounds(true);
         logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(80), dp(80));
-        logoParams.setMargins(0, 0, 0, dp(10));
-        layout.addView(logo, logoParams);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(72), dp(72));
+        logoParams.setMargins(0, 0, 0, dp(12));
+        hero.addView(logo, logoParams);
 
         TextView title = new TextView(this);
-        title.setText("SCB-Forwarder");
-        title.setTextColor(isDarkMode() ? PRIMARY_LIGHT : PRIMARY);
+        title.setText("SCB Forwarder");
+        title.setTextColor(Color.WHITE);
         title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        layout.addView(title);
+        hero.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("bKash SMS/notification parsing, queueing, and delivery status");
-        subtitle.setTextColor(mutedTextColor);
+        subtitle.setText("Real-time bKash payment forwarding and server ACK tracking");
+        subtitle.setTextColor(Color.rgb(219, 234, 254));
         subtitle.setTextSize(14);
-        subtitle.setPadding(0, dp(4), 0, dp(16));
-        layout.addView(subtitle);
+        subtitle.setPadding(0, dp(4), 0, 0);
+        hero.addView(subtitle);
 
         LinearLayout configCard = card(layout, "Setup / সেটআপ", PRIMARY);
         serverInput = input("https://your-bot-server.example.com", ForwarderConfig.baseUrl(this));
@@ -145,7 +148,12 @@ public class MainActivity extends Activity {
         configCard.addView(healthStatus);
         updateModeFields();
 
-        LinearLayout statusCard = card(layout, "Forwarding stats / ফরওয়ার্ড স্ট্যাটাস", SUCCESS);
+        LinearLayout paymentCard = card(layout, "Payment outcome / পেমেন্ট ফলাফল", ACCENT);
+        paymentOutcomeDetails = bodyText();
+        paymentOutcomeDetails.setTypeface(Typeface.DEFAULT_BOLD);
+        paymentCard.addView(paymentOutcomeDetails);
+
+        LinearLayout statusCard = card(layout, "Delivery stats / ডেলিভারি স্ট্যাটাস", SUCCESS);
         forwardingDetails = bodyText();
         statusCard.addView(forwardingDetails);
 
@@ -161,7 +169,7 @@ public class MainActivity extends Activity {
         retryStatus.setTextColor(mutedTextColor);
         queueCard.addView(retryStatus);
 
-        LinearLayout setupCard = card(layout, "Phone setup", PRIMARY);
+        LinearLayout setupCard = card(layout, "Phone setup / ফোন সেটআপ", PRIMARY);
         setupCard.addView(actionButton("Allow SMS Permission", v -> requestSmsPermissions()));
         setupCard.addView(actionButton("Enable Notification Access", v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
         setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
@@ -169,7 +177,7 @@ public class MainActivity extends Activity {
         configDetails = bodyText();
         setupCard.addView(configDetails);
 
-        LinearLayout batteryCard = card(layout, "Battery/autostart guide", WARNING);
+        LinearLayout batteryCard = card(layout, "Battery/autostart guide / ব্যাটারি গাইড", WARNING);
         TextView batteryGuide = bodyText();
         batteryGuide.setText(batteryGuideText());
         batteryCard.addView(batteryGuide);
@@ -186,21 +194,37 @@ public class MainActivity extends Activity {
 
     private void applyPalette() {
         boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        backgroundColor = dark ? Color.rgb(15, 23, 42) : Color.rgb(248, 250, 252);
-        cardColor = dark ? Color.rgb(30, 41, 59) : Color.WHITE;
+        backgroundColor = dark ? Color.rgb(2, 6, 23) : Color.rgb(241, 245, 249);
+        cardColor = dark ? Color.rgb(15, 23, 42) : Color.WHITE;
         textColor = dark ? Color.rgb(241, 245, 249) : Color.rgb(15, 23, 42);
         mutedTextColor = dark ? Color.rgb(148, 163, 184) : Color.rgb(71, 85, 105);
+    }
+
+    private LinearLayout heroCard(LinearLayout parent) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(18), dp(18), dp(18));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{PRIMARY, ACCENT});
+        bg.setCornerRadius(dp(22));
+        card.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(3));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, dp(16));
+        parent.addView(card, params);
+        return card;
     }
 
     private LinearLayout card(LinearLayout parent, String title, int accentColor) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(cardColor);
         bg.setCornerRadius(dp(18));
-        bg.setStroke(dp(1), withAlpha(accentColor, 70));
+        bg.setStroke(dp(1), isDarkMode() ? withAlpha(accentColor, 110) : Color.rgb(226, 232, 240));
         card.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(2));
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, 0, 0, dp(14));
@@ -209,7 +233,7 @@ public class MainActivity extends Activity {
         TextView header = new TextView(this);
         header.setText(title);
         header.setTextColor(accentColor);
-        header.setTextSize(18);
+        header.setTextSize(17);
         header.setTypeface(Typeface.DEFAULT_BOLD);
         header.setPadding(0, 0, 0, dp(10));
         card.addView(header);
@@ -225,7 +249,7 @@ public class MainActivity extends Activity {
         input.setHintTextColor(mutedTextColor);
         input.setTextSize(15);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(isDarkMode() ? Color.rgb(15, 23, 42) : Color.rgb(248, 250, 252));
+        bg.setColor(isDarkMode() ? Color.rgb(2, 6, 23) : Color.rgb(248, 250, 252));
         bg.setCornerRadius(dp(12));
         bg.setStroke(dp(1), isDarkMode() ? Color.rgb(71, 85, 105) : Color.rgb(203, 213, 225));
         input.setBackground(bg);
@@ -261,8 +285,8 @@ public class MainActivity extends Activity {
 
     private Button actionButton(String label, View.OnClickListener listener) {
         Button button = primaryButton(label);
-        button.setBackground(buttonBackground(PRIMARY_LIGHT, withAlpha(PRIMARY, 90)));
-        button.setTextColor(PRIMARY);
+        button.setBackground(buttonBackground(isDarkMode() ? Color.rgb(30, 41, 59) : PRIMARY_LIGHT, withAlpha(PRIMARY, 90)));
+        button.setTextColor(isDarkMode() ? Color.WHITE : PRIMARY);
         button.setOnClickListener(listener);
         return button;
     }
@@ -281,11 +305,15 @@ public class MainActivity extends Activity {
         TextView text = new TextView(this);
         text.setTextColor(textColor);
         text.setTextSize(15);
-        text.setLineSpacing(dp(2), 1.0f);
+        text.setLineSpacing(dp(3), 1.0f);
         return text;
     }
 
     private void refreshStatus() {
+        if (paymentOutcomeDetails != null) {
+            paymentOutcomeDetails.setText(ForwardingStats.paymentSummary(this));
+            paymentOutcomeDetails.setTextColor(paymentStatusColor(ForwardingStats.lastPaymentStatus(this)));
+        }
         if (forwardingDetails != null) {
             forwardingDetails.setText(ForwardingStats.summary(this));
             forwardingDetails.setTextColor(NoticeQueue.count(this) > 0 ? WARNING : SUCCESS);
@@ -363,6 +391,14 @@ public class MainActivity extends Activity {
 
     private String statusText(boolean ok) {
         return ok ? "OK" : "FAILED";
+    }
+
+    private int paymentStatusColor(String status) {
+        String value = status == null ? "" : status.trim();
+        if (value.equals("matched_order") || value.equals("parsed") || value.equals("accepted")) return SUCCESS;
+        if (value.equals("manual_review") || value.equals("duplicate")) return WARNING;
+        if (value.equals("ignored")) return mutedTextColor;
+        return textColor;
     }
 
     private void updateModeFields() {

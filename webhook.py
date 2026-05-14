@@ -1,5 +1,6 @@
 import logging
 import re
+from concurrent.futures import TimeoutError
 from html import escape
 
 import requests
@@ -196,6 +197,49 @@ def callback_notice_text(all_text, parsed, used_structured_parse):
     return f"bKash Payment Received Tk {parsed['amount_bdt']} TrxID {parsed['trx_id']}"
 
 
+def _payment_ack(parsed=None, payment_status=None, **extra):
+    payment_status = payment_status or ("parsed" if parsed else "ignored")
+    ack = {
+        "status": "ok",
+        "parsed": bool(parsed),
+        "payment_status": payment_status,
+        "matched_order": payment_status == "matched_order",
+        "duplicate": payment_status == "duplicate",
+        "manual_review": payment_status == "manual_review",
+    }
+    if parsed:
+        ack.update({
+            "trx_id": parsed.get("trx_id"),
+            "amount_bdt": parsed.get("amount_bdt"),
+            "notice_sender": parsed.get("sender"),
+        })
+    ack.update({key: value for key, value in extra.items() if value is not None})
+    return ack
+
+
+def _callback_payment_outcome(callback_result):
+    if callback_result is None:
+        return None
+    if hasattr(callback_result, "result"):
+        try:
+            callback_result = callback_result.result(timeout=8)
+        except TimeoutError:
+            return {
+                "payment_status": "parsed",
+                "processing_pending": True,
+                "message": "Server parsed the notice; bot processing is still running.",
+            }
+        except Exception as exc:
+            logger.error("bKash callback processing failed: %s", exc)
+            return {
+                "payment_status": "manual_review",
+                "manual_review": True,
+                "message": "Server parsed the notice, but bot processing failed and needs admin review.",
+                "error": str(exc),
+            }
+    return callback_result if isinstance(callback_result, dict) else None
+
+
 def handle_payment_notice(source):
     raw = request.get_data(as_text=True)
     data = request.get_json(silent=True) or {}
@@ -212,6 +256,7 @@ def handle_payment_notice(source):
     if not parsed:
         parsed = parsed_notice_from_forwarder_data(data)
         used_structured_parse = bool(parsed)
+    ack = _payment_ack(parsed)
     if parsed and _callback:
         touch_webhook_notice(f"seller_{source}" if token else source, parsed.get("trx_id"), parsed.get("amount_bdt"))
         alert_sent = notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
@@ -220,9 +265,16 @@ def handle_payment_notice(source):
             meta["seller_token"] = token
         notice_text = callback_notice_text(all_text, parsed, used_structured_parse)
         try:
-            _callback(notice_text, source, meta)
+            callback_result = _callback(notice_text, source, meta)
         except TypeError:
-            _callback(notice_text, source)
+            callback_result = _callback(notice_text, source)
+        outcome = _callback_payment_outcome(callback_result)
+        if outcome:
+            ack.update(outcome)
+            payment_status = ack.get("payment_status")
+            ack["matched_order"] = payment_status == "matched_order" or bool(ack.get("matched_order"))
+            ack["duplicate"] = payment_status == "duplicate" or bool(ack.get("duplicate"))
+            ack["manual_review"] = payment_status == "manual_review" or bool(ack.get("manual_review"))
         logger.info("bKash %s parsed: %s", source, parsed)
     elif parsed:
         notify_admin_parsed_notice(parsed, source, all_text, "seller" if token else "main", token)
@@ -230,7 +282,7 @@ def handle_payment_notice(source):
     else:
         logger.info("Not a supported bKash payment notice: %s", all_text[:100])
 
-    return jsonify({"status": "ok", "parsed": bool(parsed)})
+    return jsonify(ack)
 
 
 @app.route("/sms", methods=["POST"])
