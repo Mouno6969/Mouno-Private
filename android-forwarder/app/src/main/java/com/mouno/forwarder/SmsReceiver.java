@@ -25,7 +25,7 @@ public class SmsReceiver extends BroadcastReceiver {
             body.append(message.getMessageBody());
         }
         String text = body.toString();
-        if (isTrustedBkashSender(sender) && isBkashNotice(text)) {
+        if (isTrustedBkashSender(sender) && BkashNoticeParser.parse(text) != null) {
             ForwarderClient.sendSms(context, sender, text);
         }
     }
@@ -35,8 +35,4 @@ public class SmsReceiver extends BroadcastReceiver {
         return value.equals("bkash") || value.equals("16247");
     }
 
-    private static boolean isBkashNotice(String text) {
-        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
-    }
 }

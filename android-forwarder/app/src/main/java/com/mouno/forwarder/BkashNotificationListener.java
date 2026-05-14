@@ -18,7 +18,7 @@ public class BkashNotificationListener extends NotificationListenerService {
         String text = value(extras, Notification.EXTRA_TEXT);
         String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
         String all = (title + " " + text + " " + bigText).trim();
-        if (isTrustedBkashPackage(packageName) && isBkashNotice(all)) {
+        if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
             ForwarderClient.sendNotification(this, sbn.getPackageName(), title, all);
         } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
             ForwarderClient.sendNotification(this, "sms_notification", title, all);
