@@ -6,15 +6,15 @@ import java.util.regex.Pattern;
 
 final class BkashNoticeParser {
     private static final Pattern BKASH_MARKER = Pattern.compile("\\b(bkash)\\b|বিকাশ", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TRANSACTION_MARKER = Pattern.compile("\\bTrxID\\b|\\bTxnID\\b|Transaction ID", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TRANSACTION_MARKER = Pattern.compile("\\bTrx\\s*ID\\b|\\bTxn\\s*ID\\b|Transaction ID", Pattern.CASE_INSENSITIVE);
     private static final Pattern[] AMOUNT_PATTERNS = new Pattern[]{
         Pattern.compile("You have received\\s*(?:Tk|BDT|৳)\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("(?:received|Receive Money|Payment Received|Cash In)\\D{0,20}(?:Tk|BDT|৳)\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("(?:Tk|BDT|৳)\\s*([\\d,]+(?:\\.\\d+)?)\\D{0,40}(?:received|Receive Money|Payment Received|Cash In)", Pattern.CASE_INSENSITIVE)
     };
     private static final Pattern[] TRX_PATTERNS = new Pattern[]{
-        Pattern.compile("\\bTrxID\\s*[:#-]?\\s*([A-Z0-9]+)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("\\bTxnID\\s*[:#-]?\\s*([A-Z0-9]+)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("\\bTrx\\s*ID\\s*[:#-]?\\s*([A-Z0-9]+)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("\\bTxn\\s*ID\\s*[:#-]?\\s*([A-Z0-9]+)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("Transaction\\s*ID\\s*[:#-]?\\s*([A-Z0-9]+)", Pattern.CASE_INSENSITIVE)
     };
     private static final Pattern[] SENDER_PATTERNS = new Pattern[]{

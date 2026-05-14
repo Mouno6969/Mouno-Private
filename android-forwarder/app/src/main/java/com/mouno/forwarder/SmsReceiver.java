@@ -30,8 +30,8 @@ public class SmsReceiver extends BroadcastReceiver {
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
             if (isTrustedBkashSender(sender) && parsed != null) {
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
-                ForwarderForegroundService.start(context);
                 ForwarderClient.queueSms(context, sender, text);
+                ForwarderForegroundService.start(context);
                 return;
             }
             if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
@@ -49,6 +49,6 @@ public class SmsReceiver extends BroadcastReceiver {
 
     private static boolean isBkashNotice(String text) {
         String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
+        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("trx id") || lower.contains("txnid") || lower.contains("txn id") || text.contains("বিকাশ");
     }
 }

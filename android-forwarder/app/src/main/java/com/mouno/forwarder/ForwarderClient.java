@@ -48,19 +48,12 @@ final class ForwarderClient {
 
     static void queueSms(Context context, String sender, String body) {
         if (!BuildConfig.FORWARD_SMS) return;
-        Context appContext = context.getApplicationContext();
-        try {
-            JSONObject notice = makeNotice(appContext, "sms", "sms", sender, body);
-            if (!NoticeQueue.enqueueSync(appContext, notice)) {
-                ForwardingStats.recordFailure(appContext, "Queue SMS failed: commit returned false");
-                return;
-            }
-            BkashNoticeHistory.recordIfParsed(appContext, notice);
-            scheduleNetworkFlush(appContext);
-            flushQueue(appContext);
-        } catch (Exception exc) {
-            ForwardingStats.recordFailure(appContext, "Queue SMS failed: " + exc.getClass().getSimpleName());
-        }
+        queueNotice(context, "sms", "sms", sender, body, "SMS");
+    }
+
+    static void queueNotification(Context context, String appName, String title, String text) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
+        queueNotice(context, "notification", appName, title, text, "Notification");
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -118,6 +111,22 @@ final class ForwarderClient {
 
     static void flushQueueSync(Context context) {
         flushQueueNow(context.getApplicationContext());
+    }
+
+    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+        Context appContext = context.getApplicationContext();
+        try {
+            JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
+            if (!NoticeQueue.enqueueSync(appContext, notice)) {
+                ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
+                return;
+            }
+            BkashNoticeHistory.recordIfParsed(appContext, notice);
+            scheduleNetworkFlush(appContext);
+            flushQueue(appContext);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+        }
     }
 
     interface HealthCallback {
