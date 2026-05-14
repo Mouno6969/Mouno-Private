@@ -35,8 +35,7 @@ final class ForwardingStats {
 
     static String summary(Context context) {
         SharedPreferences prefs = prefs(context);
-        return "Forwarding stats\n"
-            + "Forwarded: " + prefs.getInt(KEY_SUCCESS_COUNT, 0) + "\n"
+        return "Forwarded: " + prefs.getInt(KEY_SUCCESS_COUNT, 0) + "\n"
             + "Failed/queued attempts: " + prefs.getInt(KEY_FAILURE_COUNT, 0) + "\n"
             + "Last forwarded notice time: " + formatTime(prefs.getLong(KEY_LAST_FORWARDED_AT, 0L)) + "\n"
             + "Last source: " + value(prefs.getString(KEY_LAST_SOURCE, ""), "none") + "\n"

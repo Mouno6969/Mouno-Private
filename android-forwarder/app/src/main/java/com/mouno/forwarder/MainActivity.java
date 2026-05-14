@@ -4,6 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkRequest;
@@ -11,108 +15,223 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
-    private TextView status;
+    private static final int PRIMARY = Color.rgb(49, 46, 129);
+    private static final int PRIMARY_LIGHT = Color.rgb(224, 231, 255);
+    private static final int SUCCESS = Color.rgb(22, 163, 74);
+    private static final int WARNING = Color.rgb(217, 119, 6);
+    private static final int ERROR = Color.rgb(220, 38, 38);
+
+    private TextView configDetails;
+    private TextView forwardingDetails;
+    private TextView queueDetails;
+    private TextView retryStatus;
     private EditText serverInput;
     private EditText sellerTokenInput;
     private EditText secretInput;
     private CheckBox sellerModeInput;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private int backgroundColor;
+    private int cardColor;
+    private int textColor;
+    private int mutedTextColor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyPalette();
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(backgroundColor);
+
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        int pad = 32;
+        int pad = dp(20);
         layout.setPadding(pad, pad, pad, pad);
+        scroll.addView(layout);
 
-        status = new TextView(this);
-        status.setTextSize(16);
-        status.setText(statusText());
-        layout.addView(status);
+        TextView title = new TextView(this);
+        title.setText("Mouno Forwarder");
+        title.setTextColor(isDarkMode() ? PRIMARY_LIGHT : PRIMARY);
+        title.setTextSize(28);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        layout.addView(title);
 
-        serverInput = new EditText(this);
-        serverInput.setHint("https://your-bot-server.example.com");
-        serverInput.setSingleLine(true);
-        serverInput.setText(ForwarderConfig.baseUrl(this));
-        layout.addView(serverInput);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("bKash SMS/notification parsing, queueing, and delivery status");
+        subtitle.setTextColor(mutedTextColor);
+        subtitle.setTextSize(14);
+        subtitle.setPadding(0, dp(4), 0, dp(16));
+        layout.addView(subtitle);
+
+        LinearLayout configCard = card(layout, "Configuration", PRIMARY);
+        serverInput = input("https://your-bot-server.example.com", ForwarderConfig.baseUrl(this));
+        configCard.addView(serverInput);
 
         sellerModeInput = new CheckBox(this);
         sellerModeInput.setText("Seller mode (use Seller SMS token)");
+        sellerModeInput.setTextColor(textColor);
         sellerModeInput.setChecked(ForwarderConfig.isSellerMode(this));
         sellerModeInput.setOnCheckedChangeListener((buttonView, isChecked) -> updateModeFields());
-        layout.addView(sellerModeInput);
+        configCard.addView(sellerModeInput);
 
-        sellerTokenInput = new EditText(this);
-        sellerTokenInput.setHint("Seller SMS token");
-        sellerTokenInput.setSingleLine(true);
-        sellerTokenInput.setText(ForwarderConfig.sellerToken(this));
-        layout.addView(sellerTokenInput);
+        sellerTokenInput = input("Seller SMS token", ForwarderConfig.sellerToken(this));
+        configCard.addView(sellerTokenInput);
 
-        secretInput = new EditText(this);
-        secretInput.setHint("Admin FORWARDER_SECRET");
-        secretInput.setSingleLine(true);
-        secretInput.setText(ForwarderConfig.forwarderSecret(this));
-        layout.addView(secretInput);
+        secretInput = input("Admin FORWARDER_SECRET", ForwarderConfig.forwarderSecret(this));
+        configCard.addView(secretInput);
 
+        Button saveButton = primaryButton("Save Forwarder Config");
+        saveButton.setOnClickListener(v -> saveConfig());
+        configCard.addView(saveButton);
         updateModeFields();
 
-        Button saveButton = new Button(this);
-        saveButton.setText("Save Forwarder Config");
-        saveButton.setOnClickListener(v -> saveConfig());
-        layout.addView(saveButton);
+        LinearLayout statusCard = card(layout, "Forwarding stats", SUCCESS);
+        forwardingDetails = bodyText();
+        statusCard.addView(forwardingDetails);
 
-        Button smsButton = new Button(this);
-        smsButton.setText("Allow SMS Permission");
-        smsButton.setOnClickListener(v -> requestSmsPermissions());
-        layout.addView(smsButton);
+        LinearLayout queueCard = card(layout, "Offline queue", WARNING);
+        queueDetails = bodyText();
+        queueCard.addView(queueDetails);
 
-        Button notificationButton = new Button(this);
-        notificationButton.setText("Enable Notification Access");
-        notificationButton.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        layout.addView(notificationButton);
+        Button retryButton = primaryButton("Retry queued notices now");
+        retryButton.setOnClickListener(v -> retryQueuedNotices());
+        queueCard.addView(retryButton);
 
-        Button batteryButton = new Button(this);
-        batteryButton.setText("Open Battery Optimization Settings");
-        batteryButton.setOnClickListener(v -> openBatterySettings());
-        layout.addView(batteryButton);
+        retryStatus = bodyText();
+        retryStatus.setTextColor(mutedTextColor);
+        queueCard.addView(retryStatus);
 
-        Button retryButton = new Button(this);
-        retryButton.setText("Retry queued notices now");
-        retryButton.setOnClickListener(v -> {
-            int queuedBefore = NoticeQueue.count(this);
-            status.setText(statusText() + "\nRetry started. Queue before retry: " + queuedBefore + ".");
-            ForwarderClient.flushQueue(this, () -> status.setText(statusText() + "\nRetry finished. Queue now: " + NoticeQueue.count(this) + "."));
-        });
-        layout.addView(retryButton);
+        LinearLayout setupCard = card(layout, "Phone setup", PRIMARY);
+        setupCard.addView(actionButton("Allow SMS Permission", v -> requestSmsPermissions()));
+        setupCard.addView(actionButton("Enable Notification Access", v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
+        setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
 
-        setContentView(layout);
+        configDetails = bodyText();
+        setupCard.addView(configDetails);
+
+        setContentView(scroll);
+        refreshStatus();
         requestSmsPermissions();
         registerConnectivityFlush();
         ForwarderClient.scheduleRetry(this);
-        ForwarderClient.flushQueue(this);
+        ForwarderClient.flushQueue(this, this::refreshStatus);
     }
 
-    private String statusText() {
-        return "Mouno Forwarder\n\n"
-            + "Server: " + ForwarderConfig.baseUrl(this) + "\n"
-            + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
-            + "Seller token: " + (ForwarderConfig.sellerToken(this).isEmpty() ? "not set" : "configured") + "\n"
-            + "Admin secret: " + (ForwarderConfig.hasForwarderSecret(this) ? "configured" : "not set") + "\n"
-            + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + "\n"
-            + "Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
-            + ForwardingStats.summary(this) + "\n"
-            + "Offline parsed bKash notices: " + BkashNoticeHistory.totalParsed(this) + "\n"
-            + "Latest parsed: " + latestParsedText() + "\n"
-            + "Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save URL and required token/secret") + "\n\n"
-            + "Sellers use Seller mode with SMS token. Main/admin phone uses main/admin mode with FORWARDER_SECRET. The app parses trusted bKash notices on-device, stores them if offline, and uploads them when internet returns.";
+    private void applyPalette() {
+        boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        backgroundColor = dark ? Color.rgb(15, 23, 42) : Color.rgb(248, 250, 252);
+        cardColor = dark ? Color.rgb(30, 41, 59) : Color.WHITE;
+        textColor = dark ? Color.rgb(241, 245, 249) : Color.rgb(15, 23, 42);
+        mutedTextColor = dark ? Color.rgb(148, 163, 184) : Color.rgb(71, 85, 105);
+    }
+
+    private LinearLayout card(LinearLayout parent, String title, int accentColor) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(cardColor);
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), withAlpha(accentColor, 70));
+        card.setBackground(bg);
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, dp(14));
+        parent.addView(card, params);
+
+        TextView header = new TextView(this);
+        header.setText(title);
+        header.setTextColor(accentColor);
+        header.setTextSize(18);
+        header.setTypeface(Typeface.DEFAULT_BOLD);
+        header.setPadding(0, 0, 0, dp(10));
+        card.addView(header);
+        return card;
+    }
+
+    private EditText input(String hint, String value) {
+        EditText input = new EditText(this);
+        input.setHint(hint);
+        input.setSingleLine(true);
+        input.setText(value);
+        input.setTextColor(textColor);
+        input.setHintTextColor(mutedTextColor);
+        input.setTextSize(15);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(isDarkMode() ? Color.rgb(15, 23, 42) : Color.rgb(248, 250, 252));
+        bg.setCornerRadius(dp(12));
+        bg.setStroke(dp(1), isDarkMode() ? Color.rgb(71, 85, 105) : Color.rgb(203, 213, 225));
+        input.setBackground(bg);
+        input.setPadding(dp(12), dp(8), dp(12), dp(8));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, dp(10));
+        input.setLayoutParams(params);
+        return input;
+    }
+
+    private Button primaryButton(String label) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(14);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(PRIMARY);
+        bg.setCornerRadius(dp(14));
+        button.setBackground(bg);
+        button.setPadding(dp(12), dp(8), dp(12), dp(8));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, dp(6), 0, dp(4));
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private Button actionButton(String label, View.OnClickListener listener) {
+        Button button = primaryButton(label);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(PRIMARY_LIGHT);
+        bg.setCornerRadius(dp(14));
+        button.setBackground(bg);
+        button.setTextColor(PRIMARY);
+        button.setOnClickListener(listener);
+        return button;
+    }
+
+    private TextView bodyText() {
+        TextView text = new TextView(this);
+        text.setTextColor(textColor);
+        text.setTextSize(15);
+        text.setLineSpacing(dp(2), 1.0f);
+        return text;
+    }
+
+    private void refreshStatus() {
+        if (forwardingDetails != null) {
+            forwardingDetails.setText(ForwardingStats.summary(this));
+            forwardingDetails.setTextColor(NoticeQueue.count(this) > 0 ? WARNING : SUCCESS);
+        }
+        if (queueDetails != null) {
+            queueDetails.setText("Queue count: " + NoticeQueue.count(this) + "\n"
+                + "Offline parsed bKash notices: " + BkashNoticeHistory.totalParsed(this) + "\n"
+                + "Latest parsed: " + latestParsedText());
+            queueDetails.setTextColor(NoticeQueue.count(this) > 0 ? WARNING : SUCCESS);
+        }
+        if (configDetails != null) {
+            configDetails.setText("Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save URL and required token/secret") + "\n"
+                + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
+                + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+                + "Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.");
+            configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
+        }
     }
 
     private String latestParsedText() {
@@ -122,11 +241,25 @@ public class MainActivity extends Activity {
         return last.isEmpty() ? "none" : last;
     }
 
+    private void retryQueuedNotices() {
+        int queuedBefore = NoticeQueue.count(this);
+        retryStatus.setTextColor(WARNING);
+        retryStatus.setText("Retry started. Queue before retry: " + queuedBefore + ".");
+        ForwarderClient.flushQueue(this, () -> {
+            refreshStatus();
+            int queuedNow = NoticeQueue.count(this);
+            retryStatus.setTextColor(queuedNow == 0 ? SUCCESS : WARNING);
+            retryStatus.setText("Retry finished. Queue now: " + queuedNow + ".");
+        });
+    }
+
     private void saveConfig() {
         ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
-        status.setText(statusText() + "\nSaved.");
         updateModeFields();
-        ForwarderClient.flushQueue(this);
+        refreshStatus();
+        retryStatus.setTextColor(SUCCESS);
+        retryStatus.setText("Config saved.");
+        ForwarderClient.flushQueue(this, this::refreshStatus);
     }
 
     private void updateModeFields() {
@@ -134,6 +267,8 @@ public class MainActivity extends Activity {
         boolean sellerMode = sellerModeInput.isChecked();
         sellerTokenInput.setEnabled(sellerMode);
         secretInput.setEnabled(!sellerMode);
+        sellerTokenInput.setAlpha(sellerMode ? 1.0f : 0.5f);
+        secretInput.setAlpha(sellerMode ? 0.5f : 1.0f);
     }
 
     private void requestSmsPermissions() {
@@ -164,7 +299,11 @@ public class MainActivity extends Activity {
             public void onAvailable(Network network) {
                 ForwarderClient.flushQueue(MainActivity.this);
                 runOnUiThread(() -> {
-                    if (status != null) status.setText(statusText() + "\nInternet available. Retry started.");
+                    refreshStatus();
+                    if (retryStatus != null) {
+                        retryStatus.setTextColor(SUCCESS);
+                        retryStatus.setText("Internet available. Retry started.");
+                    }
                 });
             }
         };
@@ -190,6 +329,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (status != null) status.setText(statusText());
+        refreshStatus();
+    }
+
+    private boolean isDarkMode() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private int withAlpha(int color, int alpha) {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
