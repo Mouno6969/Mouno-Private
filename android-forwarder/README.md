@@ -36,3 +36,4 @@ Build `android-forwarder/` with Android Studio or run the GitHub Actions workflo
 
 The app only forwards SMS from trusted bKash senders (`bKash`/`16247`) and app notifications from known official bKash packages (`com.bKash.customerapp`, `com.bKash.merchantapp`, `com.bkash.businessapp`). The bot still deduplicates by TrxID, so forwarding both SMS and notification is safe.
 Offline parsing only happens inside the Android app; bot order matching still runs after the phone regains internet and uploads the queued notice.
+The app status screen shows forwarding stats, last forwarded time, last SMS/notification source, queue count, last error, and a **Retry queued notices now** button.
