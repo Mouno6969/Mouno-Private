@@ -35,16 +35,34 @@ final class ForwarderClient {
     private ForwarderClient() {}
 
     static void sendSms(Context context, String sender, String body) {
-        if (!BuildConfig.FORWARD_SMS) return;
-        send(context, "sms", "sms", sender, body);
+        sendSms(context, sender, body, null);
+    }
+
+    static void sendSms(Context context, String sender, String body, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        send(context, "sms", "sms", sender, body, onComplete);
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
-        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        send(context, "notification", appName, title, text);
+        sendNotification(context, appName, title, text, null);
+    }
+
+    static void sendNotification(Context context, String appName, String title, String text, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        send(context, "notification", appName, title, text, onComplete);
     }
 
     static void send(Context context, String endpoint, String source, String title, String text) {
+        send(context, endpoint, source, title, text, null);
+    }
+
+    static void send(Context context, String endpoint, String source, String title, String text, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
             try {
@@ -63,6 +81,8 @@ final class ForwarderClient {
                     scheduleNetworkFlush(appContext);
                 } catch (Exception ignored) {
                 }
+            } finally {
+                if (onComplete != null) onComplete.run();
             }
         });
     }

@@ -1,6 +1,8 @@
 package com.mouno.forwarder;
 
 import android.app.Notification;
+import android.content.ComponentName;
+import android.os.Build;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -8,6 +10,22 @@ import android.service.notification.StatusBarNotification;
 import java.util.Locale;
 
 public class BkashNotificationListener extends NotificationListenerService {
+    @Override
+    public void onListenerConnected() {
+        super.onListenerConnected();
+        ForwardingStats.recordPhoneEvent(this, "Notification listener connected");
+        ForwarderForegroundService.start(this);
+    }
+
+    @Override
+    public void onListenerDisconnected() {
+        ForwardingStats.recordPhoneEvent(this, "Notification listener disconnected; rebind requested");
+        if (Build.VERSION.SDK_INT >= 24) {
+            requestRebind(new ComponentName(this, BkashNotificationListener.class));
+        }
+        super.onListenerDisconnected();
+    }
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || sbn.getNotification() == null) return;
@@ -19,9 +37,13 @@ public class BkashNotificationListener extends NotificationListenerService {
         String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
         String all = (title + " " + text + " " + bigText).trim();
         if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
+            ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
             ForwarderClient.sendNotification(this, sbn.getPackageName(), title, all);
         } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
+            ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
             ForwarderClient.sendNotification(this, "sms_notification", title, all);
+        } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
+            ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
     }
 
