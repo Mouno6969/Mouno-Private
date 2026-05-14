@@ -56,12 +56,21 @@ final class ForwardingStats {
             + "Failed/queued attempts: " + prefs.getInt(KEY_FAILURE_COUNT, 0) + "\n"
             + "Last forwarded notice time: " + formatTime(prefs.getLong(KEY_LAST_FORWARDED_AT, 0L)) + "\n"
             + "Last source: " + value(prefs.getString(KEY_LAST_SOURCE, ""), "none") + "\n"
-            + "Server payment outcome: " + friendlyStatus(prefs.getString(KEY_LAST_PAYMENT_STATUS, "")) + "\n"
-            + "Outcome meaning: " + value(prefs.getString(KEY_LAST_PAYMENT_MESSAGE, ""), "none yet") + "\n"
-            + "Last TrxID: " + value(prefs.getString(KEY_LAST_TRX_ID, ""), "none") + "\n"
-            + "Last amount: " + value(prefs.getString(KEY_LAST_AMOUNT_BDT, ""), "none") + " BDT\n"
             + "Queue count: " + NoticeQueue.count(context) + "\n"
             + "Last error message: " + value(prefs.getString(KEY_LAST_ERROR, ""), "none");
+    }
+
+    static String paymentSummary(Context context) {
+        SharedPreferences prefs = prefs(context);
+        String status = prefs.getString(KEY_LAST_PAYMENT_STATUS, "");
+        return "Outcome: " + friendlyStatus(status) + "\n"
+            + "Meaning: " + value(prefs.getString(KEY_LAST_PAYMENT_MESSAGE, ""), "No payment ACK received yet") + "\n"
+            + "TrxID: " + value(prefs.getString(KEY_LAST_TRX_ID, ""), "none") + "\n"
+            + "Amount: " + value(prefs.getString(KEY_LAST_AMOUNT_BDT, ""), "none") + " BDT";
+    }
+
+    static String lastPaymentStatus(Context context) {
+        return prefs(context).getString(KEY_LAST_PAYMENT_STATUS, "");
     }
 
     private static String sourceLabel(String endpoint) {
