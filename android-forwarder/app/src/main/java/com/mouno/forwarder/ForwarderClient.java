@@ -7,14 +7,21 @@ import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -76,6 +83,32 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
+    interface HealthCallback {
+        void onResult(HealthResult result);
+    }
+
+    static final class HealthResult {
+        final boolean internetOk;
+        final boolean serverReachable;
+        final boolean authOk;
+        final String message;
+
+        HealthResult(boolean internetOk, boolean serverReachable, boolean authOk, String message) {
+            this.internetOk = internetOk;
+            this.serverReachable = serverReachable;
+            this.authOk = authOk;
+            this.message = message;
+        }
+    }
+
+    static void checkHealth(Context context, HealthCallback callback) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            HealthResult result = checkHealthSync(appContext);
+            new Handler(Looper.getMainLooper()).post(() -> callback.onResult(result));
+        });
+    }
+
     static void scheduleRetry(Context context) {
         Intent intent = new Intent(context, RetryReceiver.class);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 101, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -108,6 +141,69 @@ final class ForwarderClient {
         }
         NoticeQueue.save(context, failed);
         if (!failed.isEmpty()) scheduleNetworkFlush(context);
+    }
+
+    private static HealthResult checkHealthSync(Context context) {
+        boolean internetOk = hasInternet(context);
+        if (!internetOk) {
+            return new HealthResult(false, false, false, "No active internet connection");
+        }
+        if (!ForwarderConfig.isConfigured(context)) {
+            return new HealthResult(true, false, false, "Save server URL and required token/secret first");
+        }
+
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(healthEndpoint(context));
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(8_000);
+            connection.setReadTimeout(8_000);
+            connection.setRequestProperty("Accept", "application/json");
+            if (!ForwarderConfig.isSellerMode(context) && ForwarderConfig.hasForwarderSecret(context)) {
+                connection.setRequestProperty("X-Forwarder-Token", ForwarderConfig.forwarderSecret(context));
+            }
+            int code = connection.getResponseCode();
+            String body = readResponse(connection, code).trim();
+            JSONObject json = body.startsWith("{") ? new JSONObject(body) : new JSONObject();
+            boolean reachable = code > 0;
+            boolean authOk = json.optBoolean("auth_ok", code >= 200 && code < 300);
+            String message = json.optString("message", code >= 200 && code < 300 ? "Server health check passed" : "HTTP " + code);
+            if (code == 404) message = "Health endpoint not found. Check URL or update server code.";
+            return new HealthResult(true, reachable, authOk, message + " (HTTP " + code + ")");
+        } catch (Exception exc) {
+            return new HealthResult(true, false, false, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static boolean hasInternet(Context context) {
+        ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (manager == null) return false;
+        Network network = manager.getActiveNetwork();
+        if (network == null) return false;
+        NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
+        return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
+
+    private static String healthEndpoint(Context context) throws Exception {
+        String base = ForwarderConfig.baseUrl(context);
+        if (ForwarderConfig.isSellerMode(context)) {
+            return base + "/seller/" + URLEncoder.encode(ForwarderConfig.sellerToken(context), "UTF-8") + "/health";
+        }
+        return base + "/forwarder-health";
+    }
+
+    private static String readResponse(HttpURLConnection connection, int code) throws Exception {
+        InputStream stream = code >= 200 && code < 400 ? connection.getInputStream() : connection.getErrorStream();
+        if (stream == null) return "";
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) builder.append(line);
+        }
+        return builder.toString();
     }
 
     private static JSONObject makeNotice(Context context, String endpoint, String source, String title, String text) throws Exception {
