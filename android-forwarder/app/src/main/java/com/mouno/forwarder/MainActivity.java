@@ -3,6 +3,7 @@ package com.mouno.forwarder;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
@@ -14,6 +15,8 @@ import android.net.NetworkRequest;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
@@ -29,6 +32,7 @@ public class MainActivity extends Activity {
     private static final int SUCCESS = Color.rgb(22, 163, 74);
     private static final int WARNING = Color.rgb(217, 119, 6);
     private static final int ERROR = Color.rgb(220, 38, 38);
+    private static final long STATUS_REFRESH_INTERVAL_MS = 1_500L;
 
     private TextView configDetails;
     private TextView forwardingDetails;
@@ -40,6 +44,18 @@ public class MainActivity extends Activity {
     private EditText secretInput;
     private CheckBox sellerModeInput;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private final Handler statusRefreshHandler = new Handler(Looper.getMainLooper());
+    private final SharedPreferences.OnSharedPreferenceChangeListener statusChangeListener = (preferences, key) -> statusRefreshHandler.post(this::refreshStatus);
+    private final Runnable statusRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshStatus();
+            statusRefreshHandler.postDelayed(this, STATUS_REFRESH_INTERVAL_MS);
+        }
+    };
+    private SharedPreferences forwardingStatsPrefs;
+    private SharedPreferences noticeQueuePrefs;
+    private SharedPreferences noticeHistoryPrefs;
     private int backgroundColor;
     private int cardColor;
     private int textColor;
@@ -129,6 +145,7 @@ public class MainActivity extends Activity {
         setupCard.addView(configDetails);
 
         setContentView(scroll);
+        registerRealtimeStatusUpdates();
         refreshStatus();
         requestSmsPermissions();
         registerConnectivityFlush();
@@ -326,7 +343,6 @@ public class MainActivity extends Activity {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(Network network) {
-                ForwarderClient.flushQueue(MainActivity.this);
                 runOnUiThread(() -> {
                     refreshStatus();
                     if (retryStatus != null) {
@@ -334,6 +350,7 @@ public class MainActivity extends Activity {
                         retryStatus.setText("Internet available. Retry started.");
                     }
                 });
+                ForwarderClient.flushQueue(MainActivity.this, MainActivity.this::refreshStatus);
             }
         };
         try {
@@ -346,6 +363,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
+        unregisterRealtimeStatusUpdates();
         if (Build.VERSION.SDK_INT >= 21 && networkCallback != null) {
             ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
             try {
@@ -359,6 +378,29 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshStatus();
+        statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
+        statusRefreshHandler.postDelayed(statusRefreshRunnable, STATUS_REFRESH_INTERVAL_MS);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
+    }
+
+    private void registerRealtimeStatusUpdates() {
+        forwardingStatsPrefs = ForwardingStats.prefsForUpdates(this);
+        noticeQueuePrefs = NoticeQueue.prefsForUpdates(this);
+        noticeHistoryPrefs = BkashNoticeHistory.prefsForUpdates(this);
+        forwardingStatsPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
+        noticeQueuePrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
+        noticeHistoryPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
+    }
+
+    private void unregisterRealtimeStatusUpdates() {
+        if (forwardingStatsPrefs != null) forwardingStatsPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
+        if (noticeQueuePrefs != null) noticeQueuePrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
+        if (noticeHistoryPrefs != null) noticeHistoryPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
     }
 
     private boolean isDarkMode() {

@@ -36,4 +36,8 @@ final class BkashNoticeHistory {
     private static SharedPreferences prefs(Context context) {
         return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
+
+    static SharedPreferences prefsForUpdates(Context context) {
+        return prefs(context);
+    }
 }
