@@ -1,14 +1,14 @@
-# Mouno Forwarder seller setup guide / Mouno Forwarder সেলার সেটআপ গাইড
+# SCB-Forwarder seller setup guide / SCB-Forwarder সেলার সেটআপ গাইড
 
 ## English
 
 ### 1. Install the APK
 
-Install **Mouno Forwarder** on the phone that receives the seller bKash SMS or bKash app notifications.
+Install **SCB-Forwarder** on the phone that receives the seller bKash SMS or bKash app notifications.
 
 ### 2. Save setup
 
-1. Open **Mouno Forwarder**.
+1. Open **SCB-Forwarder**.
 2. Enter your bot/server URL, for example `https://your-bot-server.example.com`.
 3. Turn on **Seller mode / সেলার মোড**.
 4. Paste the **Seller SMS token** from Seller Center.
@@ -28,19 +28,19 @@ If token/secret fails, copy the Seller SMS token again from Seller Center and sa
 ### 4. Allow phone permissions
 
 1. Tap **Allow SMS Permission**.
-2. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
+2. Tap **Enable Notification Access** and enable **SCB-Forwarder**.
 3. Keep SMS and notification forwarding enabled if you want both sources. Forwarding both is safe because the bot deduplicates by TrxID.
 
 ### 5. Battery and autostart settings
 
 Android phones often stop background apps. In the app, open **Battery/autostart guide** and follow the guide for your phone brand.
 
-- Xiaomi/Redmi/Poco: Security app > Autostart > Mouno Forwarder On; Battery saver > No restrictions.
+- Xiaomi/Redmi/Poco: Security app > Autostart > SCB-Forwarder On; Battery saver > No restrictions.
 - Oppo/Realme/OnePlus: Phone Manager/Settings > App management > Auto launch On; Battery > Allow background activity.
 - Vivo/iQOO: i Manager > App manager > Autostart On; Battery > Background power consumption allowed.
-- Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add Mouno Forwarder; Battery usage > Unrestricted.
+- Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add SCB-Forwarder; Battery usage > Unrestricted.
 - Huawei/Honor: Phone Manager > App launch > Manage manually > Auto-launch, Secondary launch, Run in background On.
-- Other phones: search Settings for Autostart, Auto launch, Battery optimization, Background activity, then allow Mouno Forwarder everywhere.
+- Other phones: search Settings for Autostart, Auto launch, Battery optimization, Background activity, then allow SCB-Forwarder everywhere.
 
 ### 6. Confirm forwarding
 
@@ -52,11 +52,11 @@ Android phones often stop background apps. In the app, open **Battery/autostart 
 
 ### ১. APK ইনস্টল করুন
 
-যে ফোনে সেলারের bKash SMS বা bKash app notification আসে, সেই ফোনে **Mouno Forwarder** ইনস্টল করুন।
+যে ফোনে সেলারের bKash SMS বা bKash app notification আসে, সেই ফোনে **SCB-Forwarder** ইনস্টল করুন।
 
 ### ২. সেটআপ সেভ করুন
 
-1. **Mouno Forwarder** app খুলুন।
+1. **SCB-Forwarder** app খুলুন।
 2. bot/server URL দিন, যেমন `https://your-bot-server.example.com`।
 3. **Seller mode / সেলার মোড** অন করুন।
 4. Seller Center থেকে **Seller SMS token** কপি করে paste করুন।
@@ -76,19 +76,19 @@ Token/secret fail হলে Seller Center থেকে Seller SMS token আব�
 ### ৪. ফোন permission allow করুন
 
 1. **Allow SMS Permission** চাপুন।
-2. **Enable Notification Access** চাপুন এবং **Mouno bKash Forwarder** enable করুন।
+2. **Enable Notification Access** চাপুন এবং **SCB-Forwarder** enable করুন।
 3. SMS আর notification দুইটাই forward করলে সমস্যা নেই, bot TrxID দিয়ে duplicate বাদ দেয়।
 
 ### ৫. Battery/autostart setting ঠিক করুন
 
 অনেক Android ফোন background app বন্ধ করে দেয়। App-এর **Battery/autostart guide** খুলে আপনার ফোন brand অনুযায়ী setting করুন।
 
-- Xiaomi/Redmi/Poco: Security app > Autostart > Mouno Forwarder On; Battery saver > No restrictions.
+- Xiaomi/Redmi/Poco: Security app > Autostart > SCB-Forwarder On; Battery saver > No restrictions.
 - Oppo/Realme/OnePlus: Phone Manager/Settings > App management > Auto launch On; Battery > Allow background activity.
 - Vivo/iQOO: i Manager > App manager > Autostart On; Battery > Background power consumption allowed.
-- Samsung: Settings > Battery > Background usage limits > Never sleeping apps > Mouno Forwarder add করুন; Battery usage > Unrestricted.
+- Samsung: Settings > Battery > Background usage limits > Never sleeping apps > SCB-Forwarder add করুন; Battery usage > Unrestricted.
 - Huawei/Honor: Phone Manager > App launch > Manage manually > Auto-launch, Secondary launch, Run in background On.
-- অন্য ফোন: Settings-এ Autostart, Auto launch, Battery optimization, Background activity search করে Mouno Forwarder সব জায়গায় allow করুন।
+- অন্য ফোন: Settings-এ Autostart, Auto launch, Battery optimization, Background activity search করে SCB-Forwarder সব জায়গায় allow করুন।
 
 ### ৬. Forwarding confirm করুন
 

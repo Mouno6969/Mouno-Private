@@ -8,7 +8,9 @@
 
     <application
         android:allowBackup="false"
-        android:label="Mouno Forwarder"
+        android:icon="@mipmap/ic_launcher"
+        android:label="SCB-Forwarder"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
@@ -43,7 +45,7 @@
         <service
             android:name=".BkashNotificationListener"
             android:exported="true"
-            android:label="Mouno bKash Forwarder"
+            android:label="SCB-Forwarder"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

@@ -6,10 +6,12 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkRequest;
@@ -21,9 +23,11 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -43,7 +47,8 @@ public class MainActivity extends Activity {
     private EditText serverInput;
     private EditText sellerTokenInput;
     private EditText secretInput;
-    private CheckBox sellerModeInput;
+    private RadioButton sellerModeInput;
+    private RadioButton adminModeInput;
     private ConnectivityManager.NetworkCallback networkCallback;
     private final Handler statusRefreshHandler = new Handler(Looper.getMainLooper());
     private final SharedPreferences.OnSharedPreferenceChangeListener statusChangeListener = (preferences, key) -> statusRefreshHandler.post(this::refreshStatus);
@@ -78,8 +83,16 @@ public class MainActivity extends Activity {
         layout.setPadding(pad, pad, pad, pad);
         scroll.addView(layout);
 
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.app_logo);
+        logo.setAdjustViewBounds(true);
+        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(80), dp(80));
+        logoParams.setMargins(0, 0, 0, dp(10));
+        layout.addView(logo, logoParams);
+
         TextView title = new TextView(this);
-        title.setText("Mouno Forwarder");
+        title.setText("SCB-Forwarder");
         title.setTextColor(isDarkMode() ? PRIMARY_LIGHT : PRIMARY);
         title.setTextSize(28);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -96,17 +109,26 @@ public class MainActivity extends Activity {
         serverInput = input("https://your-bot-server.example.com", ForwarderConfig.baseUrl(this));
         configCard.addView(serverInput);
 
-        sellerModeInput = new CheckBox(this);
-        sellerModeInput.setText("Seller mode / সেলার মোড");
-        sellerModeInput.setTextColor(textColor);
-        sellerModeInput.setChecked(ForwarderConfig.isSellerMode(this));
-        sellerModeInput.setOnCheckedChangeListener((buttonView, isChecked) -> updateModeFields());
-        configCard.addView(sellerModeInput);
+        RadioGroup modeGroup = new RadioGroup(this);
+        modeGroup.setOrientation(RadioGroup.VERTICAL);
+        modeGroup.setPadding(0, 0, 0, dp(8));
 
-        sellerTokenInput = input("Seller SMS token", ForwarderConfig.sellerToken(this));
+        sellerModeInput = modeOption("Seller phone / সেলার ফোন");
+        adminModeInput = modeOption("Admin/main phone / অ্যাডমিন ফোন");
+        modeGroup.addView(sellerModeInput);
+        modeGroup.addView(adminModeInput);
+        if (ForwarderConfig.isSellerMode(this)) {
+            sellerModeInput.setChecked(true);
+        } else {
+            adminModeInput.setChecked(true);
+        }
+        modeGroup.setOnCheckedChangeListener((group, checkedId) -> updateModeFields());
+        configCard.addView(modeGroup);
+
+        sellerTokenInput = input("Seller SMS token / সেলার SMS token", ForwarderConfig.sellerToken(this));
         configCard.addView(sellerTokenInput);
 
-        secretInput = input("Admin FORWARDER_SECRET", ForwarderConfig.forwarderSecret(this));
+        secretInput = input("Admin FORWARDER_SECRET / অ্যাডমিন secret", ForwarderConfig.forwarderSecret(this));
         configCard.addView(secretInput);
 
         Button saveButton = primaryButton("Save setup / সেটআপ সেভ করুন");
@@ -213,15 +235,22 @@ public class MainActivity extends Activity {
         return input;
     }
 
+    private RadioButton modeOption(String label) {
+        RadioButton option = new RadioButton(this);
+        option.setText(label);
+        option.setTextColor(textColor);
+        option.setTextSize(15);
+        option.setPadding(0, dp(2), 0, dp(2));
+        return option;
+    }
+
     private Button primaryButton(String label) {
         Button button = new Button(this);
         button.setText(label);
         button.setTextColor(Color.WHITE);
         button.setTextSize(14);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(PRIMARY);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
+        button.setBackground(buttonBackground(PRIMARY, withAlpha(Color.WHITE, 90)));
+        button.setMinHeight(dp(48));
         button.setPadding(dp(12), dp(8), dp(12), dp(8));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.setMargins(0, dp(6), 0, dp(4));
@@ -231,13 +260,20 @@ public class MainActivity extends Activity {
 
     private Button actionButton(String label, View.OnClickListener listener) {
         Button button = primaryButton(label);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(PRIMARY_LIGHT);
-        bg.setCornerRadius(dp(14));
-        button.setBackground(bg);
+        button.setBackground(buttonBackground(PRIMARY_LIGHT, withAlpha(PRIMARY, 90)));
         button.setTextColor(PRIMARY);
         button.setOnClickListener(listener);
         return button;
+    }
+
+    private RippleDrawable buttonBackground(int color, int rippleColor) {
+        GradientDrawable content = new GradientDrawable();
+        content.setColor(color);
+        content.setCornerRadius(dp(14));
+        GradientDrawable mask = new GradientDrawable();
+        mask.setColor(Color.WHITE);
+        mask.setCornerRadius(dp(14));
+        return new RippleDrawable(ColorStateList.valueOf(rippleColor), content, mask);
     }
 
     private TextView bodyText() {
@@ -288,7 +324,7 @@ public class MainActivity extends Activity {
     }
 
     private void checkServer() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(WARNING);
@@ -304,7 +340,7 @@ public class MainActivity extends Activity {
     }
 
     private void saveConfig() {
-        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        ForwarderConfig.save(this, serverInput.getText().toString(), isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         retryStatus.setTextColor(SUCCESS);
@@ -317,12 +353,16 @@ public class MainActivity extends Activity {
     }
 
     private void updateModeFields() {
-        if (sellerTokenInput == null || secretInput == null || sellerModeInput == null) return;
-        boolean sellerMode = sellerModeInput.isChecked();
+        if (sellerTokenInput == null || secretInput == null || sellerModeInput == null || adminModeInput == null) return;
+        boolean sellerMode = isSellerModeSelected();
         sellerTokenInput.setEnabled(sellerMode);
         secretInput.setEnabled(!sellerMode);
-        sellerTokenInput.setAlpha(sellerMode ? 1.0f : 0.5f);
-        secretInput.setAlpha(sellerMode ? 0.5f : 1.0f);
+        sellerTokenInput.setVisibility(sellerMode ? View.VISIBLE : View.GONE);
+        secretInput.setVisibility(sellerMode ? View.GONE : View.VISIBLE);
+    }
+
+    private boolean isSellerModeSelected() {
+        return sellerModeInput != null && sellerModeInput.isChecked();
     }
 
     private void requestSmsPermissions() {
@@ -411,13 +451,13 @@ public class MainActivity extends Activity {
             + "2) Autostart/Auto launch: Allow\n"
             + "3) Background data/activity: Allow\n"
             + "4) Notification access/SMS permission: On\n"
-            + "5) Recent apps screen-এ Mouno Forwarder lock করে রাখুন যদি option থাকে।";
+            + "5) Recent apps screen-এ SCB-Forwarder lock করে রাখুন যদি option থাকে।";
     }
 
     private String manufacturerGuide() {
         String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
         if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
-            return "Xiaomi/Redmi/Poco: Security app > Autostart > Mouno Forwarder On; Battery saver > No restrictions.";
+            return "Xiaomi/Redmi/Poco: Security app > Autostart > SCB-Forwarder On; Battery saver > No restrictions.";
         }
         if (manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus")) {
             return "Oppo/Realme/OnePlus: Phone Manager/Settings > App management > Auto launch On; Battery > Allow background activity.";
@@ -426,12 +466,12 @@ public class MainActivity extends Activity {
             return "Vivo/iQOO: i Manager > App manager > Autostart On; Battery > Background power consumption allowed.";
         }
         if (manufacturer.contains("samsung")) {
-            return "Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add Mouno Forwarder; Battery usage > Unrestricted.";
+            return "Samsung: Settings > Battery > Background usage limits > Never sleeping apps > add SCB-Forwarder; Battery usage > Unrestricted.";
         }
         if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
             return "Huawei/Honor: Phone Manager > App launch > Manage manually > Auto-launch, Secondary launch, Run in background On.";
         }
-        return "Settings search করুন: Autostart, Auto launch, Battery optimization, Background activity — সব জায়গায় Mouno Forwarder allow করুন.";
+        return "Settings search করুন: Autostart, Auto launch, Battery optimization, Background activity — সব জায়গায় SCB-Forwarder allow করুন.";
     }
 
     private String manufacturerLabel() {
