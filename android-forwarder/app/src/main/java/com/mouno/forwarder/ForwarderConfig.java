@@ -7,7 +7,6 @@ import android.provider.Settings;
 
 final class ForwarderConfig {
     private static final String PREFS = "forwarder_config";
-    private static final String KEY_SERVER_BASE_URL = "server_base_url";
     private static final String KEY_SELLER_TOKEN = "seller_token";
     private static final String KEY_FORWARDER_SECRET = "forwarder_secret";
     private static final String KEY_SELLER_MODE = "seller_mode";
@@ -15,8 +14,7 @@ final class ForwarderConfig {
     private ForwarderConfig() {}
 
     static String baseUrl(Context context) {
-        String configured = prefs(context).getString(KEY_SERVER_BASE_URL, "");
-        String value = configured == null || configured.trim().isEmpty() ? BuildConfig.SERVER_BASE_URL : configured;
+        String value = BuildConfig.SERVER_BASE_URL;
         value = value == null ? "" : value.trim();
         while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
         return value;
@@ -71,9 +69,8 @@ final class ForwarderConfig {
         return baseUrl(context) + "/" + kind;
     }
 
-    static void save(Context context, String serverBaseUrl, boolean sellerMode, String sellerToken, String forwarderSecret) {
+    static void save(Context context, boolean sellerMode, String sellerToken, String forwarderSecret) {
         prefs(context).edit()
-            .putString(KEY_SERVER_BASE_URL, serverBaseUrl == null ? "" : serverBaseUrl.trim())
             .putBoolean(KEY_SELLER_MODE, sellerMode)
             .putString(KEY_SELLER_TOKEN, sellerToken == null ? "" : sellerToken.trim())
             .putString(KEY_FORWARDER_SECRET, forwarderSecret == null ? "" : forwarderSecret.trim())

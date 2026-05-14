@@ -149,7 +149,7 @@ final class ForwarderClient {
             return new HealthResult(false, false, false, "No active internet connection");
         }
         if (!ForwarderConfig.isConfigured(context)) {
-            return new HealthResult(true, false, false, "Save server URL and required token/secret first");
+            return new HealthResult(true, false, false, "Save the required token first");
         }
 
         HttpURLConnection connection = null;

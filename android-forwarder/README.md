@@ -4,31 +4,29 @@ Custom Android app for forwarding bKash SMS and app notifications to the bot web
 
 ## Configure
 
-The APK can be built once and shared. After installing it, choose the right mode:
+The APK uses a fixed server URL: `https://cryptobuybot6969.duckdns.org`. Users cannot edit the server URL inside the app. After installing it, choose the right mode:
 
 Main/admin bKash phone:
 
 ```text
-Server URL: https://your-bot-server.example.com
 Seller mode: off
-Admin FORWARDER_SECRET: same secret as the bot server .env
+Admin token: same FORWARDER_SECRET as the bot server .env
 ```
 
 Approved seller phone:
 
 ```text
-Server URL: https://your-bot-server.example.com
 Seller mode: on
-Seller SMS token: token shown in Seller Center
+Seller token: token shown in Seller Center
 ```
 
-The app saves those values on the phone. Seller mode posts to `/seller/<token>/sms` and `/seller/<token>/notification`; main/admin mode posts to `/sms` and `/notification` with `X-Forwarder-Token`.
+The app saves only the selected mode and token on the phone. Seller mode posts to `/seller/<token>/sms` and `/seller/<token>/notification`; main/admin mode posts to `/sms` and `/notification` with `X-Forwarder-Token`.
 
 ## Build/run
 
 Build `android-forwarder/` with Android Studio or run the GitHub Actions workflow **Build Android Forwarder APK**, install the app on the Android phone that receives bKash SMS/notifications, then:
 
-1. Enter the public server URL, choose seller or main/admin mode, enter the required token/secret, then tap **Save setup / সেটআপ সেভ করুন**.
+1. Choose seller or main/admin mode, enter the required token, then tap **Save setup / সেটআপ সেভ করুন**.
 2. Tap **Allow SMS Permission**.
 3. Tap **Enable Notification Access** and enable **SCB-Forwarder**.
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.
