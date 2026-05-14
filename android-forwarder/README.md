@@ -28,7 +28,7 @@ The app saves those values on the phone. Seller mode posts to `/seller/<token>/s
 
 Build `android-forwarder/` with Android Studio or run the GitHub Actions workflow **Build Android Forwarder APK**, install the app on the Android phone that receives bKash SMS/notifications, then:
 
-1. Enter the public server URL, choose seller or main/admin mode, enter the required token/secret, then tap **Save Forwarder Config**.
+1. Enter the public server URL, choose seller or main/admin mode, enter the required token/secret, then tap **Save setup / সেটআপ সেভ করুন**.
 2. Tap **Allow SMS Permission**.
 3. Tap **Enable Notification Access** and enable **Mouno bKash Forwarder**.
 4. Open battery settings from the app and disable battery restrictions/autostart blocking.
@@ -38,3 +38,5 @@ The app only forwards SMS from trusted bKash senders (`bKash`/`16247`) and app n
 Offline parsing only happens inside the Android app; bot order matching still runs after the phone regains internet and uploads the queued notice.
 The app status screen shows forwarding stats, last forwarded time, last SMS/notification source, queue count, last error, and a **Retry queued notices now** button.
 The status UI uses rounded Material-style cards with indigo, green, amber, and red status colors plus light/dark theme resources.
+
+Seller setup guide: [`SELLER_SETUP_GUIDE_BN_EN.md`](SELLER_SETUP_GUIDE_BN_EN.md).

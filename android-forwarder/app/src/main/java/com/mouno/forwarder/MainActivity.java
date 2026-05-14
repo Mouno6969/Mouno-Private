@@ -92,12 +92,12 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, dp(4), 0, dp(16));
         layout.addView(subtitle);
 
-        LinearLayout configCard = card(layout, "Configuration", PRIMARY);
+        LinearLayout configCard = card(layout, "Setup / সেটআপ", PRIMARY);
         serverInput = input("https://your-bot-server.example.com", ForwarderConfig.baseUrl(this));
         configCard.addView(serverInput);
 
         sellerModeInput = new CheckBox(this);
-        sellerModeInput.setText("Seller mode (use Seller SMS token)");
+        sellerModeInput.setText("Seller mode / সেলার মোড");
         sellerModeInput.setTextColor(textColor);
         sellerModeInput.setChecked(ForwarderConfig.isSellerMode(this));
         sellerModeInput.setOnCheckedChangeListener((buttonView, isChecked) -> updateModeFields());
@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
         secretInput = input("Admin FORWARDER_SECRET", ForwarderConfig.forwarderSecret(this));
         configCard.addView(secretInput);
 
-        Button saveButton = primaryButton("Save Forwarder Config");
+        Button saveButton = primaryButton("Save setup / সেটআপ সেভ করুন");
         saveButton.setOnClickListener(v -> saveConfig());
         configCard.addView(saveButton);
 
@@ -118,15 +118,15 @@ public class MainActivity extends Activity {
 
         healthStatus = bodyText();
         healthStatus.setTextColor(mutedTextColor);
-        healthStatus.setText("Server health: not checked yet.");
+        healthStatus.setText("Server health / সার্ভার চেক: not checked yet");
         configCard.addView(healthStatus);
         updateModeFields();
 
-        LinearLayout statusCard = card(layout, "Forwarding stats", SUCCESS);
+        LinearLayout statusCard = card(layout, "Forwarding stats / ফরওয়ার্ড স্ট্যাটাস", SUCCESS);
         forwardingDetails = bodyText();
         statusCard.addView(forwardingDetails);
 
-        LinearLayout queueCard = card(layout, "Offline queue", WARNING);
+        LinearLayout queueCard = card(layout, "Offline queue / অফলাইন কিউ", WARNING);
         queueDetails = bodyText();
         queueCard.addView(queueDetails);
 
@@ -260,7 +260,7 @@ public class MainActivity extends Activity {
             queueDetails.setTextColor(NoticeQueue.count(this) > 0 ? WARNING : SUCCESS);
         }
         if (configDetails != null) {
-            configDetails.setText("Configured: " + (ForwarderConfig.isConfigured(this) ? "yes" : "no - save URL and required token/secret") + "\n"
+            configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - URL এবং token/secret save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
                 + "Keep this app installed, allow permissions, enable notification access, and disable battery restrictions.");
@@ -308,7 +308,7 @@ public class MainActivity extends Activity {
         updateModeFields();
         refreshStatus();
         retryStatus.setTextColor(SUCCESS);
-        retryStatus.setText("Config saved.");
+        retryStatus.setText("Setup saved / সেটআপ সেভ হয়েছে.");
         ForwarderClient.flushQueue(this, this::refreshStatus);
     }
 
