@@ -57,4 +57,8 @@ final class NoticeQueue {
         byte[] bytes = Base64.decode(row, Base64.NO_WRAP);
         return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
     }
+
+    static SharedPreferences prefsForUpdates(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
 }
