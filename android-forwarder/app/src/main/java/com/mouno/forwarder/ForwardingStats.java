@@ -19,6 +19,8 @@ final class ForwardingStats {
     private static final String KEY_LAST_PAYMENT_MESSAGE = "last_payment_message";
     private static final String KEY_LAST_TRX_ID = "last_trx_id";
     private static final String KEY_LAST_AMOUNT_BDT = "last_amount_bdt";
+    private static final String KEY_LAST_PHONE_EVENT = "last_phone_event";
+    private static final String KEY_LAST_PHONE_EVENT_AT = "last_phone_event_at";
 
     private ForwardingStats() {}
 
@@ -50,12 +52,20 @@ final class ForwardingStats {
             .apply();
     }
 
+    static void recordPhoneEvent(Context context, String event) {
+        prefs(context).edit()
+            .putString(KEY_LAST_PHONE_EVENT, clean(event))
+            .putLong(KEY_LAST_PHONE_EVENT_AT, System.currentTimeMillis())
+            .apply();
+    }
+
     static String summary(Context context) {
         SharedPreferences prefs = prefs(context);
         return "Forwarded: " + prefs.getInt(KEY_SUCCESS_COUNT, 0) + "\n"
             + "Failed/queued attempts: " + prefs.getInt(KEY_FAILURE_COUNT, 0) + "\n"
             + "Last forwarded notice time: " + formatTime(prefs.getLong(KEY_LAST_FORWARDED_AT, 0L)) + "\n"
             + "Last source: " + value(prefs.getString(KEY_LAST_SOURCE, ""), "none") + "\n"
+            + "Last phone event: " + value(prefs.getString(KEY_LAST_PHONE_EVENT, ""), "none") + " at " + formatTime(prefs.getLong(KEY_LAST_PHONE_EVENT_AT, 0L)) + "\n"
             + "Queue count: " + NoticeQueue.count(context) + "\n"
             + "Last error message: " + value(prefs.getString(KEY_LAST_ERROR, ""), "none");
     }

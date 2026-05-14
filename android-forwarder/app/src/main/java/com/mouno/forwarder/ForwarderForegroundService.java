@@ -5,12 +5,14 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.service.notification.NotificationListenerService;
 
 public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
@@ -23,6 +25,7 @@ public class ForwarderForegroundService extends Service {
         public void run() {
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
+            requestNotificationListenerRebind();
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
         }
     };
@@ -56,6 +59,7 @@ public class ForwarderForegroundService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         ForwarderClient.scheduleRetry(this);
         ForwarderClient.flushQueue(this);
+        requestNotificationListenerRebind();
         return START_STICKY;
     }
 
@@ -97,5 +101,11 @@ public class ForwarderForegroundService extends Service {
             .setShowWhen(false);
         if (Build.VERSION.SDK_INT < 26) builder.setPriority(Notification.PRIORITY_LOW);
         return builder.build();
+    }
+
+    private void requestNotificationListenerRebind() {
+        if (Build.VERSION.SDK_INT >= 24) {
+            NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
+        }
     }
 }

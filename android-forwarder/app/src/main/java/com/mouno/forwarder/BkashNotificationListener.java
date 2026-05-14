@@ -1,6 +1,8 @@
 package com.mouno.forwarder;
 
 import android.app.Notification;
+import android.content.ComponentName;
+import android.os.Build;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -8,6 +10,22 @@ import android.service.notification.StatusBarNotification;
 import java.util.Locale;
 
 public class BkashNotificationListener extends NotificationListenerService {
+    @Override
+    public void onListenerConnected() {
+        super.onListenerConnected();
+        ForwardingStats.recordPhoneEvent(this, "Notification listener connected");
+        ForwarderForegroundService.start(this);
+    }
+
+    @Override
+    public void onListenerDisconnected() {
+        ForwardingStats.recordPhoneEvent(this, "Notification listener disconnected; rebind requested");
+        if (Build.VERSION.SDK_INT >= 24) {
+            requestRebind(new ComponentName(this, BkashNotificationListener.class));
+        }
+        super.onListenerDisconnected();
+    }
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || sbn.getNotification() == null) return;
@@ -17,11 +35,20 @@ public class BkashNotificationListener extends NotificationListenerService {
         String title = value(extras, Notification.EXTRA_TITLE);
         String text = value(extras, Notification.EXTRA_TEXT);
         String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
-        String all = (title + " " + text + " " + bigText).trim();
+        String textLines = textLines(extras);
+        String subText = value(extras, Notification.EXTRA_SUB_TEXT);
+        String summary = value(extras, Notification.EXTRA_SUMMARY_TEXT);
+        String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
         if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
-            ForwarderClient.sendNotification(this, sbn.getPackageName(), title, all);
+            ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
+            ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all);
+            ForwarderForegroundService.start(this);
         } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
-            ForwarderClient.sendNotification(this, "sms_notification", title, all);
+            ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
+            ForwarderClient.queueNotification(this, "sms_notification", title, all);
+            ForwarderForegroundService.start(this);
+        } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
+            ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
     }
 
@@ -50,7 +77,7 @@ public class BkashNotificationListener extends NotificationListenerService {
 
     private static boolean isBkashNotice(String text) {
         String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("txnid") || text.contains("বিকাশ");
+        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("trx id") || lower.contains("txnid") || lower.contains("txn id") || text.contains("বিকাশ");
     }
 
     private static boolean isBkashPaymentNotice(String text) {
@@ -61,5 +88,16 @@ public class BkashNotificationListener extends NotificationListenerService {
         if (extras == null) return "";
         CharSequence value = extras.getCharSequence(key);
         return value == null ? "" : value.toString();
+    }
+
+    private static String textLines(Bundle extras) {
+        if (extras == null) return "";
+        CharSequence[] lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES);
+        if (lines == null || lines.length == 0) return "";
+        StringBuilder builder = new StringBuilder();
+        for (CharSequence line : lines) {
+            if (line != null) builder.append(' ').append(line);
+        }
+        return builder.toString();
     }
 }

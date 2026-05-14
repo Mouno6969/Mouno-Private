@@ -35,16 +35,44 @@ final class ForwarderClient {
     private ForwarderClient() {}
 
     static void sendSms(Context context, String sender, String body) {
+        sendSms(context, sender, body, null);
+    }
+
+    static void sendSms(Context context, String sender, String body, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        send(context, "sms", "sms", sender, body, onComplete);
+    }
+
+    static void queueSms(Context context, String sender, String body) {
         if (!BuildConfig.FORWARD_SMS) return;
-        send(context, "sms", "sms", sender, body);
+        queueNotice(context, "sms", "sms", sender, body, "SMS");
+    }
+
+    static void queueNotification(Context context, String appName, String title, String text) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
+        queueNotice(context, "notification", appName, title, text, "Notification");
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
-        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        send(context, "notification", appName, title, text);
+        sendNotification(context, appName, title, text, null);
+    }
+
+    static void sendNotification(Context context, String appName, String title, String text, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        send(context, "notification", appName, title, text, onComplete);
     }
 
     static void send(Context context, String endpoint, String source, String title, String text) {
+        send(context, endpoint, source, title, text, null);
+    }
+
+    static void send(Context context, String endpoint, String source, String title, String text, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
             try {
@@ -63,6 +91,8 @@ final class ForwarderClient {
                     scheduleNetworkFlush(appContext);
                 } catch (Exception ignored) {
                 }
+            } finally {
+                if (onComplete != null) onComplete.run();
             }
         });
     }
@@ -81,6 +111,22 @@ final class ForwarderClient {
 
     static void flushQueueSync(Context context) {
         flushQueueNow(context.getApplicationContext());
+    }
+
+    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+        Context appContext = context.getApplicationContext();
+        try {
+            JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
+            if (!NoticeQueue.enqueueSync(appContext, notice)) {
+                ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
+                return;
+            }
+            BkashNoticeHistory.recordIfParsed(appContext, notice);
+            scheduleNetworkFlush(appContext);
+            flushQueue(appContext);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+        }
     }
 
     interface HealthCallback {

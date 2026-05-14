@@ -11,22 +11,34 @@ import java.util.Locale;
 public class SmsReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        Bundle bundle = intent.getExtras();
-        if (bundle == null) return;
-        Object[] pdus = (Object[]) bundle.get("pdus");
-        if (pdus == null || pdus.length == 0) return;
-        String format = bundle.getString("format");
-        StringBuilder body = new StringBuilder();
-        String sender = "sms";
-        for (Object pdu : pdus) {
-            SmsMessage message = SmsMessage.createFromPdu((byte[]) pdu, format);
-            if (message == null) continue;
-            if (message.getOriginatingAddress() != null) sender = message.getOriginatingAddress();
-            body.append(message.getMessageBody());
-        }
-        String text = body.toString();
-        if (isTrustedBkashSender(sender) && BkashNoticeParser.parse(text) != null) {
-            ForwarderClient.sendSms(context, sender, text);
+        BroadcastReceiver.PendingResult pendingResult = goAsync();
+        try {
+            Bundle bundle = intent.getExtras();
+            if (bundle == null) return;
+            Object[] pdus = (Object[]) bundle.get("pdus");
+            if (pdus == null || pdus.length == 0) return;
+            String format = bundle.getString("format");
+            StringBuilder body = new StringBuilder();
+            String sender = "sms";
+            for (Object pdu : pdus) {
+                SmsMessage message = SmsMessage.createFromPdu((byte[]) pdu, format);
+                if (message == null) continue;
+                if (message.getOriginatingAddress() != null) sender = message.getOriginatingAddress();
+                body.append(message.getMessageBody());
+            }
+            String text = body.toString();
+            BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
+            if (isTrustedBkashSender(sender) && parsed != null) {
+                ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
+                ForwarderClient.queueSms(context, sender, text);
+                ForwarderForegroundService.start(context);
+                return;
+            }
+            if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
+                ForwardingStats.recordPhoneEvent(context, "SMS ignored before send: not a parseable payment from " + sender);
+            }
+        } finally {
+            pendingResult.finish();
         }
     }
 
@@ -35,4 +47,8 @@ public class SmsReceiver extends BroadcastReceiver {
         return value.equals("bkash") || value.equals("16247");
     }
 
+    private static boolean isBkashNotice(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("trx id") || lower.contains("txnid") || lower.contains("txn id") || text.contains("বিকাশ");
+    }
 }

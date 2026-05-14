@@ -23,6 +23,12 @@ final class NoticeQueue {
         save(context, rows);
     }
 
+    static synchronized boolean enqueueSync(Context context, JSONObject notice) {
+        Set<String> rows = snapshot(context);
+        rows.add(Base64.encodeToString(notice.toString().getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP));
+        return saveSync(context, rows);
+    }
+
     static synchronized Set<String> snapshot(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         return new LinkedHashSet<>(prefs.getStringSet(KEY, Collections.emptySet()));
@@ -30,6 +36,10 @@ final class NoticeQueue {
 
     static synchronized void save(Context context, Set<String> rows) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, new LinkedHashSet<>(rows)).apply();
+    }
+
+    static synchronized boolean saveSync(Context context, Set<String> rows) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, new LinkedHashSet<>(rows)).commit();
     }
 
     static synchronized int count(Context context) {
