@@ -11,7 +11,7 @@ import java.util.Locale;
 public class SmsReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        PendingResult pendingResult = goAsync();
+        BroadcastReceiver.PendingResult pendingResult = goAsync();
         try {
             Bundle bundle = intent.getExtras();
             if (bundle == null) return;
