@@ -10,7 +10,7 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
-        buildConfigField "String", "SERVER_BASE_URL", "\"${project.findProperty("FORWARDER_SERVER_BASE_URL") ?: ""}\""
+        buildConfigField "String", "SERVER_BASE_URL", "\"https://cryptobuybot6969.duckdns.org\""
         buildConfigField "String", "FORWARDER_SECRET", "\"${project.findProperty("FORWARDER_SECRET") ?: ""}\""
         buildConfigField "String", "SELLER_TOKEN", "\"${project.findProperty("FORWARDER_SELLER_TOKEN") ?: ""}\""
         buildConfigField "boolean", "FORWARD_SMS", "${project.findProperty("FORWARDER_SMS") ?: "true"}"

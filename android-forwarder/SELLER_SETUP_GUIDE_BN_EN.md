@@ -9,9 +9,9 @@ Install **SCB-Forwarder** on the phone that receives the seller bKash SMS or bKa
 ### 2. Save setup
 
 1. Open **SCB-Forwarder**.
-2. Enter your bot/server URL, for example `https://your-bot-server.example.com`.
+2. Confirm the fixed server shown in the app: `https://cryptobuybot6969.duckdns.org`.
 3. Turn on **Seller mode / সেলার মোড**.
-4. Paste the **Seller SMS token** from Seller Center.
+4. Paste the **Seller token** from Seller Center.
 5. Tap **Save setup / সেটআপ সেভ করুন**.
 6. When setup is correct, the app shows **Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত**.
 
@@ -20,10 +20,10 @@ Install **SCB-Forwarder** on the phone that receives the seller bKash SMS or bKa
 Tap **Check server**. The app will show:
 
 - Internet: whether the phone has internet.
-- Server reachable: whether the bot server URL opens.
-- Token/secret: whether the seller token is accepted.
+- Server reachable: whether the fixed bot server opens.
+- Token: whether the seller token is accepted.
 
-If token/secret fails, copy the Seller SMS token again from Seller Center and save setup again.
+If token fails, copy the Seller token again from Seller Center and save setup again.
 
 ### 4. Allow phone permissions
 
@@ -57,9 +57,9 @@ Android phones often stop background apps. In the app, open **Battery/autostart 
 ### ২. সেটআপ সেভ করুন
 
 1. **SCB-Forwarder** app খুলুন।
-2. bot/server URL দিন, যেমন `https://your-bot-server.example.com`।
+2. app-এ fixed server দেখাবে: `https://cryptobuybot6969.duckdns.org`।
 3. **Seller mode / সেলার মোড** অন করুন।
-4. Seller Center থেকে **Seller SMS token** কপি করে paste করুন।
+4. Seller Center থেকে **Seller token** কপি করে paste করুন।
 5. **Save setup / সেটআপ সেভ করুন** চাপুন।
 6. সব ঠিক থাকলে app দেখাবে **Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত**।
 
@@ -68,10 +68,10 @@ Android phones often stop background apps. In the app, open **Battery/autostart 
 **Check server** চাপুন। App আলাদা করে দেখাবে:
 
 - Internet: ফোনে internet আছে কি না।
-- Server reachable: bot server URL reachable কি না।
-- Token/secret: seller token ঠিক আছে কি না।
+- Server reachable: fixed bot server reachable কি না।
+- Token: seller token ঠিক আছে কি না।
 
-Token/secret fail হলে Seller Center থেকে Seller SMS token আবার কপি করে setup save করুন।
+Token fail হলে Seller Center থেকে Seller token আবার কপি করে setup save করুন।
 
 ### ৪. ফোন permission allow করুন
 
