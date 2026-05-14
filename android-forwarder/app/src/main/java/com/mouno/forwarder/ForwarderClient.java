@@ -51,7 +51,10 @@ final class ForwarderClient {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, "sms", "sms", sender, body);
-            NoticeQueue.enqueue(appContext, notice);
+            if (!NoticeQueue.enqueueSync(appContext, notice)) {
+                ForwardingStats.recordFailure(appContext, "Queue SMS failed: commit returned false");
+                return;
+            }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
             flushQueue(appContext);
