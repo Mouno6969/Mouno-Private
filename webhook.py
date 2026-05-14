@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request
 
 from balance import get_all_balances, get_native_gas_balances
 from config import DASHBOARD_TOKEN, FORWARDER_SECRET
-from db import dashboard_snapshot, get_webhook_health, touch_webhook_notice
+from db import dashboard_snapshot, get_seller_by_sms_token, get_webhook_health, touch_webhook_notice
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -35,12 +35,26 @@ def _forwarder_token_ok(data):
         return True
     if not FORWARDER_SECRET:
         return True
-    supplied = (
+    return _supplied_forwarder_token() == FORWARDER_SECRET
+
+
+def _supplied_forwarder_token():
+    return (
         request.headers.get("X-Forwarder-Token")
         or request.headers.get("X-Webhook-Token")
         or _clean_bearer(request.headers.get("Authorization"))
     )
-    return supplied == FORWARDER_SECRET
+
+
+def _seller_token_ok(token):
+    if not token:
+        return False
+    try:
+        seller = get_seller_by_sms_token(token)
+    except Exception as exc:
+        logger.error("Seller token health lookup failed: %s", exc)
+        return False
+    return bool(seller and seller[5] == "approved")
 
 
 def _notice_values(data):
@@ -162,6 +176,39 @@ def sms(token=None):
 @app.route("/seller/<token>/notification", methods=["POST"])
 def notification(token=None):
     return handle_payment_notice("bkash_app_notification")
+
+
+@app.route("/forwarder-health", methods=["GET"])
+@app.route("/seller/<token>/health", methods=["GET"])
+def forwarder_health(token=None):
+    token = token or request.args.get("seller_token")
+    if token:
+        ok = _seller_token_ok(token)
+        status_code = 200 if ok else 403
+        return jsonify({
+            "status": "ok" if ok else "forbidden",
+            "server_reachable": True,
+            "mode": "seller",
+            "auth_ok": ok,
+            "message": "seller token accepted" if ok else "unknown or unapproved seller token",
+        }), status_code
+
+    if FORWARDER_SECRET and _supplied_forwarder_token() != FORWARDER_SECRET:
+        return jsonify({
+            "status": "forbidden",
+            "server_reachable": True,
+            "mode": "main",
+            "auth_ok": False,
+            "message": "invalid forwarder secret",
+        }), 403
+
+    return jsonify({
+        "status": "ok",
+        "server_reachable": True,
+        "mode": "main",
+        "auth_ok": True,
+        "message": "forwarder secret accepted" if FORWARDER_SECRET else "forwarder secret is not required on this server",
+    })
 
 
 def _token_ok():

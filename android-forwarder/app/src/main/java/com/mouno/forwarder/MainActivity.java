@@ -34,6 +34,7 @@ public class MainActivity extends Activity {
     private TextView forwardingDetails;
     private TextView queueDetails;
     private TextView retryStatus;
+    private TextView healthStatus;
     private EditText serverInput;
     private EditText sellerTokenInput;
     private EditText secretInput;
@@ -93,6 +94,14 @@ public class MainActivity extends Activity {
         Button saveButton = primaryButton("Save Forwarder Config");
         saveButton.setOnClickListener(v -> saveConfig());
         configCard.addView(saveButton);
+
+        Button checkButton = actionButton("Check server", v -> checkServer());
+        configCard.addView(checkButton);
+
+        healthStatus = bodyText();
+        healthStatus.setTextColor(mutedTextColor);
+        healthStatus.setText("Server health: not checked yet.");
+        configCard.addView(healthStatus);
         updateModeFields();
 
         LinearLayout statusCard = card(layout, "Forwarding stats", SUCCESS);
@@ -253,6 +262,22 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void checkServer() {
+        ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        updateModeFields();
+        refreshStatus();
+        healthStatus.setTextColor(WARNING);
+        healthStatus.setText("Checking internet, server, and token/secret...");
+        ForwarderClient.checkHealth(this, result -> {
+            healthStatus.setTextColor(result.internetOk && result.serverReachable && result.authOk ? SUCCESS : ERROR);
+            healthStatus.setText("Internet: " + statusText(result.internetOk) + "\n"
+                + "Server reachable: " + statusText(result.serverReachable) + "\n"
+                + "Token/secret: " + statusText(result.authOk) + "\n"
+                + "Details: " + result.message);
+            refreshStatus();
+        });
+    }
+
     private void saveConfig() {
         ForwarderConfig.save(this, serverInput.getText().toString(), sellerModeInput.isChecked(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
@@ -260,6 +285,10 @@ public class MainActivity extends Activity {
         retryStatus.setTextColor(SUCCESS);
         retryStatus.setText("Config saved.");
         ForwarderClient.flushQueue(this, this::refreshStatus);
+    }
+
+    private String statusText(boolean ok) {
+        return ok ? "OK" : "FAILED";
     }
 
     private void updateModeFields() {

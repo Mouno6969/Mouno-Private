@@ -15,6 +15,7 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
             self.skipTest(f"webhook dependencies unavailable: {IMPORT_ERROR}")
         self.old_secret = webhook.FORWARDER_SECRET
         self.old_touch = webhook.touch_webhook_notice
+        self.old_get_seller = webhook.get_seller_by_sms_token
         self.calls = []
         webhook.touch_webhook_notice = lambda *args, **kwargs: None
         webhook.set_callback(lambda text, source, meta=None: self.calls.append((text, source, meta)))
@@ -22,6 +23,7 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
     def tearDown(self):
         webhook.FORWARDER_SECRET = self.old_secret
         webhook.touch_webhook_notice = self.old_touch
+        webhook.get_seller_by_sms_token = self.old_get_seller
         webhook.set_callback(None)
 
     def test_rejects_forwarder_notice_without_secret_when_configured(self):
@@ -99,6 +101,35 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.calls), 1)
+
+    def test_forwarder_health_reports_bad_secret(self):
+        webhook.FORWARDER_SECRET = "test-secret"
+
+        response = webhook.app.test_client().get("/forwarder-health", headers={"X-Forwarder-Token": "wrong"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(response.json["server_reachable"])
+        self.assertFalse(response.json["auth_ok"])
+
+    def test_forwarder_health_accepts_secret(self):
+        webhook.FORWARDER_SECRET = "test-secret"
+
+        response = webhook.app.test_client().get("/forwarder-health", headers={"X-Forwarder-Token": "test-secret"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["server_reachable"])
+        self.assertTrue(response.json["auth_ok"])
+
+    def test_seller_health_validates_approved_token(self):
+        webhook.get_seller_by_sms_token = lambda token: ("seller-id", "user", "name", "bkash", "support", "approved") if token == "SELLER123" else None
+
+        good_response = webhook.app.test_client().get("/seller/SELLER123/health")
+        bad_response = webhook.app.test_client().get("/seller/BAD/health")
+
+        self.assertEqual(good_response.status_code, 200)
+        self.assertTrue(good_response.json["auth_ok"])
+        self.assertEqual(bad_response.status_code, 403)
+        self.assertFalse(bad_response.json["auth_ok"])
 
 
 if __name__ == "__main__":
