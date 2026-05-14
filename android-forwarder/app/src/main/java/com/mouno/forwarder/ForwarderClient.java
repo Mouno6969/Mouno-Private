@@ -249,9 +249,15 @@ final class ForwarderClient {
                 stream.write(body);
             }
             int code = connection.getResponseCode();
+            String responseBody = readResponse(connection, code).trim();
             boolean ok = code >= 200 && code < 300;
             if (ok) {
-                ForwardingStats.recordSuccess(context, endpoint);
+                JSONObject ack = null;
+                try {
+                    ack = responseBody.startsWith("{") ? new JSONObject(responseBody) : null;
+                } catch (Exception ignored) {
+                }
+                ForwardingStats.recordSuccess(context, endpoint, ack);
             } else {
                 ForwardingStats.recordFailure(context, "HTTP " + code + " from " + endpoint + " endpoint");
             }

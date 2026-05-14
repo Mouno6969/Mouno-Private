@@ -2680,7 +2680,7 @@ async def handle_seller_order_trx(update, context, user_id, username):
 async def process_seller_bkash(app, text, sender, meta):
     parsed = parse_bkash_payment_notice(text)
     if not parsed:
-        return True
+        return {"payment_status": "ignored", "message": "Seller notice was not a supported bKash payment."}
     token = (meta or {}).get("seller_token")
     admin_parse_alert_sent = bool((meta or {}).get("admin_parse_alert_sent"))
     seller = get_seller_by_sms_token(token) if token else None
@@ -2692,7 +2692,7 @@ async def process_seller_bkash(app, text, sender, meta):
             await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", "unknown/unapproved")
         if ADMIN_ID:
             await app.bot.send_message(ADMIN_ID, f"⚠️ Seller bKash notice rejected. Unknown/unapproved token.\nSource: {sender}\nTrxID: {trx_id}\nAmount: {amount_bdt}")
-        return True
+        return {"payment_status": "ignored", "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller token is unknown or not approved."}
     seller_id = seller[0]
     saved_new = save_seller_payment_notice(seller_id, trx_id, amount_bdt, sender, "seller_bkash", text)
     touch_webhook_notice(f"seller_{sender}", trx_id, amount_bdt)
@@ -2702,18 +2702,21 @@ async def process_seller_bkash(app, text, sender, meta):
     if order:
         if trx_id.startswith("TEST") or str(sender).startswith("test"):
             await app.bot.send_message(ADMIN_ID, f"🧪 Test seller bKash notice matched order but auto-send blocked.\nSeller: {seller_id}\nOrder: {order[0]}\nTrxID: {trx_id}\nAmount: {amount_bdt}")
-            return True
+            return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order[0], "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller payment matched an order, but test notices require manual review."}
         ok, result = await complete_seller_order(app, order[0], "seller_sms", amount_bdt)
         if not ok:
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("✅ Approve/send", callback_data=f"sordera_{order[0]}"), InlineKeyboardButton("❌ Reject", callback_data=f"sorderr_{order[0]}")]])
             await app.bot.send_message(int(seller_id), f"⚠️ Seller payment notice needs manual verification.\nReason: {result}\n\n{seller_order_summary(get_seller_order(order[0]))}", reply_markup=keyboard)
-        return True
+            return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order[0], "trx_id": trx_id, "amount_bdt": amount_bdt, "message": f"Seller payment matched an order but needs manual review: {result}"}
+        return {"payment_status": "matched_order", "matched_order": True, "order_id": order[0], "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller payment matched and order processing started."}
     if saved_new:
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🧾 Pending Orders", callback_data="seller_pending")]])
         await app.bot.send_message(int(seller_id), f"💰 Seller bKash notice received but no waiting order matched yet.\n\n🔑 TrxID: {trx_id}\n💵 {amount_bdt} BDT", reply_markup=keyboard)
         if ADMIN_ID:
             await app.bot.send_message(ADMIN_ID, f"💰 Unmatched seller bKash notice.\nSeller: {seller_public_name(seller)} ({seller_id})\nTrxID: {trx_id}\nAmount: {amount_bdt}")
-    return True
+    if not saved_new:
+        return {"payment_status": "duplicate", "duplicate": True, "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller payment notice was already recorded."}
+    return {"payment_status": "parsed", "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Seller payment parsed, but no waiting order matched yet."}
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5721,10 +5724,9 @@ async def notify_admin_parsed_bkash(app, parsed, sender, text, scope="main", sel
 async def process_bkash(app, text, sender, meta=None):
     parsed = parse_bkash_payment_notice(text)
     if not parsed:
-        return
+        return {"payment_status": "ignored", "message": "Notice was not a supported bKash payment."}
     if meta and meta.get("seller_token"):
-        await process_seller_bkash(app, text, sender, meta)
-        return
+        return await process_seller_bkash(app, text, sender, meta)
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
     touch_webhook_notice(sender, trx_id, amount_bdt)
@@ -5733,7 +5735,7 @@ async def process_bkash(app, text, sender, meta=None):
 
     if trx_exists(trx_id):
         logger.info("Duplicate bKash notice ignored because transaction already exists: %s", trx_id)
-        return
+        return {"payment_status": "duplicate", "duplicate": True, "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Transaction already exists; duplicate notice ignored."}
 
     already_saved = sms_exists(trx_id)
     saved_new = save_sms(trx_id, amount_bdt, sender, text)
@@ -5743,13 +5745,15 @@ async def process_bkash(app, text, sender, meta=None):
     if pending:
         if trx_id.startswith("TEST") or str(sender).startswith("test"):
             await app.bot.send_message(ADMIN_ID, f"🧪 Test bKash notice matched pending order but auto-send was blocked.\n\nTrxID: {trx_id}\nAmount: {amount_bdt} BDT\nUse manual approve only if this is intentional.")
-            return
-        await complete_pending_order_from_sms(app, pending, amount_bdt)
-        return
+            order_id = pending[7] if len(pending) > 7 else None
+            return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order_id, "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Payment matched an order, but test notices require manual review."}
+        return await complete_pending_order_from_sms(app, pending, amount_bdt)
 
     if already_saved:
         logger.info("Duplicate bKash notice ignored because TrxID was already saved: %s", trx_id)
-        return
+        return {"payment_status": "duplicate", "duplicate": True, "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "SMS notice already exists; duplicate ignored."}
+
+    return {"payment_status": "parsed", "trx_id": trx_id, "amount_bdt": amount_bdt, "message": "Payment parsed, but no pending order matched yet."}
 
 
 async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
@@ -5773,7 +5777,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             "Please verify manually.",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
-        return
+        return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order_id, "trx_id": trx_id, "amount_bdt": sms_amount_bdt, "message": "Payment matched an order, but amount differs and needs manual review."}
 
     crypto_amount = expected_crypto or round(float(sms_amount_bdt) / get_rate(network), 6)
     sufficient, current_bal = check_sufficient(network, crypto_amount, exclude_order_id=order_id, exclude_trx_id=trx_id)
@@ -5786,7 +5790,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             f"💵 Need: {crypto_amount}\n"
             f"💰 Available: {current_bal}",
         )
-        return
+        return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order_id, "trx_id": trx_id, "amount_bdt": sms_amount_bdt, "message": "Payment matched an order, but stock is insufficient and needs manual review."}
 
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
@@ -5797,6 +5801,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         delete_pending_order(trx_id)
         receipt_data = await make_receipt_data(app.bot, order_id, trx_id, network, crypto_amount, wallet, sig, user_id, bdt_amount=sms_amount_bdt, title="Smart Crypto Buy")
         await send_transaction_receipt(app.bot, [user_id, ADMIN_ID], receipt_data)
+        return {"payment_status": "matched_order", "matched_order": True, "order_id": order_id, "trx_id": trx_id, "amount_bdt": sms_amount_bdt, "tx_sig": sig, "message": "Payment matched an order and crypto delivery completed."}
     except Exception as exc:
         save_transaction(trx_id, user_id, sms_amount_bdt, crypto_amount, wallet, "", "failed", network, order_id=order_id, source="bkash")
         release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="auto_complete_send_failed", actor_id="system")
@@ -5819,10 +5824,11 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
         except Exception:
             pass
         logger.error("Auto-complete pending order failed: %s", exc)
+        return {"payment_status": "manual_review", "manual_review": True, "matched_order": True, "order_id": order_id, "trx_id": trx_id, "amount_bdt": sms_amount_bdt, "message": "Payment matched an order, but auto delivery failed and needs manual review.", "error": str(exc)}
 
 
 def sms_handler(app, loop, text, sender, meta=None):
-    asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender, meta), loop)
+    return asyncio.run_coroutine_threadsafe(process_bkash(app, text, sender, meta), loop)
 
 
 async def main():

@@ -3,6 +3,8 @@ package com.mouno.forwarder;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import org.json.JSONObject;
+
 import java.text.DateFormat;
 import java.util.Date;
 
@@ -13,16 +15,26 @@ final class ForwardingStats {
     private static final String KEY_LAST_FORWARDED_AT = "last_forwarded_at";
     private static final String KEY_LAST_SOURCE = "last_source";
     private static final String KEY_LAST_ERROR = "last_error";
+    private static final String KEY_LAST_PAYMENT_STATUS = "last_payment_status";
+    private static final String KEY_LAST_PAYMENT_MESSAGE = "last_payment_message";
+    private static final String KEY_LAST_TRX_ID = "last_trx_id";
+    private static final String KEY_LAST_AMOUNT_BDT = "last_amount_bdt";
 
     private ForwardingStats() {}
 
-    static void recordSuccess(Context context, String endpoint) {
+    static void recordSuccess(Context context, String endpoint, JSONObject ack) {
         SharedPreferences prefs = prefs(context);
-        prefs.edit()
+        SharedPreferences.Editor editor = prefs.edit()
             .putInt(KEY_SUCCESS_COUNT, prefs.getInt(KEY_SUCCESS_COUNT, 0) + 1)
             .putLong(KEY_LAST_FORWARDED_AT, System.currentTimeMillis())
-            .putString(KEY_LAST_SOURCE, sourceLabel(endpoint))
-            .apply();
+            .putString(KEY_LAST_SOURCE, sourceLabel(endpoint));
+        if (ack != null) {
+            editor.putString(KEY_LAST_PAYMENT_STATUS, ack.optString("payment_status", "accepted"))
+                .putString(KEY_LAST_PAYMENT_MESSAGE, ack.optString("message", statusHelp(ack.optString("payment_status", "accepted"))))
+                .putString(KEY_LAST_TRX_ID, ack.optString("trx_id", ""))
+                .putString(KEY_LAST_AMOUNT_BDT, ack.has("amount_bdt") ? ack.optString("amount_bdt") : "");
+        }
+        editor.apply();
     }
 
     static void recordFailure(Context context, String error) {
@@ -39,12 +51,37 @@ final class ForwardingStats {
             + "Failed/queued attempts: " + prefs.getInt(KEY_FAILURE_COUNT, 0) + "\n"
             + "Last forwarded notice time: " + formatTime(prefs.getLong(KEY_LAST_FORWARDED_AT, 0L)) + "\n"
             + "Last source: " + value(prefs.getString(KEY_LAST_SOURCE, ""), "none") + "\n"
+            + "Server payment outcome: " + friendlyStatus(prefs.getString(KEY_LAST_PAYMENT_STATUS, "")) + "\n"
+            + "Outcome meaning: " + value(prefs.getString(KEY_LAST_PAYMENT_MESSAGE, ""), "none yet") + "\n"
+            + "Last TrxID: " + value(prefs.getString(KEY_LAST_TRX_ID, ""), "none") + "\n"
+            + "Last amount: " + value(prefs.getString(KEY_LAST_AMOUNT_BDT, ""), "none") + " BDT\n"
             + "Queue count: " + NoticeQueue.count(context) + "\n"
             + "Last error message: " + value(prefs.getString(KEY_LAST_ERROR, ""), "none");
     }
 
     private static String sourceLabel(String endpoint) {
         return "sms".equalsIgnoreCase(endpoint) ? "SMS" : "Notification";
+    }
+
+    private static String friendlyStatus(String status) {
+        String value = status == null ? "" : status.trim();
+        if (value.equals("matched_order")) return "✅ matched order / অর্ডার ম্যাচ হয়েছে";
+        if (value.equals("duplicate")) return "♻️ duplicate / আগেই প্রসেস হয়েছে";
+        if (value.equals("manual_review")) return "⚠️ manual review / অ্যাডমিন যাচাই দরকার";
+        if (value.equals("ignored")) return "⏭️ ignored / payment notice না";
+        if (value.equals("parsed")) return "📥 parsed / payment পড়া হয়েছে";
+        if (value.equals("accepted")) return "📤 accepted / server নিয়েছে";
+        return value.isEmpty() ? "none" : value;
+    }
+
+    private static String statusHelp(String status) {
+        String value = status == null ? "" : status.trim();
+        if (value.equals("matched_order")) return "Server found the matching order and processed it.";
+        if (value.equals("duplicate")) return "This TrxID was already recorded, so server ignored the repeat notice.";
+        if (value.equals("manual_review")) return "Server parsed the payment, but admin/seller must review before completion.";
+        if (value.equals("ignored")) return "Server received the message, but it was not a supported payment notice.";
+        if (value.equals("parsed")) return "Server parsed the payment, but no waiting order matched yet.";
+        return "Server accepted the notice.";
     }
 
     private static String formatTime(long millis) {

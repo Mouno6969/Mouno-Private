@@ -193,7 +193,37 @@ class ForwarderWebhookAuthTests(unittest.TestCase):
         response = webhook.app.test_client().post("/notification", json={"text": "bKash Payment Received Tk 500 TrxID ABC123XYZ"})
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["payment_status"], "parsed")
+        self.assertFalse(response.json["matched_order"])
+        self.assertFalse(response.json["duplicate"])
+        self.assertFalse(response.json["manual_review"])
         self.assertEqual(len(self.calls), 1)
+
+    def test_ack_includes_callback_payment_outcome(self):
+        webhook.FORWARDER_SECRET = None
+        webhook.set_callback(lambda text, source, meta=None: {
+            "payment_status": "matched_order",
+            "matched_order": True,
+            "order_id": "ORD-123",
+            "message": "Payment matched an order and crypto delivery completed.",
+        })
+
+        response = webhook.app.test_client().post("/notification", json={"text": "bKash Payment Received Tk 500 TrxID ABC123XYZ"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["parsed"])
+        self.assertEqual(response.json["payment_status"], "matched_order")
+        self.assertTrue(response.json["matched_order"])
+        self.assertEqual(response.json["order_id"], "ORD-123")
+
+    def test_ack_marks_unsupported_notice_ignored(self):
+        webhook.FORWARDER_SECRET = None
+
+        response = webhook.app.test_client().post("/notification", json={"text": "hello"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json["parsed"])
+        self.assertEqual(response.json["payment_status"], "ignored")
 
     def test_forwarder_health_reports_bad_secret(self):
         webhook.FORWARDER_SECRET = "test-secret"
