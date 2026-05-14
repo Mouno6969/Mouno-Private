@@ -2687,12 +2687,14 @@ async def process_seller_bkash(app, text, sender, meta):
     amount_bdt = parsed["amount_bdt"]
     if not seller or seller[5] != "approved":
         logger.warning("Seller bKash notice rejected for unknown/unapproved token: %s", token)
+        await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", "unknown/unapproved")
         if ADMIN_ID:
             await app.bot.send_message(ADMIN_ID, f"⚠️ Seller bKash notice rejected. Unknown/unapproved token.\nSource: {sender}\nTrxID: {trx_id}\nAmount: {amount_bdt}")
         return True
     seller_id = seller[0]
     saved_new = save_seller_payment_notice(seller_id, trx_id, amount_bdt, sender, "seller_bkash", text)
     touch_webhook_notice(f"seller_{sender}", trx_id, amount_bdt)
+    await notify_admin_parsed_bkash(app, parsed, sender, text, "seller", seller_id)
     order = find_waiting_seller_order_by_trx(seller_id, trx_id)
     if order:
         if trx_id.startswith("TEST") or str(sender).startswith("test"):
@@ -5688,6 +5690,31 @@ async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await setup_cmd(update, context)
 
 
+def short_bkash_notice_text(text):
+    value = " ".join(str(text or "").split())
+    if not value:
+        return "N/A"
+    return value[:700] + ("..." if len(value) > 700 else "")
+
+
+async def notify_admin_parsed_bkash(app, parsed, sender, text, scope="main", seller_id=None):
+    if not ADMIN_ID:
+        return
+    try:
+        seller_line = f"\n🏪 Seller: {seller_id}" if seller_id else ""
+        await app.bot.send_message(
+            ADMIN_ID,
+            "📲 bKash notice parsed by app/webhook\n\n"
+            f"📩 Source: {sender}\n"
+            f"🔎 Scope: {scope}{seller_line}\n"
+            f"💵 Amount: {parsed['amount_bdt']} BDT\n"
+            f"🔑 TrxID: {parsed['trx_id']}\n"
+            f"📝 Message: {short_bkash_notice_text(text)}",
+        )
+    except Exception as exc:
+        logger.error(exc)
+
+
 async def process_bkash(app, text, sender, meta=None):
     parsed = parse_bkash_payment_notice(text)
     if not parsed:
@@ -5698,6 +5725,7 @@ async def process_bkash(app, text, sender, meta=None):
     trx_id = parsed["trx_id"]
     amount_bdt = parsed["amount_bdt"]
     touch_webhook_notice(sender, trx_id, amount_bdt)
+    await notify_admin_parsed_bkash(app, parsed, sender, text)
 
     if trx_exists(trx_id):
         logger.info("Duplicate bKash notice ignored because transaction already exists: %s", trx_id)
@@ -5718,11 +5746,6 @@ async def process_bkash(app, text, sender, meta=None):
     if already_saved:
         logger.info("Duplicate bKash notice ignored because TrxID was already saved: %s", trx_id)
         return
-
-    try:
-        await app.bot.send_message(ADMIN_ID, f"💰 bKash payment notice!\n\n📩 Source: {sender}\n💵 {amount_bdt} BDT\n🔑 TrxID: {trx_id}")
-    except Exception as exc:
-        logger.error(exc)
 
 
 async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
