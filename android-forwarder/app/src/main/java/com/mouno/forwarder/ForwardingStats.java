@@ -33,6 +33,11 @@ final class ForwardingStats {
                 .putString(KEY_LAST_PAYMENT_MESSAGE, ack.optString("message", statusHelp(ack.optString("payment_status", "accepted"))))
                 .putString(KEY_LAST_TRX_ID, ack.optString("trx_id", ""))
                 .putString(KEY_LAST_AMOUNT_BDT, ack.has("amount_bdt") ? ack.optString("amount_bdt") : "");
+        } else {
+            editor.putString(KEY_LAST_PAYMENT_STATUS, "accepted")
+                .putString(KEY_LAST_PAYMENT_MESSAGE, statusHelp("accepted"))
+                .putString(KEY_LAST_TRX_ID, "")
+                .putString(KEY_LAST_AMOUNT_BDT, "");
         }
         editor.apply();
     }
