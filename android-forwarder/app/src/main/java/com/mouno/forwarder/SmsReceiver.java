@@ -48,7 +48,7 @@ public class SmsReceiver extends BroadcastReceiver {
                     ForwardingStats.recordPhoneEvent(context, "SMS payment ignored: duplicate payment notice");
                     return;
                 }
-                ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
+                ForwardingStats.recordPhoneEvent(context, "SMS payment captured");
                 if (queued[0]) {
                     DebugLog.append(context, "SMS receiver queued payment and starting foreground service");
                     ForwarderForegroundService.start(context);
