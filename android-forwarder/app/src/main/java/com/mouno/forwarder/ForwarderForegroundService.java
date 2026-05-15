@@ -15,6 +15,7 @@ import android.os.Looper;
 import android.service.notification.NotificationListenerService;
 
 public class ForwarderForegroundService extends Service {
+    private static final String ACTION_FLUSH_LATEST = "com.mouno.forwarder.FLUSH_LATEST";
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
@@ -47,7 +48,16 @@ public class ForwarderForegroundService extends Service {
     };
 
     static boolean start(Context context) {
+        return start(context, null);
+    }
+
+    static boolean startAndFlushLatest(Context context) {
+        return start(context, ACTION_FLUSH_LATEST);
+    }
+
+    private static boolean start(Context context, String action) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
+        if (action != null) intent.setAction(action);
         try {
             if (Build.VERSION.SDK_INT >= 26) {
                 context.getApplicationContext().startForegroundService(intent);
@@ -84,7 +94,12 @@ public class ForwarderForegroundService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
             ForwarderClient.scheduleRetry(this);
-            ForwarderClient.flushQueue(this);
+            if (intent != null && ACTION_FLUSH_LATEST.equals(intent.getAction())) {
+                ForwardingStats.recordPhoneEvent(this, "Realtime SMS flush requested from foreground service");
+                ForwarderClient.flushLatestQueuedSmsFromForegroundService(this);
+            } else {
+                ForwarderClient.flushQueue(this);
+            }
             requestNotificationListenerRebind();
         } catch (Exception exc) {
             ForwardingStats.recordFailure(this, "Background service command failed: " + exc.getClass().getSimpleName());

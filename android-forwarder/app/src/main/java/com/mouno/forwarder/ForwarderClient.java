@@ -12,6 +12,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 
 import org.json.JSONObject;
 
@@ -35,6 +36,9 @@ final class ForwarderClient {
     private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
     private static final int RECEIVER_CONNECT_TIMEOUT_MS = 4_000;
     private static final int RECEIVER_READ_TIMEOUT_MS = 4_000;
+    private static final long RECEIVER_WAKE_LOCK_TIMEOUT_MS = 12_000L;
+    private static final long FLUSH_WAKE_LOCK_TIMEOUT_MS = 120_000L;
+    private static final String WAKE_LOCK_TAG = "SCBForwarder:Flush";
 
     private ForwarderClient() {}
 
@@ -133,16 +137,38 @@ final class ForwarderClient {
     static void flushQueue(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
-            flushQueueNow(appContext);
-            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, FLUSH_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushQueueNow(appContext);
+            } finally {
+                releaseWakeLock(wakeLock);
+                if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            }
         });
     }
 
     static void flushLatestQueuedSmsForReceiver(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
-            flushLatestQueueItemNow(appContext, RECEIVER_CONNECT_TIMEOUT_MS, RECEIVER_READ_TIMEOUT_MS);
-            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, RECEIVER_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushLatestQueueItemNow(appContext, RECEIVER_CONNECT_TIMEOUT_MS, RECEIVER_READ_TIMEOUT_MS);
+            } finally {
+                releaseWakeLock(wakeLock);
+                if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            }
+        });
+    }
+
+    static void flushLatestQueuedSmsFromForegroundService(Context context) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, FLUSH_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushLatestQueueItemNow(appContext, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+            } finally {
+                releaseWakeLock(wakeLock);
+            }
         });
     }
 
@@ -273,6 +299,27 @@ final class ForwarderClient {
             NoticeQueue.save(context, current);
         } else {
             scheduleNetworkFlush(context);
+        }
+    }
+
+    private static PowerManager.WakeLock acquireWakeLock(Context context, long timeoutMs) {
+        try {
+            PowerManager manager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (manager == null) return null;
+            PowerManager.WakeLock wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire(timeoutMs);
+            return wakeLock;
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(context, "Wake lock failed: " + exc.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private static void releaseWakeLock(PowerManager.WakeLock wakeLock) {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (Exception ignored) {
         }
     }
 
