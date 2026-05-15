@@ -46,7 +46,7 @@ final class ForwardingStats {
     }
 
     static void recordFailure(Context context, String error) {
-        DebugLog.append(context, "Forward failure: " + clean(error));
+        DebugLog.append(context, "Forward failure: " + failureLogLabel(error));
         SharedPreferences prefs = prefs(context);
         prefs.edit()
             .putInt(KEY_FAILURE_COUNT, prefs.getInt(KEY_FAILURE_COUNT, 0) + 1)
@@ -120,6 +120,13 @@ final class ForwardingStats {
         String value = error == null ? "unknown error" : error.trim();
         if (value.isEmpty()) return "unknown error";
         return value.length() > 160 ? value.substring(0, 160) : value;
+    }
+
+    private static String failureLogLabel(String error) {
+        String value = clean(error);
+        int detailStart = value.indexOf(':');
+        if (detailStart > 0) value = value.substring(0, detailStart).trim();
+        return value.isEmpty() ? "unknown error" : value;
     }
 
     private static String value(String value, String fallback) {

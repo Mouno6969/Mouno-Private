@@ -243,7 +243,7 @@ final class ForwarderClient {
             if (code == 404) message = "Health endpoint not found. Check URL or update server code.";
             return new HealthResult(true, reachable, authOk, message + " (HTTP " + code + ")");
         } catch (Exception exc) {
-            return new HealthResult(true, false, false, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            return new HealthResult(true, false, false, exc.getClass().getSimpleName());
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -337,7 +337,7 @@ final class ForwarderClient {
             return ok;
         } catch (Exception exc) {
             DebugLog.append(context, "HTTP post exception endpoint=" + notice.optString("endpoint", "notification") + " error=" + exc.getClass().getSimpleName());
-            ForwardingStats.recordFailure(context, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            ForwardingStats.recordFailure(context, "HTTP post exception: " + exc.getClass().getSimpleName());
             return false;
         } finally {
             if (connection != null) connection.disconnect();

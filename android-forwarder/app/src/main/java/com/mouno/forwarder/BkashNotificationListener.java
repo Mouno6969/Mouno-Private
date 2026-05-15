@@ -53,7 +53,7 @@ public class BkashNotificationListener extends NotificationListenerService {
             });
             if (!accepted) {
                 DebugLog.append(this, "Notification duplicate/not queued");
-                ForwardingStats.recordPhoneEvent(this, "bKash app notification ignored: duplicate " + parsed.summary());
+                ForwardingStats.recordPhoneEvent(this, "bKash app notification ignored: duplicate payment notice");
                 return;
             }
             ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
@@ -69,7 +69,7 @@ public class BkashNotificationListener extends NotificationListenerService {
             });
             if (!accepted) {
                 DebugLog.append(this, "SMS notification duplicate/not queued");
-                ForwardingStats.recordPhoneEvent(this, "SMS notification ignored: duplicate " + parsed.summary());
+                ForwardingStats.recordPhoneEvent(this, "SMS notification ignored: duplicate payment notice");
                 return;
             }
             ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
