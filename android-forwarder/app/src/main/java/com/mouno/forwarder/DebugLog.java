@@ -14,7 +14,7 @@ final class DebugLog {
 
     private DebugLog() {}
 
-    static void append(Context context, String event) {
+    static synchronized void append(Context context, String event) {
         Context appContext = context.getApplicationContext();
         SharedPreferences prefs = prefs(appContext);
         long now = System.currentTimeMillis();
