@@ -32,10 +32,8 @@ import java.util.concurrent.Executors;
 final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final int NETWORK_FLUSH_JOB_ID = 202;
-    private static final int RETRY_ALARM_REQUEST_CODE = 101;
-    private static final int WAKE_RETRY_ALARM_REQUEST_CODE = 102;
-    private static final long WAKE_RETRY_COOLDOWN_MS = 2 * 60_000L;
-    private static long lastWakeRetryAt;
+    private static final int BACKGROUND_SCAN_ALARM_REQUEST_CODE = 101;
+    private static final long BACKGROUND_SCAN_INTERVAL_MS = 30_000L;
 
     private ForwarderClient() {}
 
@@ -177,38 +175,36 @@ final class ForwarderClient {
     static void scanSmsInbox(Context context, boolean recordNoNew, SmsInboxScanCallback callback) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
-            int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, recordNoNew);
-            if (queued > 0) flushQueueNow(appContext);
+            int queued = scanSmsInboxSync(appContext, recordNoNew);
             if (callback != null) new Handler(Looper.getMainLooper()).post(() -> callback.onResult(queued));
         });
+    }
+
+    static int scanSmsInboxSync(Context context, boolean recordNoNew) {
+        Context appContext = context.getApplicationContext();
+        int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, recordNoNew);
+        if (queued > 0) flushQueueNow(appContext);
+        return queued;
     }
 
     static void scheduleRetry(Context context) {
         Context appContext = context.getApplicationContext();
         Intent intent = new Intent(appContext, RetryReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(appContext, RETRY_ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent wakePendingIntent = PendingIntent.getBroadcast(appContext, WAKE_RETRY_ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(appContext, BACKGROUND_SCAN_ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000L, 5 * 60_000L, pendingIntent);
-            if (NoticeQueue.count(appContext) > 0) scheduleWakeRetry(alarmManager, wakePendingIntent);
+            long triggerAt = System.currentTimeMillis() + BACKGROUND_SCAN_INTERVAL_MS;
+            try {
+                if (Build.VERSION.SDK_INT >= 23) {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                } else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                }
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(appContext, "Background scan alarm schedule failed: " + exc.getClass().getSimpleName());
+            }
         }
         scheduleNetworkFlush(appContext);
-    }
-
-    private static void scheduleWakeRetry(AlarmManager alarmManager, PendingIntent pendingIntent) {
-        long now = System.currentTimeMillis();
-        if (now - lastWakeRetryAt < WAKE_RETRY_COOLDOWN_MS) return;
-        lastWakeRetryAt = now;
-        long triggerAt = now + 30_000L;
-        try {
-            if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-            }
-        } catch (Exception ignored) {
-        }
     }
 
     static void scheduleNetworkFlush(Context context) {
