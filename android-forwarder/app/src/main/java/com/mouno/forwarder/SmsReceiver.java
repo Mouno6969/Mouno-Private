@@ -29,15 +29,18 @@ public class SmsReceiver extends BroadcastReceiver {
             String text = body.toString();
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
             if (isTrustedBkashSender(sender) && parsed != null) {
-                if (!BkashPaymentDeduper.markSeenPayment(context, parsed)) {
+                final boolean[] queued = new boolean[]{false};
+                boolean accepted = BkashPaymentDeduper.enqueueIfNew(context, parsed, () -> {
+                    queued[0] = ForwarderClient.queueSms(context, sender, text);
+                    return queued[0];
+                });
+                if (!accepted) {
                     ForwardingStats.recordPhoneEvent(context, "SMS payment ignored: duplicate " + parsed.summary());
                     return;
                 }
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
-                if (ForwarderClient.queueSms(context, sender, text)) {
+                if (queued[0]) {
                     ForwarderForegroundService.start(context);
-                } else {
-                    BkashPaymentDeduper.releaseSeenPayment(context, parsed);
                 }
                 return;
             }

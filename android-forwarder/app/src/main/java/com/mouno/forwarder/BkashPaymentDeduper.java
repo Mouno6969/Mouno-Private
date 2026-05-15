@@ -13,22 +13,22 @@ final class BkashPaymentDeduper {
 
     private BkashPaymentDeduper() {}
 
-    static synchronized boolean markSeenPayment(Context context, BkashNoticeParser.Parsed parsed) {
+    interface EnqueueAction {
+        boolean enqueue();
+    }
+
+    static synchronized boolean enqueueIfNew(Context context, BkashNoticeParser.Parsed parsed, EnqueueAction action) {
         String trxId = normalize(parsed);
-        if (trxId.isEmpty()) return true;
+        if (trxId.isEmpty()) return action.enqueue();
         SharedPreferences prefs = prefs(context);
         String key = KEY_PREFIX + trxId;
         if (prefs.contains(key)) return false;
+        if (!action.enqueue()) return false;
         long now = System.currentTimeMillis();
         SharedPreferences.Editor editor = prefs.edit().putLong(key, now);
         pruneExpired(prefs, editor, now);
         if (!editor.commit()) prefs.edit().putLong(key, now).apply();
         return true;
-    }
-
-    static synchronized void releaseSeenPayment(Context context, BkashNoticeParser.Parsed parsed) {
-        String trxId = normalize(parsed);
-        if (!trxId.isEmpty()) prefs(context).edit().remove(KEY_PREFIX + trxId).apply();
     }
 
     private static void pruneExpired(SharedPreferences prefs, SharedPreferences.Editor editor, long now) {
