@@ -14,14 +14,15 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Telephony;
 import android.service.notification.NotificationListenerService;
 
 public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
-    private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
-    private static final long INBOX_POLL_INTERVAL_MS = 30_000L;
+    private static final long FLUSH_INTERVAL_MS = 60_000L;
+    private static final long INBOX_POLL_INTERVAL_MS = 15_000L;
     private static final long INBOX_OBSERVER_DEBOUNCE_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -36,6 +37,7 @@ public class ForwarderForegroundService extends Service {
     private final Runnable keepAlive = new Runnable() {
         @Override
         public void run() {
+            if (wakeLock == null || !wakeLock.isHeld()) acquireWakeLock();
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
             ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Background service alive");
             scanInbox.run();
@@ -52,11 +54,13 @@ public class ForwarderForegroundService extends Service {
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
+            DebugLog.append(ForwarderForegroundService.this, "SMS inbox observer changed");
             handler.removeCallbacks(scanInbox);
             handler.postDelayed(scanInbox, INBOX_OBSERVER_DEBOUNCE_MS);
         }
     };
     private boolean inboxObserverRegistered;
+    private PowerManager.WakeLock wakeLock;
 
     static boolean start(Context context) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
@@ -82,6 +86,7 @@ public class ForwarderForegroundService extends Service {
         DebugLog.append(this, "Foreground service created");
         createChannel();
         startForeground(NOTIFICATION_ID, notification());
+        acquireWakeLock();
         registerInboxObserver();
         handler.post(keepAlive);
         handler.post(pollInbox);
@@ -107,6 +112,7 @@ public class ForwarderForegroundService extends Service {
         handler.removeCallbacks(pollInbox);
         handler.removeCallbacks(scanInbox);
         unregisterInboxObserver();
+        releaseWakeLock();
         ForwarderClient.scheduleRetry(this);
         super.onDestroy();
     }
@@ -136,12 +142,33 @@ public class ForwarderForegroundService extends Service {
             : new Notification.Builder(this);
         builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("SCB-Forwarder running")
-            .setContentText("Polling bKash SMS inbox every 30 seconds")
+            .setContentText("Polling bKash SMS inbox every 15 seconds")
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false);
         if (Build.VERSION.SDK_INT < 26) builder.setPriority(Notification.PRIORITY_LOW);
         return builder.build();
+    }
+
+    private void acquireWakeLock() {
+        try {
+            PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+            if (powerManager == null) return;
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MounoForwarder:BackgroundForwarding");
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire(10 * 60_000L);
+            DebugLog.append(this, "Background forwarding wake lock active");
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Wake lock failed: " + exc.getClass().getSimpleName());
+        }
+    }
+
+    private void releaseWakeLock() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (Exception ignored) {
+        }
+        wakeLock = null;
     }
 
     private void requestNotificationListenerRebind() {
