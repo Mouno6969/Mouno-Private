@@ -63,6 +63,30 @@ class AISupportKnowledgeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, self.knowledge)
 
+    def test_broad_bot_feature_coverage_is_in_ai_knowledge(self):
+        for text in (
+            "Language, help, FAQ, terms",
+            "Rates and buy amounts",
+            "Gift Code and Giveaway",
+            "Personal wallet",
+            "Referral and payouts",
+            "stock reservations",
+            "TX Log, receipts, and failed sends",
+            "Admin operations and health",
+            "Maintenance, webhook, dashboard, AI admin",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, self.knowledge)
+
+    def test_sensitive_user_wallet_boundaries_remain_in_ai_knowledge(self):
+        for text in (
+            "The bot cannot recover a forgotten password",
+            "Never ask for or reveal private keys",
+            "wrong networks, irreversible transfers, gas, and manual review",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, self.knowledge)
+
 
 if __name__ == "__main__":
     unittest.main()
