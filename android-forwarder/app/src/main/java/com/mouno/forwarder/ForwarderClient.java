@@ -331,7 +331,7 @@ final class ForwarderClient {
                 }
                 ForwardingStats.recordSuccess(context, endpoint, ack);
             } else {
-                DebugLog.append(context, "HTTP post failed code=" + code + " endpoint=" + endpoint + " body=" + responseBody);
+                DebugLog.append(context, "HTTP post failed code=" + code + " endpoint=" + endpoint);
                 ForwardingStats.recordFailure(context, "HTTP " + code + " from " + endpoint + " endpoint");
             }
             return ok;
