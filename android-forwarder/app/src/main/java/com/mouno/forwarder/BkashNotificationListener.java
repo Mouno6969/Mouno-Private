@@ -13,12 +13,14 @@ public class BkashNotificationListener extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         super.onListenerConnected();
+        DebugLog.append(this, "Notification listener connected");
         ForwardingStats.recordPhoneEvent(this, "Notification listener connected");
         ForwarderForegroundService.start(this);
     }
 
     @Override
     public void onListenerDisconnected() {
+        DebugLog.append(this, "Notification listener disconnected");
         ForwardingStats.recordPhoneEvent(this, "Notification listener disconnected; rebind requested");
         if (Build.VERSION.SDK_INT >= 24) {
             requestRebind(new ComponentName(this, BkashNotificationListener.class));
@@ -40,6 +42,9 @@ public class BkashNotificationListener extends NotificationListenerService {
         String summary = value(extras, Notification.EXTRA_SUMMARY_TEXT);
         String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
         BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(all);
+        if (isTrustedBkashPackage(packageName) || isTrustedSmsPackage(packageName)) {
+            DebugLog.append(this, "Notification posted package=" + packageName + " title=" + title + " parsed=" + (parsed != null) + " bkashIdentity=" + hasBkashIdentity(all));
+        }
         if (isTrustedBkashPackage(packageName) && parsed != null) {
             final boolean[] queued = new boolean[]{false};
             boolean accepted = BkashPaymentDeduper.enqueueIfNew(this, parsed, () -> {
@@ -47,11 +52,13 @@ public class BkashNotificationListener extends NotificationListenerService {
                 return queued[0];
             });
             if (!accepted) {
+                DebugLog.append(this, "Notification duplicate/not queued: " + parsed.summary());
                 ForwardingStats.recordPhoneEvent(this, "bKash app notification ignored: duplicate " + parsed.summary());
                 return;
             }
             ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
             if (queued[0]) {
+                DebugLog.append(this, "bKash notification queued and starting foreground service");
                 ForwarderForegroundService.start(this);
             }
         } else if (isTrustedSmsPackage(packageName) && parsed != null && (isTrustedBkashSender(title) || hasBkashIdentity(all))) {
@@ -61,14 +68,17 @@ public class BkashNotificationListener extends NotificationListenerService {
                 return queued[0];
             });
             if (!accepted) {
+                DebugLog.append(this, "SMS notification duplicate/not queued: " + parsed.summary());
                 ForwardingStats.recordPhoneEvent(this, "SMS notification ignored: duplicate " + parsed.summary());
                 return;
             }
             ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
             if (queued[0]) {
+                DebugLog.append(this, "SMS notification queued and starting foreground service");
                 ForwarderForegroundService.start(this);
             }
         } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
+            DebugLog.append(this, "Notification ignored before send: package=" + packageName + " title=" + title);
             ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
     }

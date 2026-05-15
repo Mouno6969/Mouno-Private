@@ -24,10 +24,12 @@ final class SmsInboxReader {
     static int queueRecentPaymentNotices(Context context, boolean recordNoNew) {
         Context appContext = context.getApplicationContext();
         if (!canReadSms(appContext)) {
+            DebugLog.append(appContext, "SMS inbox scan skipped: READ_SMS missing");
             if (recordNoNew) ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan skipped: READ_SMS permission missing");
             return 0;
         }
         long now = System.currentTimeMillis();
+        DebugLog.append(appContext, "SMS inbox scan started manual=" + recordNoNew);
         boolean manualScan = recordNoNew;
         SharedPreferences prefs = prefs(appContext);
         if (!manualScan && !prefs.contains(KEY_LAST_AUTO_SCAN_AT)) {
@@ -97,9 +99,13 @@ final class SmsInboxReader {
             return queued;
         }
         if (queued > 0) {
+            DebugLog.append(appContext, "SMS inbox scan queued " + queued + " payment notice(s)");
             ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan queued " + queued + " payment notice(s)");
         } else if (recordNoNew) {
+            DebugLog.append(appContext, "SMS inbox scan found no new payment notices");
             ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan found no new payment notices");
+        } else {
+            DebugLog.append(appContext, "SMS inbox scan finished. queued=0");
         }
         return queued;
     }

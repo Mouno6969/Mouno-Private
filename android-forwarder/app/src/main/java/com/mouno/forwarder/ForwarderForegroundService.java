@@ -61,6 +61,7 @@ public class ForwarderForegroundService extends Service {
     static boolean start(Context context) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
         try {
+            DebugLog.append(context, "Foreground service start requested");
             if (Build.VERSION.SDK_INT >= 26) {
                 context.getApplicationContext().startForegroundService(intent);
             } else {
@@ -78,6 +79,7 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        DebugLog.append(this, "Foreground service created");
         createChannel();
         startForeground(NOTIFICATION_ID, notification());
         registerInboxObserver();
@@ -87,6 +89,7 @@ public class ForwarderForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        DebugLog.append(this, "Foreground service onStartCommand");
         ForwarderClient.scheduleRetry(this);
         registerInboxObserver();
         scanInbox.run();
@@ -99,6 +102,7 @@ public class ForwarderForegroundService extends Service {
 
     @Override
     public void onDestroy() {
+        DebugLog.append(this, "Foreground service destroyed");
         handler.removeCallbacks(keepAlive);
         handler.removeCallbacks(pollInbox);
         handler.removeCallbacks(scanInbox);

@@ -13,10 +13,17 @@ public class SmsReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         BroadcastReceiver.PendingResult pendingResult = goAsync();
         try {
+            DebugLog.append(context, "SMS receiver fired");
             Bundle bundle = intent.getExtras();
-            if (bundle == null) return;
+            if (bundle == null) {
+                DebugLog.append(context, "SMS receiver ignored: empty bundle");
+                return;
+            }
             Object[] pdus = (Object[]) bundle.get("pdus");
-            if (pdus == null || pdus.length == 0) return;
+            if (pdus == null || pdus.length == 0) {
+                DebugLog.append(context, "SMS receiver ignored: no pdus");
+                return;
+            }
             String format = bundle.getString("format");
             StringBuilder body = new StringBuilder();
             String sender = "sms";
@@ -28,6 +35,7 @@ public class SmsReceiver extends BroadcastReceiver {
             }
             String text = body.toString();
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
+            DebugLog.append(context, "SMS receiver parsed=" + (parsed != null) + " sender=" + sender + " bkashIdentity=" + hasBkashIdentity(text));
             if (parsed != null && (isTrustedBkashSender(sender) || hasBkashIdentity(text))) {
                 String smsSender = sender;
                 final boolean[] queued = new boolean[]{false};
@@ -36,16 +44,19 @@ public class SmsReceiver extends BroadcastReceiver {
                     return queued[0];
                 });
                 if (!accepted) {
+                    DebugLog.append(context, "SMS receiver duplicate/not queued: " + parsed.summary());
                     ForwardingStats.recordPhoneEvent(context, "SMS payment ignored: duplicate " + parsed.summary());
                     return;
                 }
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
                 if (queued[0]) {
+                    DebugLog.append(context, "SMS receiver queued payment and starting foreground service");
                     ForwarderForegroundService.start(context);
                 }
                 return;
             }
             if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
+                DebugLog.append(context, "SMS receiver ignored: not parseable payment sender=" + sender);
                 ForwardingStats.recordPhoneEvent(context, "SMS ignored before send: not a parseable payment from " + sender);
             }
         } finally {

@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private TextView configDetails;
     private TextView paymentOutcomeDetails;
     private TextView forwardingDetails;
+    private TextView debugLogDetails;
     private TextView queueDetails;
     private TextView retryStatus;
     private TextView healthStatus;
@@ -63,6 +64,7 @@ public class MainActivity extends Activity {
     private SharedPreferences forwardingStatsPrefs;
     private SharedPreferences noticeQueuePrefs;
     private SharedPreferences noticeHistoryPrefs;
+    private SharedPreferences debugLogPrefs;
     private boolean statusListenersRegistered;
     private int backgroundColor;
     private int cardColor;
@@ -156,6 +158,16 @@ public class MainActivity extends Activity {
         LinearLayout statusCard = card(layout, "Delivery stats / ডেলিভারি স্ট্যাটাস", SUCCESS);
         forwardingDetails = bodyText();
         statusCard.addView(forwardingDetails);
+
+        LinearLayout debugCard = card(layout, "Admin debug log / অ্যাডমিন লগ", ERROR);
+        TextView debugHelp = bodyText();
+        debugHelp.setText("Background issue ধরার জন্য latest events: SMS receiver, notification listener, queue, flush, HTTP post, service start/stop.");
+        debugHelp.setTextColor(mutedTextColor);
+        debugCard.addView(debugHelp);
+        debugCard.addView(actionButton("Clear debug log", v -> clearDebugLog()));
+        debugLogDetails = bodyText();
+        debugLogDetails.setTextSize(12);
+        debugCard.addView(debugLogDetails);
 
         LinearLayout queueCard = card(layout, "Offline queue / অফলাইন কিউ", WARNING);
         queueDetails = bodyText();
@@ -338,6 +350,15 @@ public class MainActivity extends Activity {
                 + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
+        if (debugLogDetails != null) {
+            debugLogDetails.setText(DebugLog.text(this));
+            debugLogDetails.setTextColor(textColor);
+        }
+    }
+
+    private void clearDebugLog() {
+        DebugLog.clear(this);
+        refreshStatus();
     }
 
     private String latestParsedText() {
@@ -665,9 +686,11 @@ public class MainActivity extends Activity {
         forwardingStatsPrefs = ForwardingStats.prefsForUpdates(this);
         noticeQueuePrefs = NoticeQueue.prefsForUpdates(this);
         noticeHistoryPrefs = BkashNoticeHistory.prefsForUpdates(this);
+        debugLogPrefs = DebugLog.prefsForUpdates(this);
         forwardingStatsPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
         noticeQueuePrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
         noticeHistoryPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
+        debugLogPrefs.registerOnSharedPreferenceChangeListener(statusChangeListener);
         statusListenersRegistered = true;
     }
 
@@ -676,6 +699,7 @@ public class MainActivity extends Activity {
         if (forwardingStatsPrefs != null) forwardingStatsPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
         if (noticeQueuePrefs != null) noticeQueuePrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
         if (noticeHistoryPrefs != null) noticeHistoryPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
+        if (debugLogPrefs != null) debugLogPrefs.unregisterOnSharedPreferenceChangeListener(statusChangeListener);
         statusListenersRegistered = false;
     }
 

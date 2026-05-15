@@ -109,7 +109,9 @@ final class ForwarderClient {
     static void flushQueue(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
+            DebugLog.append(appContext, "Flush started. Queue=" + NoticeQueue.count(appContext));
             flushQueueNow(appContext);
+            DebugLog.append(appContext, "Flush finished. Queue=" + NoticeQueue.count(appContext));
             if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
         });
     }
@@ -128,6 +130,7 @@ final class ForwarderClient {
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
+            DebugLog.append(appContext, "Queued " + label + ". Flush after queue=" + flushAfterQueue + " queue=" + NoticeQueue.count(appContext));
             if (flushAfterQueue) flushQueue(appContext);
             return true;
         } catch (Exception exc) {
@@ -302,6 +305,7 @@ final class ForwarderClient {
         try {
             String endpoint = notice.optString("endpoint", "notification");
             URL url = new URL(ForwarderConfig.endpoint(context, endpoint));
+            DebugLog.append(context, "HTTP post start endpoint=" + endpoint);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(10_000);
@@ -327,10 +331,12 @@ final class ForwarderClient {
                 }
                 ForwardingStats.recordSuccess(context, endpoint, ack);
             } else {
+                DebugLog.append(context, "HTTP post failed code=" + code + " endpoint=" + endpoint + " body=" + responseBody);
                 ForwardingStats.recordFailure(context, "HTTP " + code + " from " + endpoint + " endpoint");
             }
             return ok;
         } catch (Exception exc) {
+            DebugLog.append(context, "HTTP post exception endpoint=" + notice.optString("endpoint", "notification") + " error=" + exc.getClass().getSimpleName() + ": " + exc.getMessage());
             ForwardingStats.recordFailure(context, exc.getClass().getSimpleName() + ": " + exc.getMessage());
             return false;
         } finally {
