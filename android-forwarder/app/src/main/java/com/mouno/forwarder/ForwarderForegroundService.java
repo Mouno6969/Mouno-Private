@@ -21,14 +21,23 @@ public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
+    private static final long INBOX_POLL_INTERVAL_MS = 30_000L;
     private static final long INBOX_OBSERVER_DEBOUNCE_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable scanInbox = () -> ForwarderClient.scanSmsInbox(ForwarderForegroundService.this, false, null);
+    private final Runnable pollInbox = new Runnable() {
+        @Override
+        public void run() {
+            scanInbox.run();
+            handler.postDelayed(this, INBOX_POLL_INTERVAL_MS);
+        }
+    };
     private final Runnable keepAlive = new Runnable() {
         @Override
         public void run() {
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
+            ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Background service alive");
             scanInbox.run();
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
             requestNotificationListenerRebind();
@@ -73,6 +82,7 @@ public class ForwarderForegroundService extends Service {
         startForeground(NOTIFICATION_ID, notification());
         registerInboxObserver();
         handler.post(keepAlive);
+        handler.post(pollInbox);
     }
 
     @Override
@@ -80,6 +90,8 @@ public class ForwarderForegroundService extends Service {
         ForwarderClient.scheduleRetry(this);
         registerInboxObserver();
         scanInbox.run();
+        handler.removeCallbacks(pollInbox);
+        handler.postDelayed(pollInbox, INBOX_POLL_INTERVAL_MS);
         ForwarderClient.flushQueue(this);
         requestNotificationListenerRebind();
         return START_STICKY;
@@ -88,6 +100,7 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(keepAlive);
+        handler.removeCallbacks(pollInbox);
         handler.removeCallbacks(scanInbox);
         unregisterInboxObserver();
         ForwarderClient.scheduleRetry(this);
@@ -119,7 +132,7 @@ public class ForwarderForegroundService extends Service {
             : new Notification.Builder(this);
         builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("SCB-Forwarder running")
-            .setContentText("Watching bKash SMS inbox and notifications")
+            .setContentText("Polling bKash SMS inbox every 30 seconds")
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false);
