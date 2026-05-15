@@ -55,7 +55,6 @@ final class SmsInboxReader {
         }
         if (queued > 0) {
             ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan queued " + queued + " payment notice(s)");
-            ForwarderForegroundService.start(appContext);
         } else if (recordNoNew) {
             ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan found no new payment notices");
         }
