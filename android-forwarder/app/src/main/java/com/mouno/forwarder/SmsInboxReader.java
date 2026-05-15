@@ -13,6 +13,7 @@ import java.util.Locale;
 final class SmsInboxReader {
     private static final String PREFS = "sms_inbox_reader";
     private static final String KEY_LAST_AUTO_SCAN_AT = "last_auto_scan_at";
+    private static final String KEY_LAST_AUTO_SCAN_ID = "last_auto_scan_id";
     private static final long MANUAL_LOOKBACK_MS = 24L * 60L * 60L * 1000L;
     private static final int MAX_CURSOR_ROWS = 300;
     private static final int MAX_AUTO_QUEUED = 5;
@@ -30,24 +31,34 @@ final class SmsInboxReader {
         boolean manualScan = recordNoNew;
         SharedPreferences prefs = prefs(appContext);
         if (!manualScan && !prefs.contains(KEY_LAST_AUTO_SCAN_AT)) {
-            prefs.edit().putLong(KEY_LAST_AUTO_SCAN_AT, now).apply();
+            prefs.edit()
+                .putLong(KEY_LAST_AUTO_SCAN_AT, now)
+                .putLong(KEY_LAST_AUTO_SCAN_ID, Long.MAX_VALUE)
+                .apply();
             return 0;
         }
         long since = manualScan ? now - MANUAL_LOOKBACK_MS : prefs.getLong(KEY_LAST_AUTO_SCAN_AT, now);
+        long lastAutoId = manualScan ? -1L : prefs.getLong(KEY_LAST_AUTO_SCAN_ID, -1L);
         int maxQueued = manualScan ? MAX_MANUAL_QUEUED : MAX_AUTO_QUEUED;
         int queued = 0;
-        long latestSeenAt = since;
-        String[] projection = new String[]{Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE};
-        String selection = Telephony.Sms.DATE + ">=?";
-        String[] selectionArgs = new String[]{String.valueOf(since)};
+        long latestSeenAt = -1L;
+        long latestSeenId = -1L;
+        String[] projection = new String[]{Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE};
+        String selection = manualScan
+            ? Telephony.Sms.DATE + ">=?"
+            : "(" + Telephony.Sms.DATE + ">? OR (" + Telephony.Sms.DATE + "=? AND " + Telephony.Sms._ID + ">?))";
+        String[] selectionArgs = manualScan
+            ? new String[]{String.valueOf(since)}
+            : new String[]{String.valueOf(since), String.valueOf(since), String.valueOf(lastAutoId)};
         try (Cursor cursor = appContext.getContentResolver().query(
             Telephony.Sms.Inbox.CONTENT_URI,
             projection,
             selection,
             selectionArgs,
-            Telephony.Sms.DATE + " ASC"
+            Telephony.Sms.DATE + " ASC, " + Telephony.Sms._ID + " ASC"
         )) {
             if (cursor == null) return 0;
+            int idIndex = cursor.getColumnIndex(Telephony.Sms._ID);
             int addressIndex = cursor.getColumnIndex(Telephony.Sms.ADDRESS);
             int bodyIndex = cursor.getColumnIndex(Telephony.Sms.BODY);
             int dateIndex = cursor.getColumnIndex(Telephony.Sms.DATE);
@@ -59,10 +70,12 @@ final class SmsInboxReader {
                     break;
                 }
                 rows++;
+                long rowId = idIndex >= 0 ? cursor.getLong(idIndex) : rows;
                 String sender = addressIndex >= 0 ? cursor.getString(addressIndex) : "sms_inbox";
                 String text = bodyIndex >= 0 ? cursor.getString(bodyIndex) : "";
                 long receivedAt = dateIndex >= 0 ? cursor.getLong(dateIndex) : now;
-                if (receivedAt > latestSeenAt) latestSeenAt = receivedAt;
+                latestSeenAt = receivedAt;
+                latestSeenId = rowId;
                 BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
                 if (parsed == null || (!isTrustedBkashSender(sender) && !isBkashNotice(text))) continue;
                 String smsSender = sender == null || sender.trim().isEmpty() ? "sms_inbox" : sender;
@@ -73,9 +86,11 @@ final class SmsInboxReader {
                 });
                 if (accepted && saved[0]) queued++;
             }
-            if (!manualScan) {
-                long nextScanAt = exhausted ? Math.max(now, latestSeenAt) : latestSeenAt;
-                prefs.edit().putLong(KEY_LAST_AUTO_SCAN_AT, nextScanAt).apply();
+            if (!manualScan && latestSeenAt >= 0L) {
+                prefs.edit()
+                    .putLong(KEY_LAST_AUTO_SCAN_AT, latestSeenAt)
+                    .putLong(KEY_LAST_AUTO_SCAN_ID, latestSeenId)
+                    .apply();
             }
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "SMS inbox scan failed: " + exc.getClass().getSimpleName());
