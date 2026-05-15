@@ -34,6 +34,8 @@ final class ForwarderClient {
     private static final int NETWORK_FLUSH_JOB_ID = 202;
     private static final int RETRY_ALARM_REQUEST_CODE = 101;
     private static final int WAKE_RETRY_ALARM_REQUEST_CODE = 102;
+    private static final long WAKE_RETRY_COOLDOWN_MS = 2 * 60_000L;
+    private static long lastWakeRetryAt;
 
     private ForwarderClient() {}
 
@@ -189,13 +191,16 @@ final class ForwarderClient {
         AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
             alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000L, 5 * 60_000L, pendingIntent);
-            scheduleWakeRetry(alarmManager, wakePendingIntent);
+            if (NoticeQueue.count(appContext) > 0) scheduleWakeRetry(alarmManager, wakePendingIntent);
         }
         scheduleNetworkFlush(appContext);
     }
 
     private static void scheduleWakeRetry(AlarmManager alarmManager, PendingIntent pendingIntent) {
-        long triggerAt = System.currentTimeMillis() + 30_000L;
+        long now = System.currentTimeMillis();
+        if (now - lastWakeRetryAt < WAKE_RETRY_COOLDOWN_MS) return;
+        lastWakeRetryAt = now;
+        long triggerAt = now + 30_000L;
         try {
             if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);

@@ -10,11 +10,14 @@ public class RetryReceiver extends BroadcastReceiver {
         Context appContext = context.getApplicationContext();
         BroadcastReceiver.PendingResult pendingResult = goAsync();
         DebugLog.append(appContext, "Background retry receiver fired");
-        ForwarderForegroundService.start(appContext);
-        ForwarderClient.scanSmsInbox(appContext, false, queued -> ForwarderClient.flushQueue(appContext, () -> {
+        try {
+            ForwarderForegroundService.start(appContext);
+            ForwarderClient.scanSmsInbox(appContext, false, null);
+            ForwarderClient.flushQueue(appContext, () -> DebugLog.append(appContext, "Background retry flush finished"));
             ForwarderClient.scheduleRetry(appContext);
-            DebugLog.append(appContext, "Background retry receiver finished queued=" + queued);
+            DebugLog.append(appContext, "Background retry receiver scheduled work");
+        } finally {
             pendingResult.finish();
-        }));
+        }
     }
 }
