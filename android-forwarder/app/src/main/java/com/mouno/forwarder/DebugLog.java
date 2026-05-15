@@ -9,18 +9,23 @@ import java.util.Date;
 final class DebugLog {
     private static final String PREFS = "forwarder_debug_log";
     private static final String KEY_LOG = "log";
-    private static final int MAX_CHARS = 12_000;
+    private static final String KEY_UPDATED_AT = "updated_at";
+    private static final int MAX_CHARS = 24_000;
 
     private DebugLog() {}
 
     static void append(Context context, String event) {
         Context appContext = context.getApplicationContext();
         SharedPreferences prefs = prefs(appContext);
-        String line = formatTime(System.currentTimeMillis()) + "  " + clean(event);
+        long now = System.currentTimeMillis();
+        String line = formatTime(now) + "  " + clean(event);
         String current = prefs.getString(KEY_LOG, "");
         String updated = current == null || current.isEmpty() ? line : line + "\n" + current;
         if (updated.length() > MAX_CHARS) updated = updated.substring(0, MAX_CHARS);
-        prefs.edit().putString(KEY_LOG, updated).apply();
+        prefs.edit()
+            .putString(KEY_LOG, updated)
+            .putLong(KEY_UPDATED_AT, now)
+            .apply();
     }
 
     static String text(Context context) {
@@ -29,8 +34,13 @@ final class DebugLog {
     }
 
     static void clear(Context context) {
-        prefs(context).edit().remove(KEY_LOG).apply();
+        prefs(context).edit().remove(KEY_LOG).remove(KEY_UPDATED_AT).apply();
         append(context, "Debug log cleared");
+    }
+
+    static String updatedAtText(Context context) {
+        long updatedAt = prefs(context).getLong(KEY_UPDATED_AT, 0L);
+        return updatedAt <= 0L ? "never" : formatTime(updatedAt);
     }
 
     static SharedPreferences prefsForUpdates(Context context) {

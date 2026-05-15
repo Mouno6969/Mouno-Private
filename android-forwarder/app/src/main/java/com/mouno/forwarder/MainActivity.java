@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private TextView configDetails;
     private TextView paymentOutcomeDetails;
     private TextView forwardingDetails;
+    private TextView debugLogLiveStatus;
     private TextView debugLogDetails;
     private TextView queueDetails;
     private TextView retryStatus;
@@ -159,14 +160,18 @@ public class MainActivity extends Activity {
         forwardingDetails = bodyText();
         statusCard.addView(forwardingDetails);
 
-        LinearLayout debugCard = card(layout, "Admin debug log / অ্যাডমিন লগ", ERROR);
+        LinearLayout debugCard = card(layout, "Live admin activity log / লাইভ অ্যাডমিন লগ", ERROR);
         TextView debugHelp = bodyText();
-        debugHelp.setText("Background issue ধরার জন্য latest events: SMS receiver, notification listener, queue, flush, HTTP post, service start/stop.");
+        debugHelp.setText("App-এর realtime activity/error এখানে auto update হবে: SMS receiver, notification listener, queue, retry, flush, HTTP post, service start/stop. Sensitive message/body details redacted থাকবে।");
         debugHelp.setTextColor(mutedTextColor);
         debugCard.addView(debugHelp);
+        debugLogLiveStatus = bodyText();
+        debugLogLiveStatus.setTypeface(Typeface.DEFAULT_BOLD);
+        debugCard.addView(debugLogLiveStatus);
         debugCard.addView(actionButton("Clear debug log", v -> clearDebugLog()));
         debugLogDetails = bodyText();
         debugLogDetails.setTextSize(12);
+        debugLogDetails.setTypeface(Typeface.MONOSPACE);
         debugCard.addView(debugLogDetails);
 
         LinearLayout queueCard = card(layout, "Offline queue / অফলাইন কিউ", WARNING);
@@ -187,7 +192,10 @@ public class MainActivity extends Activity {
 
         LinearLayout setupCard = card(layout, "Phone setup / ফোন সেটআপ", PRIMARY);
         setupCard.addView(actionButton("Allow SMS Permission", v -> requestSmsPermissions()));
-        setupCard.addView(actionButton("Enable Notification Access", v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))));
+        setupCard.addView(actionButton("Enable Notification Access", v -> {
+            DebugLog.append(this, "Notification access settings opened");
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+        }));
         setupCard.addView(actionButton("Start Background Service", v -> startBackgroundService()));
         setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
 
@@ -202,6 +210,7 @@ public class MainActivity extends Activity {
         batteryCard.addView(actionButton("Open Autostart/Battery Settings", v -> openAutostartSettings()));
 
         setContentView(scroll);
+        DebugLog.append(this, "Admin screen opened");
         refreshStatus();
         requestSmsPermissions();
         ForwarderForegroundService.start(this);
@@ -354,6 +363,12 @@ public class MainActivity extends Activity {
             debugLogDetails.setText(DebugLog.text(this));
             debugLogDetails.setTextColor(textColor);
         }
+        if (debugLogLiveStatus != null) {
+            int queueCount = NoticeQueue.count(this);
+            debugLogLiveStatus.setText("LIVE · auto-refresh " + (STATUS_REFRESH_INTERVAL_MS / 1000.0) + "s · last event " + DebugLog.updatedAtText(this) + "\n"
+                + "Queue: " + queueCount + " · SMS permission: " + statusText(hasSmsPermissions()) + " · Config: " + statusText(ForwarderConfig.isConfigured(this)));
+            debugLogLiveStatus.setTextColor(queueCount > 0 ? WARNING : SUCCESS);
+        }
     }
 
     private void clearDebugLog() {
@@ -370,17 +385,20 @@ public class MainActivity extends Activity {
 
     private void retryQueuedNotices() {
         int queuedBefore = NoticeQueue.count(this);
+        DebugLog.append(this, "Manual retry tapped. Queue before=" + queuedBefore);
         retryStatus.setTextColor(WARNING);
         retryStatus.setText("Retry started. Queue before retry: " + queuedBefore + ".");
         ForwarderClient.flushQueue(this, () -> {
             refreshStatus();
             int queuedNow = NoticeQueue.count(this);
+            DebugLog.append(MainActivity.this, "Manual retry finished. Queue now=" + queuedNow);
             retryStatus.setTextColor(queuedNow == 0 ? SUCCESS : WARNING);
             retryStatus.setText("Retry finished. Queue now: " + queuedNow + ".");
         });
     }
 
     private void scanSmsInboxNow() {
+        DebugLog.append(this, "Manual SMS inbox scan tapped");
         requestSmsPermissions();
         if (!hasSmsPermissions()) {
             retryStatus.setTextColor(WARNING);
@@ -394,6 +412,7 @@ public class MainActivity extends Activity {
 
     private void onInboxScanFinished(int queued) {
         refreshStatus();
+        DebugLog.append(this, "SMS inbox scan callback queued=" + queued);
         if (retryStatus != null) {
             retryStatus.setTextColor(queued > 0 ? SUCCESS : WARNING);
             retryStatus.setText("SMS inbox scan finished. New queued/forwarded payments: " + queued + ".");
@@ -406,12 +425,14 @@ public class MainActivity extends Activity {
             showSetupWarning(warning);
             return;
         }
+        DebugLog.append(this, "Server health check started");
         ForwarderConfig.save(this, isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(WARNING);
         healthStatus.setText("Checking internet, fixed server, and token...");
         ForwarderClient.checkHealth(this, result -> {
+            DebugLog.append(MainActivity.this, "Server health result internet=" + statusText(result.internetOk) + " server=" + statusText(result.serverReachable) + " token=" + statusText(result.authOk));
             healthStatus.setTextColor(result.internetOk && result.serverReachable && result.authOk ? SUCCESS : ERROR);
             healthStatus.setText("Internet: " + statusText(result.internetOk) + "\n"
                 + "Server reachable: " + statusText(result.serverReachable) + "\n"
@@ -428,6 +449,7 @@ public class MainActivity extends Activity {
             return;
         }
         ForwarderConfig.save(this, isSellerModeSelected(), sellerTokenInput.getText().toString(), secretInput.getText().toString());
+        DebugLog.append(this, "Setup saved mode=" + (isSellerModeSelected() ? "seller" : "admin"));
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(SUCCESS);
@@ -476,6 +498,7 @@ public class MainActivity extends Activity {
     }
 
     private void showSetupWarning(String warning) {
+        DebugLog.append(this, "Setup validation blocked");
         updateModeFields();
         refreshStatus();
         healthStatus.setTextColor(ERROR);
@@ -484,10 +507,12 @@ public class MainActivity extends Activity {
 
     private void requestSmsPermissions() {
         if (Build.VERSION.SDK_INT >= 23 && !hasSmsPermissions()) {
+            DebugLog.append(this, "SMS permission request shown");
             requestPermissions(new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, 10);
             return;
         }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            DebugLog.append(this, "Notification permission request shown");
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11);
         }
     }
@@ -496,6 +521,7 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 10) {
+            DebugLog.append(this, "SMS permission result granted=" + hasSmsPermissions());
             if (hasSmsPermissions()) {
                 requestSmsPermissions();
                 ForwarderClient.scanSmsInbox(this, false, this::onInboxScanFinished);
@@ -511,14 +537,17 @@ public class MainActivity extends Activity {
 
     private void openBatterySettings() {
         try {
+            DebugLog.append(this, "Battery optimization settings opened");
             startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
         } catch (Exception exc) {
+            DebugLog.append(this, "Battery settings fallback: " + exc.getClass().getSimpleName());
             openAppSettings();
         }
     }
 
     private void startBackgroundService() {
         boolean started = ForwarderForegroundService.start(this);
+        DebugLog.append(this, "Manual background service start result=" + started);
         ForwarderClient.scheduleRetry(this);
         refreshStatus();
         if (retryStatus != null) {
@@ -533,13 +562,16 @@ public class MainActivity extends Activity {
         try {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
             intent.setData(Uri.parse("package:" + getPackageName()));
+            DebugLog.append(this, "App settings opened");
             startActivity(intent);
         } catch (Exception exc) {
+            DebugLog.append(this, "System settings fallback: " + exc.getClass().getSimpleName());
             startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
     }
 
     private void openAutostartSettings() {
+        DebugLog.append(this, "Autostart/battery settings requested");
         String manufacturer = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
         Intent[] intents;
         if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
@@ -575,6 +607,7 @@ public class MainActivity extends Activity {
 
         for (Intent intent : intents) {
             try {
+                DebugLog.append(this, "Manufacturer battery settings opened");
                 startActivity(intent);
                 return;
             } catch (Exception ignored) {
@@ -634,6 +667,7 @@ public class MainActivity extends Activity {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(Network network) {
+                DebugLog.append(MainActivity.this, "Network available; retrying queue");
                 runOnUiThread(() -> {
                     refreshStatus();
                     if (retryStatus != null) {
@@ -646,13 +680,16 @@ public class MainActivity extends Activity {
         };
         try {
             manager.registerNetworkCallback(new NetworkRequest.Builder().build(), networkCallback);
+            DebugLog.append(this, "Network retry watcher active");
         } catch (Exception exc) {
+            DebugLog.append(this, "Network callback registration failed: " + exc.getClass().getSimpleName());
             networkCallback = null;
         }
     }
 
     @Override
     protected void onDestroy() {
+        DebugLog.append(this, "Admin screen destroyed");
         super.onDestroy();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
@@ -668,6 +705,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        DebugLog.append(this, "Admin screen resumed");
         registerRealtimeStatusUpdates();
         refreshStatus();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
@@ -677,6 +715,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        DebugLog.append(this, "Admin screen paused");
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
     }
