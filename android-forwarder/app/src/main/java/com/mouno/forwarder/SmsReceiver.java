@@ -28,7 +28,7 @@ public class SmsReceiver extends BroadcastReceiver {
             }
             String text = body.toString();
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
-            if (parsed != null && (isTrustedBkashSender(sender) || isBkashNotice(text))) {
+            if (parsed != null && (isTrustedBkashSender(sender) || hasBkashIdentity(text))) {
                 String smsSender = sender;
                 final boolean[] queued = new boolean[]{false};
                 boolean accepted = BkashPaymentDeduper.enqueueIfNew(context, parsed, () -> {
@@ -61,5 +61,10 @@ public class SmsReceiver extends BroadcastReceiver {
     private static boolean isBkashNotice(String text) {
         String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
         return lower.contains("bkash") || lower.contains("trxid") || lower.contains("trx id") || lower.contains("txnid") || lower.contains("txn id") || text.contains("বিকাশ");
+    }
+
+    private static boolean hasBkashIdentity(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return lower.contains("bkash") || text.contains("বিকাশ");
     }
 }

@@ -54,7 +54,7 @@ public class BkashNotificationListener extends NotificationListenerService {
             if (queued[0]) {
                 ForwarderForegroundService.start(this);
             }
-        } else if (isTrustedSmsPackage(packageName) && parsed != null) {
+        } else if (isTrustedSmsPackage(packageName) && parsed != null && (isTrustedBkashSender(title) || hasBkashIdentity(all))) {
             final boolean[] queued = new boolean[]{false};
             boolean accepted = BkashPaymentDeduper.enqueueIfNew(this, parsed, () -> {
                 queued[0] = ForwarderClient.queueNotification(this, "sms_notification", title, all);
@@ -94,6 +94,11 @@ public class BkashNotificationListener extends NotificationListenerService {
     private static boolean isTrustedBkashSender(String sender) {
         String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
         return value.contains("bkash") || value.contains("16247");
+    }
+
+    private static boolean hasBkashIdentity(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        return lower.contains("bkash") || text.contains("বিকাশ");
     }
 
     private static String value(Bundle extras, String key) {
