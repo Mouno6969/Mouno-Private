@@ -39,7 +39,7 @@ public class ForwarderForegroundService extends Service {
         public void run() {
             if (wakeLock == null || !wakeLock.isHeld()) acquireWakeLock();
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
-            ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Background service alive");
+            ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Foreground service keep-alive tick; battery/autostart still required for reliable forwarding");
             scanInbox.run();
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
             requestNotificationListenerRebind();
@@ -129,7 +129,7 @@ public class ForwarderForegroundService extends Service {
             "SCB Forwarder background",
             NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("Keeps bKash forwarding active in the background");
+        channel.setDescription("Foreground service requested; allow battery/autostart for reliable forwarding");
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (manager != null) manager.createNotificationChannel(channel);
     }
@@ -142,7 +142,7 @@ public class ForwarderForegroundService extends Service {
             : new Notification.Builder(this);
         builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("SCB-Forwarder running")
-            .setContentText("Polling bKash SMS inbox every 15 seconds")
+            .setContentText("Allow battery/autostart for reliable forwarding")
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false);

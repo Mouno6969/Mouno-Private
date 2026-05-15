@@ -356,8 +356,8 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
-                + "Background: foreground service keeps forwarding after this screen is hidden.\n"
-                + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
+                + "Background: foreground service requested/running notification visible.\n"
+                + "Battery optimization/autostart permission is still required for reliable forwarding.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
         if (debugLogDetails != null) {
@@ -554,7 +554,7 @@ public class MainActivity extends Activity {
         if (retryStatus != null) {
             retryStatus.setTextColor(started ? SUCCESS : ERROR);
             retryStatus.setText(started
-                ? "Background service started. Keep the SCB-Forwarder notification visible."
+                ? "Background service requested/running notification visible; battery/autostart permission still required for reliable forwarding."
                 : "Background service could not start. Disable battery restrictions/autostart blocking, then tap Start Background Service again.");
         }
     }
@@ -716,7 +716,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        DebugLog.append(this, "Admin UI hidden; background service continues");
+        DebugLog.append(this, "Admin UI hidden; foreground service requested/running notification visible; battery/autostart still required for reliable forwarding");
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
     }
