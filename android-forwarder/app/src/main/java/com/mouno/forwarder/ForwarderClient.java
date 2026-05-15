@@ -187,6 +187,13 @@ final class ForwarderClient {
         return queued;
     }
 
+    static int scanSmsInboxForBackgroundAlarm(Context context) {
+        Context appContext = context.getApplicationContext();
+        int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, false);
+        scheduleNetworkFlush(appContext);
+        return queued;
+    }
+
     static void scheduleRetry(Context context) {
         Context appContext = context.getApplicationContext();
         Intent intent = new Intent(appContext, RetryReceiver.class);

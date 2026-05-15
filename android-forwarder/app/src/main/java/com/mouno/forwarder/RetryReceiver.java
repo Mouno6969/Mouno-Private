@@ -13,8 +13,7 @@ public class RetryReceiver extends BroadcastReceiver {
             DebugLog.append(appContext, "Background scan alarm fired");
             try {
                 ForwarderForegroundService.start(appContext);
-                int queued = ForwarderClient.scanSmsInboxSync(appContext, false);
-                ForwarderClient.flushQueueSync(appContext);
+                int queued = ForwarderClient.scanSmsInboxForBackgroundAlarm(appContext);
                 DebugLog.append(appContext, "Background scan alarm finished queued=" + queued + " queue=" + NoticeQueue.count(appContext));
             } finally {
                 ForwarderClient.scheduleRetry(appContext);
