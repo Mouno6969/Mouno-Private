@@ -21,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
@@ -199,6 +200,7 @@ public class MainActivity extends Activity {
         }));
         setupCard.addView(actionButton("Start Background Service", v -> startBackgroundService()));
         if (Build.VERSION.SDK_INT >= 31) setupCard.addView(actionButton("Allow Exact Alarm", v -> openExactAlarmSettings()));
+        setupCard.addView(actionButton("Allow Unrestricted Battery", v -> requestIgnoreBatteryOptimizations()));
         setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
 
         configDetails = bodyText();
@@ -359,6 +361,7 @@ public class MainActivity extends Activity {
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
                 + "Exact alarm: " + exactAlarmStatusText() + "\n"
+                + "Battery optimization: " + batteryOptimizationStatusText() + "\n"
                 + "Background: foreground service requested/running notification visible.\n"
                 + "Battery optimization/autostart permission is still required for reliable forwarding.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
@@ -549,6 +552,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < 23) {
+            openBatterySettings();
+            return;
+        }
+        try {
+            PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+            if (powerManager != null && powerManager.isIgnoringBatteryOptimizations(getPackageName())) {
+                DebugLog.append(this, "Battery optimization already unrestricted");
+                openAutostartSettings();
+                return;
+            }
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            DebugLog.append(this, "Ignore battery optimization request opened");
+            startActivity(intent);
+        } catch (Exception exc) {
+            DebugLog.append(this, "Ignore battery optimization request fallback: " + exc.getClass().getSimpleName());
+            openBatterySettings();
+        }
+    }
+
     private void openExactAlarmSettings() {
         if (Build.VERSION.SDK_INT < 31) return;
         try {
@@ -566,6 +591,12 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT < 31) return "not required";
         AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         return alarmManager != null && alarmManager.canScheduleExactAlarms() ? "OK" : "Needs allow";
+    }
+
+    private String batteryOptimizationStatusText() {
+        if (Build.VERSION.SDK_INT < 23) return "not required";
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        return powerManager != null && powerManager.isIgnoringBatteryOptimizations(getPackageName()) ? "OK" : "Needs allow";
     }
 
     private void startBackgroundService() {
