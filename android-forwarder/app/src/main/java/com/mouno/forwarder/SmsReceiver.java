@@ -4,20 +4,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.telephony.SmsMessage;
 
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SmsReceiver extends BroadcastReceiver {
-    private static final long ASYNC_FINISH_TIMEOUT_MS = 8_000L;
-
     @Override
     public void onReceive(Context context, Intent intent) {
         BroadcastReceiver.PendingResult pendingResult = goAsync();
-        boolean finishNow = true;
         try {
             Bundle bundle = intent.getExtras();
             if (bundle == null) return;
@@ -36,28 +30,17 @@ public class SmsReceiver extends BroadcastReceiver {
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
             if (isTrustedBkashSender(sender) && parsed != null) {
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
-                finishNow = false;
-                Runnable finish = finishWithTimeout(pendingResult);
-                ForwarderClient.queueSms(context, sender, text, finish);
+                ForwarderClient.queueSmsSync(context, sender, text);
                 ForwarderForegroundService.start(context);
+                ForwarderClient.flushQueue(context);
                 return;
             }
             if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
                 ForwardingStats.recordPhoneEvent(context, "SMS ignored before send: not a parseable payment from " + sender);
             }
         } finally {
-            if (finishNow) pendingResult.finish();
+            pendingResult.finish();
         }
-    }
-
-    private static Runnable finishWithTimeout(BroadcastReceiver.PendingResult pendingResult) {
-        AtomicBoolean finished = new AtomicBoolean(false);
-        Handler handler = new Handler(Looper.getMainLooper());
-        Runnable finish = () -> {
-            if (finished.compareAndSet(false, true)) pendingResult.finish();
-        };
-        handler.postDelayed(finish, ASYNC_FINISH_TIMEOUT_MS);
-        return () -> handler.post(finish);
     }
 
     private static boolean isTrustedBkashSender(String sender) {
