@@ -31,6 +31,9 @@ import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends Activity {
     private static final int PRIMARY = Color.rgb(49, 46, 129);
     private static final int PRIMARY_LIGHT = Color.rgb(224, 231, 255);
@@ -188,10 +191,8 @@ public class MainActivity extends Activity {
         setContentView(scroll);
         refreshStatus();
         requestSmsPermissions();
-        ForwarderForegroundService.start(this);
         registerConnectivityFlush();
-        ForwarderClient.scheduleRetry(this);
-        ForwarderClient.flushQueue(this, this::refreshStatus);
+        if (hasNotificationPermission()) startBackgroundWork();
     }
 
     private void applyPalette() {
@@ -330,6 +331,7 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+                + "Permissions: RECEIVE_SMS " + permissionText(Manifest.permission.RECEIVE_SMS) + " · READ_SMS " + permissionText(Manifest.permission.READ_SMS) + "\n"
                 + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
@@ -395,6 +397,10 @@ public class MainActivity extends Activity {
         return ok ? "OK" : "FAILED";
     }
 
+    private String permissionText(String permission) {
+        return Build.VERSION.SDK_INT < 23 || checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED ? "OK" : "missing";
+    }
+
     private int paymentStatusColor(String status) {
         String value = status == null ? "" : status.trim();
         if (value.equals("matched_order") || value.equals("parsed") || value.equals("accepted")) return SUCCESS;
@@ -437,12 +443,25 @@ public class MainActivity extends Activity {
     }
 
     private void requestSmsPermissions() {
-        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, 10);
+        if (Build.VERSION.SDK_INT < 23) return;
+        List<String> permissions = new ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.RECEIVE_SMS);
+        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.READ_SMS);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        if (!permissions.isEmpty()) {
+            requestPermissions(permissions.toArray(new String[0]), 10);
         }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11);
-        }
+    }
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        refreshStatus();
+        if (hasNotificationPermission()) startBackgroundWork();
     }
 
     private void openBatterySettings() {
@@ -454,8 +473,15 @@ public class MainActivity extends Activity {
     }
 
     private void startBackgroundService() {
-        boolean started = ForwarderForegroundService.start(this);
-        ForwarderClient.scheduleRetry(this);
+        if (!hasNotificationPermission()) {
+            requestSmsPermissions();
+            if (retryStatus != null) {
+                retryStatus.setTextColor(WARNING);
+                retryStatus.setText("Allow notification permission first, then background service can stay running.");
+            }
+            return;
+        }
+        boolean started = startBackgroundWork();
         refreshStatus();
         if (retryStatus != null) {
             retryStatus.setTextColor(started ? SUCCESS : ERROR);
@@ -463,6 +489,13 @@ public class MainActivity extends Activity {
                 ? "Background service started. Keep the SCB-Forwarder notification visible."
                 : "Background service could not start. Disable battery restrictions/autostart blocking, then tap Start Background Service again.");
         }
+    }
+
+    private boolean startBackgroundWork() {
+        boolean started = ForwarderForegroundService.start(this);
+        ForwarderClient.scheduleRetry(this);
+        ForwarderClient.flushQueue(this, this::refreshStatus);
+        return started;
     }
 
     private void openAppSettings() {

@@ -15,23 +15,49 @@ import android.os.Looper;
 import android.service.notification.NotificationListenerService;
 
 public class ForwarderForegroundService extends Service {
+    private static final String ACTION_FLUSH_LATEST = "com.mouno.forwarder.FLUSH_LATEST";
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
+    private static final long SMS_POLL_INTERVAL_MS = 15_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable keepAlive = new Runnable() {
         @Override
         public void run() {
-            ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
-            ForwarderClient.flushQueue(ForwarderForegroundService.this);
-            requestNotificationListenerRebind();
+            try {
+                ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
+                ForwarderClient.flushQueue(ForwarderForegroundService.this);
+                requestNotificationListenerRebind();
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(ForwarderForegroundService.this, "Background keepalive failed: " + exc.getClass().getSimpleName());
+            }
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
+        }
+    };
+    private final Runnable smsPoller = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                SmsInboxReader.pollAndForward(ForwarderForegroundService.this);
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(ForwarderForegroundService.this, "SMS poller failed: " + exc.getClass().getSimpleName());
+            }
+            handler.postDelayed(this, SMS_POLL_INTERVAL_MS);
         }
     };
 
     static boolean start(Context context) {
+        return start(context, null);
+    }
+
+    static boolean startAndFlushLatest(Context context) {
+        return start(context, ACTION_FLUSH_LATEST);
+    }
+
+    private static boolean start(Context context, String action) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
+        if (action != null) intent.setAction(action);
         try {
             if (Build.VERSION.SDK_INT >= 26) {
                 context.getApplicationContext().startForegroundService(intent);
@@ -50,23 +76,46 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createChannel();
-        startForeground(NOTIFICATION_ID, notification());
+        try {
+            createChannel();
+            startForeground(NOTIFICATION_ID, notification());
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service foreground failed: " + exc.getClass().getSimpleName());
+            ForwarderClient.scheduleRetry(this);
+            ForwarderClient.scheduleNetworkFlush(this);
+            stopSelf();
+            return;
+        }
         handler.post(keepAlive);
+        handler.post(smsPoller);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        ForwarderClient.scheduleRetry(this);
-        ForwarderClient.flushQueue(this);
-        requestNotificationListenerRebind();
+        try {
+            ForwarderClient.scheduleRetry(this);
+            if (intent != null && ACTION_FLUSH_LATEST.equals(intent.getAction())) {
+                ForwardingStats.recordPhoneEvent(this, "Realtime SMS flush requested from foreground service");
+                ForwarderClient.flushLatestQueuedSmsFromForegroundService(this);
+            } else {
+                ForwarderClient.flushQueue(this);
+            }
+            requestNotificationListenerRebind();
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service command failed: " + exc.getClass().getSimpleName());
+        }
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         handler.removeCallbacks(keepAlive);
-        ForwarderClient.scheduleRetry(this);
+        handler.removeCallbacks(smsPoller);
+        try {
+            ForwarderClient.scheduleRetry(this);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service destroy retry failed: " + exc.getClass().getSimpleName());
+        }
         super.onDestroy();
     }
 
@@ -105,7 +154,11 @@ public class ForwarderForegroundService extends Service {
 
     private void requestNotificationListenerRebind() {
         if (Build.VERSION.SDK_INT >= 24) {
-            NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
+            try {
+                NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(this, "Notification listener rebind failed: " + exc.getClass().getSimpleName());
+            }
         }
     }
 }

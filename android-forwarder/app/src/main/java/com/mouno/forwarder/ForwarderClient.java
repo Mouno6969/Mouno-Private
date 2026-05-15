@@ -12,6 +12,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 
 import org.json.JSONObject;
 
@@ -31,6 +32,13 @@ import java.util.concurrent.Executors;
 final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final int NETWORK_FLUSH_JOB_ID = 202;
+    private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
+    private static final int RECEIVER_CONNECT_TIMEOUT_MS = 4_000;
+    private static final int RECEIVER_READ_TIMEOUT_MS = 4_000;
+    private static final long RECEIVER_WAKE_LOCK_TIMEOUT_MS = 12_000L;
+    private static final long FLUSH_WAKE_LOCK_TIMEOUT_MS = 120_000L;
+    private static final String WAKE_LOCK_TAG = "SCBForwarder:Flush";
 
     private ForwarderClient() {}
 
@@ -47,13 +55,38 @@ final class ForwarderClient {
     }
 
     static void queueSms(Context context, String sender, String body) {
-        if (!BuildConfig.FORWARD_SMS) return;
-        queueNotice(context, "sms", "sms", sender, body, "SMS");
+        queueSms(context, sender, body, null);
+    }
+
+    static void queueSms(Context context, String sender, String body, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        queueNotice(context, "sms", "sms", sender, body, "SMS", onComplete);
+    }
+
+    static boolean queueSmsSync(Context context, String sender, String body) {
+        return BuildConfig.FORWARD_SMS && queueNoticeSync(context, "sms", "sms", sender, body, "SMS");
+    }
+
+    static void queueSmsDurably(Context context, String sender, String body, Runnable onComplete) {
+        queueSmsDurably(context, sender, body, queued -> {
+            if (onComplete != null) onComplete.run();
+        });
+    }
+
+    static void queueSmsDurably(Context context, String sender, String body, QueueCallback callback) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (callback != null) callback.onComplete(false);
+            return;
+        }
+        queueNoticeDurably(context, "sms", "sms", sender, body, "SMS", callback);
     }
 
     static void queueNotification(Context context, String appName, String title, String text) {
         if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        queueNotice(context, "notification", appName, title, text, "Notification");
+        queueNotice(context, "notification", appName, title, text, "Notification", null);
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -104,8 +137,38 @@ final class ForwarderClient {
     static void flushQueue(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
-            flushQueueNow(appContext);
-            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, FLUSH_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushQueueNow(appContext);
+            } finally {
+                releaseWakeLock(wakeLock);
+                if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            }
+        });
+    }
+
+    static void flushLatestQueuedSmsForReceiver(Context context, Runnable onComplete) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, RECEIVER_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushLatestQueueItemNow(appContext, RECEIVER_CONNECT_TIMEOUT_MS, RECEIVER_READ_TIMEOUT_MS);
+            } finally {
+                releaseWakeLock(wakeLock);
+                if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            }
+        });
+    }
+
+    static void flushLatestQueuedSmsFromForegroundService(Context context) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            PowerManager.WakeLock wakeLock = acquireWakeLock(appContext, FLUSH_WAKE_LOCK_TIMEOUT_MS);
+            try {
+                flushLatestQueueItemNow(appContext, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+            } finally {
+                releaseWakeLock(wakeLock);
+            }
         });
     }
 
@@ -113,20 +176,41 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
-    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label, Runnable onComplete) {
+        if (queueNoticeSync(context, endpoint, source, title, text, label)) {
+            flushQueue(context, onComplete);
+        } else if (onComplete != null) {
+            onComplete.run();
+        }
+    }
+
+    private static boolean queueNoticeSync(Context context, String endpoint, String source, String title, String text, String label) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
             if (!NoticeQueue.enqueueSync(appContext, notice)) {
                 ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
-                return;
+                return false;
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext);
+            return true;
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+            return false;
         }
+    }
+
+    private static void queueNoticeDurably(Context context, String endpoint, String source, String title, String text, String label, QueueCallback callback) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            boolean queued = queueNoticeSync(appContext, endpoint, source, title, text, label);
+            if (callback != null) new Handler(Looper.getMainLooper()).post(() -> callback.onComplete(queued));
+        });
+    }
+
+    interface QueueCallback {
+        void onComplete(boolean queued);
     }
 
     interface HealthCallback {
@@ -187,6 +271,56 @@ final class ForwarderClient {
         }
         NoticeQueue.save(context, failed);
         if (!failed.isEmpty()) scheduleNetworkFlush(context);
+    }
+
+    private static void flushLatestQueueItemNow(Context context, int connectTimeoutMs, int readTimeoutMs) {
+        Set<String> current = NoticeQueue.snapshot(context);
+        if (current.isEmpty()) return;
+        String newestRow = null;
+        long newestReceivedAt = Long.MIN_VALUE;
+        for (String row : current) {
+            try {
+                long receivedAt = NoticeQueue.decode(row).optLong("received_at", 0L);
+                if (newestRow == null || receivedAt >= newestReceivedAt) {
+                    newestRow = row;
+                    newestReceivedAt = receivedAt;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (newestRow == null) return;
+        boolean sent = false;
+        try {
+            sent = post(context, NoticeQueue.decode(newestRow), connectTimeoutMs, readTimeoutMs);
+        } catch (Exception ignored) {
+        }
+        if (sent) {
+            current.remove(newestRow);
+            NoticeQueue.save(context, current);
+        } else {
+            scheduleNetworkFlush(context);
+        }
+    }
+
+    private static PowerManager.WakeLock acquireWakeLock(Context context, long timeoutMs) {
+        try {
+            PowerManager manager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (manager == null) return null;
+            PowerManager.WakeLock wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire(timeoutMs);
+            return wakeLock;
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(context, "Wake lock failed: " + exc.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private static void releaseWakeLock(PowerManager.WakeLock wakeLock) {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (Exception ignored) {
+        }
     }
 
     private static HealthResult checkHealthSync(Context context) {
@@ -272,6 +406,10 @@ final class ForwarderClient {
     }
 
     private static boolean post(Context context, JSONObject notice) {
+        return post(context, notice, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+    }
+
+    private static boolean post(Context context, JSONObject notice, int connectTimeoutMs, int readTimeoutMs) {
         if (!ForwarderConfig.isConfigured(context)) {
             ForwardingStats.recordFailure(context, "Forwarder is not configured");
             return false;
@@ -282,8 +420,8 @@ final class ForwarderClient {
             URL url = new URL(ForwarderConfig.endpoint(context, endpoint));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10_000);
-            connection.setReadTimeout(10_000);
+            connection.setConnectTimeout(connectTimeoutMs);
+            connection.setReadTimeout(readTimeoutMs);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             if (!ForwarderConfig.isSellerMode(context) && ForwarderConfig.hasForwarderSecret(context)) {
