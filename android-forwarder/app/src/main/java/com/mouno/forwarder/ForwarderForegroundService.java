@@ -8,28 +8,46 @@ import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Telephony;
 import android.service.notification.NotificationListenerService;
 
 public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
+    private static final long INBOX_OBSERVER_DEBOUNCE_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable scanInbox = () -> ForwarderClient.scanSmsInbox(ForwarderForegroundService.this, false, null);
     private final Runnable keepAlive = new Runnable() {
         @Override
         public void run() {
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
-            ForwarderClient.scanSmsInbox(ForwarderForegroundService.this, false, null);
+            scanInbox.run();
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
             requestNotificationListenerRebind();
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
         }
     };
+    private final ContentObserver inboxObserver = new ContentObserver(handler) {
+        @Override
+        public void onChange(boolean selfChange) {
+            onChange(selfChange, null);
+        }
+
+        @Override
+        public void onChange(boolean selfChange, Uri uri) {
+            handler.removeCallbacks(scanInbox);
+            handler.postDelayed(scanInbox, INBOX_OBSERVER_DEBOUNCE_MS);
+        }
+    };
+    private boolean inboxObserverRegistered;
 
     static boolean start(Context context) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
@@ -53,13 +71,15 @@ public class ForwarderForegroundService extends Service {
         super.onCreate();
         createChannel();
         startForeground(NOTIFICATION_ID, notification());
+        registerInboxObserver();
         handler.post(keepAlive);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         ForwarderClient.scheduleRetry(this);
-        ForwarderClient.scanSmsInbox(this, false, null);
+        registerInboxObserver();
+        scanInbox.run();
         ForwarderClient.flushQueue(this);
         requestNotificationListenerRebind();
         return START_STICKY;
@@ -68,6 +88,8 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(keepAlive);
+        handler.removeCallbacks(scanInbox);
+        unregisterInboxObserver();
         ForwarderClient.scheduleRetry(this);
         super.onDestroy();
     }
@@ -97,7 +119,7 @@ public class ForwarderForegroundService extends Service {
             : new Notification.Builder(this);
         builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("SCB-Forwarder running")
-            .setContentText("Listening for bKash SMS/notifications")
+            .setContentText("Watching bKash SMS inbox and notifications")
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false);
@@ -109,5 +131,25 @@ public class ForwarderForegroundService extends Service {
         if (Build.VERSION.SDK_INT >= 24) {
             NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
         }
+    }
+
+    private void registerInboxObserver() {
+        if (inboxObserverRegistered) return;
+        try {
+            getContentResolver().registerContentObserver(Telephony.Sms.Inbox.CONTENT_URI, true, inboxObserver);
+            inboxObserverRegistered = true;
+            ForwardingStats.recordPhoneEvent(this, "SMS inbox observer active");
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "SMS inbox observer failed: " + exc.getClass().getSimpleName());
+        }
+    }
+
+    private void unregisterInboxObserver() {
+        if (!inboxObserverRegistered) return;
+        try {
+            getContentResolver().unregisterContentObserver(inboxObserver);
+        } catch (Exception ignored) {
+        }
+        inboxObserverRegistered = false;
     }
 }
