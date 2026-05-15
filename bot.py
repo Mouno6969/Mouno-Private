@@ -663,6 +663,8 @@ def _extract_openai_chat_text(data):
 
 AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
+AI_SUPPORT_HISTORY_TURNS = 8
+AI_SUPPORT_HISTORY_LIMIT = 2500
 AI_PROVIDER_TIMEOUT_SECONDS = 1.5
 ORDER_AI_CALLBACK_PREFIX = "aiorder_"
 TRACK_ORDER_CALLBACK_PREFIX = "trackorder_"
@@ -831,6 +833,31 @@ def build_ai_support_context(question, user_id, lang="bn", admin=False, order_id
     if len(sections) == 1:
         return ""
     return "\n".join(sections)[:AI_CONTEXT_LIMIT]
+
+
+def format_ai_support_history(history):
+    lines = []
+    for turn in list(history or [])[-AI_SUPPORT_HISTORY_TURNS:]:
+        user = sanitize_diagnostic_text(str(turn.get("user", ""))).strip()
+        assistant = sanitize_diagnostic_text(str(turn.get("assistant", ""))).strip()
+        if user:
+            lines.append("Previous user: " + user)
+        if assistant:
+            lines.append("Previous AI: " + assistant)
+    if not lines:
+        return ""
+    return ("Conversation memory for this AI Support session only:\n" + "\n".join(lines))[:AI_SUPPORT_HISTORY_LIMIT]
+
+
+def combine_ai_support_context(*parts):
+    text = "\n\n".join(str(part).strip() for part in parts if str(part or "").strip())
+    return text[:AI_CONTEXT_LIMIT]
+
+
+def append_ai_support_history(user_data, question, answer):
+    history = list(user_data.get("ai_support_history") or [])
+    history.append({"user": str(question or "")[:1000], "assistant": str(answer or "")[:1000]})
+    user_data["ai_support_history"] = history[-AI_SUPPORT_HISTORY_TURNS:]
 
 
 def select_ai_response_language(question, lang="bn"):
@@ -1091,13 +1118,15 @@ def ask_ai_support(question, lang="bn", context=None):
 async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending_token, user_data):
     try:
         order_identifier = user_data.get("ai_order_context_identifier")
+        memory_context = format_ai_support_history(user_data.get("ai_support_history"))
+        diagnostic_context = build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None)
         loop = asyncio.get_running_loop()
         answer = await loop.run_in_executor(
             None,
             lambda: ask_ai_support(
                 question,
                 lang,
-                build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None),
+                combine_ai_support_context(memory_context, diagnostic_context),
             ),
         )
     except Exception as exc:
@@ -1106,6 +1135,7 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
     try:
         if user_data.get("ai_support") and user_data.get("ai_support_pending") == pending_token:
             await bot.send_message(chat_id=chat_id, text=answer)
+            append_ai_support_history(user_data, question, answer)
     except Exception as exc:
         logger.error("AI support answer send failed: %s", exc)
     finally:
@@ -3177,6 +3207,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support":
         context.user_data.clear()
         context.user_data["ai_support"] = True
+        context.user_data["ai_support_history"] = []
         await query.edit_message_text(tr("ai_support_intro", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]))
 
     elif query.data == "ai_support_cancel":
@@ -3194,6 +3225,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data.clear()
         context.user_data["ai_support"] = True
+        context.user_data["ai_support_history"] = []
         context.user_data["ai_order_context_identifier"] = identifier
         await query.edit_message_text(
             ltext(
@@ -3564,6 +3596,7 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     context.user_data.clear()
     context.user_data["ai_support"] = True
+    context.user_data["ai_support_history"] = []
     await update.message.reply_text(tr("ai_support_intro", lang))
 
 
