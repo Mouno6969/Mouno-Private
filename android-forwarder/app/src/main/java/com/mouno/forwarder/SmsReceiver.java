@@ -32,7 +32,8 @@ public class SmsReceiver extends BroadcastReceiver {
             if (isTrustedBkashSender(sender) && parsed != null) {
                 ForwardingStats.recordPhoneEvent(context, "SMS payment captured: " + parsed.summary());
                 finishNow = false;
-                ForwarderClient.queueSmsDurably(context, sender, text, () -> {
+                ForwarderClient.queueSmsDurably(context, sender, text, queued -> {
+                    if (queued) SmsInboxReader.markSeenPayment(context, parsed);
                     ForwarderForegroundService.start(context);
                     ForwarderClient.flushQueue(context);
                     pendingResult.finish();

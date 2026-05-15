@@ -89,12 +89,17 @@ final class SmsInboxReader {
     static synchronized boolean queueUnseenPaymentNotice(Context context, String address, String body, BkashNoticeParser.Parsed parsed, String eventPrefix) {
         if (parsed == null || isSeen(context, parsed.trxId)) return false;
         if (!ForwarderClient.queueSmsSync(context, address, body)) return false;
-        if (!markSeen(context, parsed.trxId)) {
-            ForwardingStats.recordFailure(context, "SMS inbox dedupe failed for " + parsed.trxId);
-        }
+        markSeenPayment(context, parsed);
         ForwardingStats.recordPhoneEvent(context, eventPrefix + ": " + parsed.summary());
         ForwarderClient.flushQueue(context);
         return true;
+    }
+
+    static synchronized void markSeenPayment(Context context, BkashNoticeParser.Parsed parsed) {
+        if (parsed == null || isSeen(context, parsed.trxId)) return;
+        if (!markSeen(context, parsed.trxId)) {
+            ForwardingStats.recordFailure(context, "SMS inbox dedupe failed for " + parsed.trxId);
+        }
     }
 
     private static List<SmsNotice> latestUnseenPaymentNotices(Context context) {

@@ -63,11 +63,17 @@ final class ForwarderClient {
     }
 
     static void queueSmsDurably(Context context, String sender, String body, Runnable onComplete) {
-        if (!BuildConfig.FORWARD_SMS) {
+        queueSmsDurably(context, sender, body, queued -> {
             if (onComplete != null) onComplete.run();
+        });
+    }
+
+    static void queueSmsDurably(Context context, String sender, String body, QueueCallback callback) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (callback != null) callback.onComplete(false);
             return;
         }
-        queueNoticeDurably(context, "sms", "sms", sender, body, "SMS", onComplete);
+        queueNoticeDurably(context, "sms", "sms", sender, body, "SMS", callback);
     }
 
     static void queueNotification(Context context, String appName, String title, String text) {
@@ -157,12 +163,16 @@ final class ForwarderClient {
         }
     }
 
-    private static void queueNoticeDurably(Context context, String endpoint, String source, String title, String text, String label, Runnable onComplete) {
+    private static void queueNoticeDurably(Context context, String endpoint, String source, String title, String text, String label, QueueCallback callback) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
-            queueNoticeSync(appContext, endpoint, source, title, text, label);
-            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+            boolean queued = queueNoticeSync(appContext, endpoint, source, title, text, label);
+            if (callback != null) new Handler(Looper.getMainLooper()).post(() -> callback.onComplete(queued));
         });
+    }
+
+    interface QueueCallback {
+        void onComplete(boolean queued);
     }
 
     interface HealthCallback {
