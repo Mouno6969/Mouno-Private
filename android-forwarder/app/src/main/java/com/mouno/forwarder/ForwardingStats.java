@@ -55,7 +55,7 @@ final class ForwardingStats {
     }
 
     static void recordPhoneEvent(Context context, String event) {
-        DebugLog.append(context, "Phone event: " + clean(event));
+        DebugLog.append(context, "Phone event: " + phoneEventLogLabel(event));
         prefs(context).edit()
             .putString(KEY_LAST_PHONE_EVENT, clean(event))
             .putLong(KEY_LAST_PHONE_EVENT_AT, System.currentTimeMillis())
@@ -127,6 +127,13 @@ final class ForwardingStats {
         int detailStart = value.indexOf(':');
         if (detailStart > 0) value = value.substring(0, detailStart).trim();
         return value.isEmpty() ? "unknown error" : value;
+    }
+
+    private static String phoneEventLogLabel(String event) {
+        String value = clean(event);
+        int senderStart = value.indexOf(" from ");
+        if (senderStart >= 0) value = value.substring(0, senderStart) + " from [redacted]";
+        return value;
     }
 
     private static String value(String value, String fallback) {
