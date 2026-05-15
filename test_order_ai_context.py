@@ -28,6 +28,7 @@ def load_order_ai_namespace(context_line):
         "extract_support_identifiers",
         "normalize_order_context_identifier",
         "is_order_context_available",
+        "ai_order_status_question",
         "build_ai_support_context",
         "order_status_ai_keyboard",
         "track_order_keyboard",
@@ -100,6 +101,19 @@ class OrderAIContextTests(unittest.TestCase):
         self.assertTrue(button.callback_data.startswith(namespace["TRACK_ORDER_CALLBACK_PREFIX"]))
         self.assertLessEqual(len(button.callback_data), 64)
         self.assertRegex(button.callback_data, r"^trackorder_[A-Za-z0-9_-]+$")
+
+    def test_ai_order_status_question_is_localized_and_actionable(self):
+        namespace = load_order_ai_namespace(lambda identifier, user_id, admin=False: f"CTX:{identifier}")
+
+        bn = namespace["ai_order_status_question"]("ORD-ABC123<script>", "bn")
+        en = namespace["ai_order_status_question"]("ORD-ABC123<script>", "en")
+
+        self.assertIn("ORD-ABC123script", bn)
+        self.assertIn("সহজ বাংলায়", bn)
+        self.assertIn("সম্ভাব্য কারণ", bn)
+        self.assertIn("simple English", en)
+        self.assertIn("likely reason", en)
+        self.assertIn("what the user should do next", en)
 
 
 if __name__ == "__main__":

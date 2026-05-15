@@ -103,6 +103,8 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
     RATE,
+    SCB_FORWARDER_APP_URL,
+    SCB_FORWARDER_SERVER_URL,
     SELLER_WALLET_MASTER_KEY,
     STAR_RATE,
     SUPPORT_USERNAME,
@@ -456,20 +458,36 @@ def terms_text(lang="bn"):
 
 
 BOT_KNOWLEDGE_BASE = """
-Bot knowledge base for support:
-- Purpose: read-only support for a Telegram crypto seller bot. It can explain features, guide users, and interpret sanitized order context; it cannot approve payments or send crypto.
-- Main menu buttons: Buy, Telegram Stars, Gift Code, Giveaway, Rates, My Wallet, Balance, TX Log, Order Status, Referral, Sellers, Seller Center, Seller Dashboard, AI Support, Support, Terms, Language. Admins also see rate/code/send/report/backup/health/reserve/profit/gas/audit/seller/AI/payout/test/maintenance tools.
-- User commands: /start, /help, /guide, /terms, /ai, /order ORD-XXXXXX, /status TRXID_OR_ORDERID, /receipt ORD_OR_TRX, /seller USER_ID, /seller_center, /seller_dashboard, /seller_guide, /referral, /setup, /changekey, /deletekey, /mybalance, /send_wallet, /payout.
-- Supported assets/networks: Solana USDC, Polygon USDC, BSC USDT BEP20, Avalanche USDT, Ethereum USDT ERC20, Ethereum USDC ERC20, Base USDC, Tron USDT TRC20, TON. Native gas may be required depending on network: SOL, MATIC, BNB, AVAX, ETH, TRX, or TON.
-- Normal bKash buy flow: choose network, enter destination wallet, enter BDT amount, confirm, pay the exact bKash amount, submit TrxID, then SMS/webhook auto-verifies or admin manually verifies before crypto delivery. Pending/manual review can happen from SMS/webhook delay or missing notice, exact-amount mismatch, duplicate/wrong TrxID, user/order mismatch, stock/gas/RPC issues, or invalid wallet/network.
-- Order status and receipts: /order or /status checks order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipt image includes QR proof opening explorer URL when available, otherwise compact receipt details are encoded.
-- Telegram Stars: user selects network/wallet/amount, pays Telegram invoice in Stars, then crypto delivery starts. If delivery fails or remains pending, admin/seller is notified where applicable; user should save order ID and contact support.
-- Gift Code/Giveaway: gift codes are admin-created one-time codes redeemed with a destination wallet; giveaways can have expiry/claim limits and deliver configured crypto after a successful claim.
-- Personal wallet: users can /setup an encrypted private key, check /mybalance, /send_wallet with password protection, /changekey, and /deletekey. Never request or reveal private keys, seed phrases, or wallet passwords.
-- Seller marketplace: approved sellers appear in Sellers; buyers can choose seller bKash or Stars routes. Sellers configure delivery wallets/rates, use Seller Center/Dashboard, and approve pending seller orders assigned to them; admins can also handle them. Seller Stars ledger/payouts are tracked. TON seller auto-delivery is not supported; seller auto-delivery supports Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20.
-- Referral: users have referral link/code via /referral. Admin can enable/disable percent and minimum withdrawal. Eligible completed orders credit referrals; withdrawal/payout request flow is available when enabled.
-- Admin-only tools, high level: rates, gift codes, admin send, pending/failed retry, reports/profit/costrate, stock/balances, gas monitor, reservations, audit log, webhook/bot health, backup, maintenance, seller approvals/badges/payouts, AI setup/status/usage, test SMS. Web dashboard exists only when dashboard token is configured. Do not expose admin-only internals to normal users.
-- Safety boundaries: read-only, no payment approval, no crypto sending, no guarantees, no secrets. Never ask for private key/seed/password. Ask user for order ID/TrxID when needed and suggest /order, /status, /receipt, or contacting support.
+SCB-Forwarder and Telegram bot knowledge base for AI Support:
+- Identity and scope: SCB-Forwarder is the Android app used with this Telegram crypto buy/sell/support bot. The bot handles orders, payments, crypto delivery, sellers, referrals, wallet tools, and support; SCB-Forwarder forwards trusted bKash SMS/app-notification payment notices from Android phones to the bot server. AI Support is read-only: it explains app/bot features, crypto/network/wallet/gas basics, payment/order problems, guides users step-by-step, interprets sanitized order context, and suggests the safest next action. It cannot approve payments, change balances/rates, send crypto, access wallets, verify a payment without bot/admin evidence, give investment advice, or guarantee token prices/profit.
+- Language behavior: answer in Bengali when the user's question is Bengali/Bangla, answer in English when the user's question is English, and only use another language if the user explicitly asks. Keep command names, network names, TrxID/order IDs, wallet addresses, and support usernames unchanged.
+- Main menu: Buy, Telegram Stars, Gift Code, Giveaway, Rates, My Wallet, Balance, TX Log, Order Status, Referral, Sellers, Seller Center, Seller Dashboard, AI Support, FAQ, Support, Terms, and Language. Admins also see rate/code/send/report/backup/health/restart/reservation/profit/gas/audit/seller/AI/payout/test/maintenance tools.
+- Normal user commands: /start opens home/language, /help lists commands, /guide shows the full user guide, /terms shows risk warnings, /ai opens AI Support, /order ORD-XXXXXX checks an order ID, /status TRXID_OR_ORDERID checks a TrxID/order, /receipt ORD_OR_TRX shows a completed receipt, /seller USER_ID shows seller profile/stats, /seller_center opens seller tools/application, /seller_dashboard opens seller dashboard, /seller_guide explains seller setup, /referral shows referral link/balance, /setup connects an encrypted personal wallet, /changekey replaces saved wallet key, /deletekey deletes saved wallet key, /mybalance checks personal wallet balance, /send_wallet sends from personal wallet, and /payout starts eligible payout/withdraw flow.
+- Admin commands, never expose sensitive internals to normal users: /send, /gencode, /pending, /failed, /stats, /balances, /maintenance, /backup, /report, /profit, /costrate, /gas, /reservations, /audit, /payouts, /webhook_health, /bot_health, /restart_help, /test_sms, /test_seller_sms, /seller_badge, /aiadmin, /ai_usage. Web dashboard exists only when admin web access is configured.
+- Language, help, FAQ, terms: first-time users choose Bengali or English and the preference is stored; later messages can update the saved language when clearly Bengali/English. /help lists typed commands, /guide explains wallet/order/security usage, FAQ answers common buy/pending/Stars/help questions, and Terms warns about wrong networks, irreversible transfers, gas, and manual review.
+- Supported buyer assets/networks: Solana USDC, Polygon USDC, BSC USDT BEP20, Avalanche USDT, Ethereum USDT ERC20, Ethereum USDC ERC20, Base USDC, Tron USDT TRC20, and TON. Wallet formats: Solana addresses are usually 32-44 chars, TRC20 starts with T and is 34 chars, TON starts with UQ or EQ, and EVM networks use 0x 42-char addresses. Wrong network/wallet transfers cannot be reversed.
+- Rates and buy amounts: Rates shows the current BDT price for each network/asset. Buy amounts are entered in BDT for bKash and converted by the selected network rate; Telegram Stars uses the Stars rate. Users must pay the exact shown amount and submit the correct TrxID/order identifier.
+- Gas/native fee rules: sending tokens needs native gas even when token balance exists. Solana uses SOL, Polygon uses MATIC/POL, BSC uses BNB, Avalanche uses AVAX, Ethereum uses ETH, Base uses ETH, Tron uses TRX/Energy/Bandwidth, and TON uses TON. Low gas can cause delivery or personal-wallet sends to fail.
+- Buy with bKash flow: user taps Buy, selects network, enters receiving wallet, enters BDT amount, reviews summary, confirms, pays the exact bKash amount to the shown bKash number, submits TrxID, then the bot matches the TrxID with SMS/app-notification/webhook data and sends crypto automatically when verified. User should save Order ID and TrxID.
+- SCB-Forwarder Android app: install it on the Android phone that receives bKash SMS or official bKash app notifications. The app has a fixed server URL shown in the UI, supports main/admin mode and seller mode, saves only the selected mode and token on the phone, and posts notices to the bot. Setup steps: save the correct admin/seller token, tap Check server, allow SMS permission, enable Notification Access for SCB-Forwarder, start the background service, keep the persistent SCB-Forwarder running notification visible, and disable battery/autostart restrictions.
+- SCB-Forwarder reliability/status: it forwards trusted bKash SMS senders (bKash/16247) and known official bKash app packages, can parse matching notices on the phone while offline, queues notices if internet/server is unavailable, retries queued uploads automatically, and has a Retry queued notices now button. Status screen shows successful forwards, failed/queued attempts, last forwarded time, last SMS/notification source, queue count, and last error. Forwarding both SMS and notification is safe because the bot deduplicates by TrxID.
+- SCB-Forwarder setup troubleshooting by step: if setup is stuck at token save, ask whether the phone is in Seller mode or main/admin mode and whether the correct Seller token/Admin token was pasted. If Check server fails, ask for the three displayed lines: Internet, Server reachable, Token, plus Details. Internet FAILED means fix phone internet/VPN/DNS first; Server reachable FAILED means check network/server availability and the fixed server shown in the app; Token FAILED usually means wrong mode or wrong/old token, so copy the token again from Seller Center or ask admin for the correct admin token. If SMS permission fails, open Android app settings and allow SMS/notification permissions manually. If Notification Access fails, open Android Notification access settings and enable SCB-Forwarder. If background service will not stay running, start it again, keep the persistent notification visible, disable battery optimization, allow autostart/auto launch/background activity, and lock the app in recent apps if the phone supports it.
+- SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
+- bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
+- Pending/manual bKash cases: pending can happen when SMS/notification has not reached the server, user submitted TrxID before notice arrived, amount does not match, TrxID is wrong/duplicate/already used, payer/order does not match, selected wallet/network is invalid, stock is low, gas is low, or RPC/network is busy. User action: check /order or /status, wait if webhook is delayed, and contact support with Order ID + TrxID. Admin action: verify via /pending before approving/rejecting.
+- Order status and receipts: /order or /status can check order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipts include proof/explorer URL or compact receipt details and QR when available. Never tell a user an order is paid/completed unless context says verified/completed.
+- Telegram Stars flow: user taps Telegram Stars, selects network, enters wallet, enters crypto amount, receives a Telegram invoice, pays in XTR Stars, bot verifies payload/order ID, Telegram user ID, currency XTR, and exact Stars amount, then sends crypto. STAR_RATE means how many Stars equal 1 USDC/USDT/asset, with optional per-network overrides. If paid Stars delivery fails, bot marks failed and notifies admin; admin may manually send crypto or refund using Telegram tools.
+- Gift Code and Giveaway: admins can create one-time gift codes with network, amount, and expiry; admins can disable active codes. Users redeem a gift code with a destination wallet, and a used/expired/invalid code cannot be reused. Giveaways create a session with network, recipient count, base amount, expiry, codes, and optional early-claimer bonus. Admin giveaways use bot/admin stock; non-admin giveaways are funded by the user's connected wallet and require the wallet password. User wallet-funded TON giveaways are not supported. Claimers must use a valid unused giveaway code before expiry.
+- Personal wallet: /setup lets a user connect an encrypted wallet key for supported networks, then use /mybalance and /send_wallet with password protection. /changekey replaces the saved key and /deletekey removes it. /send_wallet asks destination, amount, password, and confirmation; wrong password, insufficient token balance, insufficient gas, invalid wallet, or RPC errors can fail the send. The bot cannot recover a forgotten password. Never ask for or reveal private keys, seed phrases, mnemonics, or wallet passwords; support/admin should never ask for them either.
+- Seller marketplace: approved sellers appear under Sellers. Buyers can use seller bKash or Stars routes where available. Sellers apply from Seller Center, submit display name, seller bKash number, and support contact, then wait for admin approval. Approved sellers configure encrypted delivery wallets, rates, stock, and dashboard tools. Sellers/admins handle assigned pending seller orders. Seller Stars ledger and payout review exist. TON seller auto-delivery is not supported; seller auto-delivery supports Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20.
+- Referral and payouts: /referral gives a personal code/link, referral count, ledger, balance, total earned/withdrawn, and minimum withdrawal. Referral rewards may be OFF; users can still share links but rewards/withdrawals only work when admin enables them. Eligible completed orders can credit referrals. Referral withdraw asks payout method/details and creates a request for admin review. Admin can enable/disable referral, set reward percent, set minimum withdrawal, and review payout requests.
+- Rates, balances, stock, reservations: Admin can set network sale rates and cost rates. Balance/stock checks account for active reservations, so available stock can be lower than raw wallet balance. Confirmed buyer/Stars orders reserve stock until completed, rejected, cancelled, failed, or expired. Low stock or low gas warnings mean orders may fail or need admin top-up.
+- TX Log, receipts, and failed sends: TX Log shows user-visible transaction history and order IDs. Completed orders support receipt text/image with explorer proof/QR when available. Failed delivery can be caused by low stock, low native gas, RPC timeout, invalid wallet/network, chain revert, missing sender/API/RPC config, duplicate TrxID, or seller setup issue. Admin should check /failed, /audit, /balances, /gas, payment receipt, explorer, and retry only after confirming no duplicate send happened.
+- Admin operations and health: /stats shows totals, completed/failed/pending counts, retry queue, sales/crypto totals, profit, and maintenance. /report and /profit show daily/weekly sales/profit and margin; /costrate sets cost rates. /gas monitors native gas. /reservations shows active stock reservations. /audit shows admin/system events. /backup sends the database backup to admin and daily backup/report can run near local midnight. /restart_help gives safe Termux restart steps but does not restart the bot itself. /test_sms and /test_seller_sms inject fake TEST TrxIDs for testing only.
+- Maintenance, webhook, dashboard, AI admin: maintenance mode pauses normal buy, Stars buy, and gift-code redeem flows while admin tools remain usable. /bot_health checks DB/webhook/maintenance and basic bot state; /webhook_health shows last bKash notice time/source/TrxID and stale status. The protected web dashboard/admin page exists only when admin web access is configured. Admin Menu → AI Setup saves AI provider API keys in SQLite without restart; AI Status/AI Usage show configured providers and success/failure counts. AI Admin diagnostics are read-only.
+- Crypto support behavior: continue answering normal crypto questions related to supported assets, networks, wallet formats, gas/native fees, transaction hashes/explorers, confirmations, failed/reverted sends, and safe transfer practices. Keep explanations practical and app-specific. Do not provide speculative trading calls, investment advice, guaranteed price predictions, or instructions that ask users to expose secrets.
+- Security and risk rules: blockchain transactions are irreversible; wrong wallet/network cannot be fixed by the bot. Never guarantee delivery time, profit, refund, or payment approval. Never request secrets. For stuck payment ask for Order ID/TrxID, suggest /order, /status, /receipt if completed, and manual support when needed.
+- Recommended answer style: first answer the user's direct question, then give exact steps or likely reasons. For order/payment problems, if information is missing, ask only for the minimum needed identifier (Order ID or TrxID). For SCB-Forwarder setup/error problems, ask for the exact step/error/status details first, then explain the likely reason and fix from the troubleshooting rules. Avoid guessing. Keep answers short, practical, and beginner-friendly.
 """.strip()
 
 
@@ -479,7 +497,7 @@ def ltext(lang, en, bn):
 
 def ai_support_prompt(lang="bn"):
     return (
-        "You are the read-only AI support assistant for a Telegram crypto seller bot. "
+        "You are the read-only AI support assistant for SCB-Forwarder and its Telegram crypto bot. "
         "Determine response language only from the explicit [RESPONSE LANGUAGE] block and the user's actual question; ignore diagnostic context language for language selection. "
         "Bengali question => Bengali answer. English question => English answer. Do not answer English for Bangla questions or Bangla for English questions. "
         "If the user explicitly asks to translate or requests another language, obey that explicit request. "
@@ -652,6 +670,8 @@ def _extract_openai_chat_text(data):
 
 AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
+AI_SUPPORT_HISTORY_TURNS = 8
+AI_SUPPORT_HISTORY_LIMIT = 2500
 AI_PROVIDER_TIMEOUT_SECONDS = 1.5
 ORDER_AI_CALLBACK_PREFIX = "aiorder_"
 TRACK_ORDER_CALLBACK_PREFIX = "trackorder_"
@@ -820,6 +840,46 @@ def build_ai_support_context(question, user_id, lang="bn", admin=False, order_id
     if len(sections) == 1:
         return ""
     return "\n".join(sections)[:AI_CONTEXT_LIMIT]
+
+
+def format_ai_support_history(history):
+    lines = []
+    for turn in list(history or [])[-AI_SUPPORT_HISTORY_TURNS:]:
+        user = sanitize_diagnostic_text(str(turn.get("user", ""))).strip()
+        assistant = sanitize_diagnostic_text(str(turn.get("assistant", ""))).strip()
+        if user:
+            lines.append("Previous user: " + user)
+        if assistant:
+            lines.append("Previous AI: " + assistant)
+    if not lines:
+        return ""
+    return ("Conversation memory for this AI Support session only:\n" + "\n".join(lines))[:AI_SUPPORT_HISTORY_LIMIT]
+
+
+def combine_ai_support_context(*parts):
+    text = "\n\n".join(str(part).strip() for part in parts if str(part or "").strip())
+    return text[:AI_CONTEXT_LIMIT]
+
+
+def append_ai_support_history(user_data, question, answer):
+    history = list(user_data.get("ai_support_history") or [])
+    history.append({"user": str(question or "")[:1000], "assistant": str(answer or "")[:1000]})
+    user_data["ai_support_history"] = history[-AI_SUPPORT_HISTORY_TURNS:]
+
+
+def ai_order_status_question(identifier, lang="bn"):
+    identifier = normalize_order_context_identifier(identifier)
+    if lang == "en":
+        return (
+            f"Explain the current status of order {identifier} in simple English. "
+            "Include the status, amount, network, wallet summary, likely reason if it is pending/failed/manual review, and what the user should do next. "
+            "Keep it concise and easy for a beginner."
+        )
+    return (
+        f"Order {identifier} এর current status সহজ বাংলায় বুঝিয়ে দিন। "
+        "Status, amount, network, wallet summary, pending/failed/manual review হলে সম্ভাব্য কারণ, এবং user-এর next step লিখুন। "
+        "নতুন user যেন সহজে বুঝতে পারে, সংক্ষেপে বলুন।"
+    )
 
 
 def select_ai_response_language(question, lang="bn"):
@@ -1080,13 +1140,15 @@ def ask_ai_support(question, lang="bn", context=None):
 async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending_token, user_data):
     try:
         order_identifier = user_data.get("ai_order_context_identifier")
+        memory_context = format_ai_support_history(user_data.get("ai_support_history"))
+        diagnostic_context = build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None)
         loop = asyncio.get_running_loop()
         answer = await loop.run_in_executor(
             None,
             lambda: ask_ai_support(
                 question,
                 lang,
-                build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None),
+                combine_ai_support_context(memory_context, diagnostic_context),
             ),
         )
     except Exception as exc:
@@ -1095,6 +1157,7 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
     try:
         if user_data.get("ai_support") and user_data.get("ai_support_pending") == pending_token:
             await bot.send_message(chat_id=chat_id, text=answer)
+            append_ai_support_history(user_data, question, answer)
     except Exception as exc:
         logger.error("AI support answer send failed: %s", exc)
     finally:
@@ -2470,20 +2533,49 @@ def seller_public_name(row):
     return row[2] or row[1] or f"Seller {row[0]}"
 
 
-def seller_guide_text(seller=None):
+def seller_guide_text(seller=None, lang="bn"):
     token = seller[6] if seller else "YOUR_SMS_TOKEN"
+    if lang == "en":
+        return (
+            "🏪 Seller Setup Guide\n\n"
+            f"App link: {SCB_FORWARDER_APP_URL}\n"
+            f"Fixed server: {SCB_FORWARDER_SERVER_URL}\n"
+            f"Seller token: {token}\n\n"
+            "1️⃣ Install SCB-Forwarder on the Android phone that receives your seller bKash SMS or bKash app notifications.\n"
+            "2️⃣ Open SCB-Forwarder and confirm the fixed server shown in the app. You cannot edit the server URL inside the app.\n"
+            "3️⃣ Turn on Seller mode. Do not use admin/main mode for a seller phone.\n"
+            "4️⃣ Paste your Seller token, then tap Save setup. The app should show Ready to forward.\n"
+            "5️⃣ Tap Check server. Internet, server reachable, and token should all show OK. If token fails, copy the token from Seller Center again and save setup.\n"
+            "6️⃣ Tap Allow SMS Permission. Then tap Enable Notification Access and enable SCB-Forwarder. Keeping both SMS and notification forwarding on is safe because the bot removes duplicate TrxID notices.\n"
+            "7️⃣ Tap Start Background Service and keep the SCB-Forwarder running notification visible.\n"
+            "8️⃣ Open Battery/autostart guide and disable battery restrictions/autostart blocking for SCB-Forwarder. On Samsung add it to Never sleeping apps; on Xiaomi/Redmi/Poco enable Autostart and No restrictions.\n"
+            "9️⃣ In Seller Center → Delivery Wallet, add/update the private key for each network you sell. Keep native gas token in each seller wallet.\n"
+            "🔟 Set seller rates if you want custom rates; 0 uses the global/admin rate.\n\n"
+            "Supported seller auto-delivery: Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20. TON seller auto-delivery is not supported. Telegram Stars seller sales create a pending payout ledger that admin marks paid manually."
+        )
     return (
         "🏪 Seller Setup Guide\n\n"
-        "1️⃣ Apply করুন এবং admin approval এর জন্য অপেক্ষা করুন।\n"
-        "2️⃣ যে network sell করবেন তার আলাদা crypto wallet/private key প্রস্তুত রাখুন; gas token রাখবেন।\n"
-        "3️⃣ Seller Center → Delivery Wallet এ private key add/update করুন। Server master key দিয়ে encrypt হবে; Telegram message delete হবে।\n"
-        "4️⃣ Seller rate set করুন; 0 দিলে global/admin rate use হবে।\n"
-        "5️⃣ Mouno Forwarder APK install করে Seller token save করুন। Server fixed: https://cryptobuybot6969.duckdns.org\n"
-        f"Seller Token: {token}\n"
-        "Forwarder app automatically posts to seller SMS/notification endpoints.\n"
-        "6️⃣ TON seller auto-delivery unsupported; supported: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20.\n"
-        "7️⃣ Telegram Stars seller sales create a pending payout ledger; admin marks payout paid manually."
+        f"অ্যাপ লিংক: {SCB_FORWARDER_APP_URL}\n"
+        f"Fixed server: {SCB_FORWARDER_SERVER_URL}\n"
+        f"Seller token: {token}\n\n"
+        "1️⃣ যে Android ফোনে আপনার seller bKash SMS বা bKash app notification আসে, সেই ফোনে SCB-Forwarder install করুন।\n"
+        "2️⃣ SCB-Forwarder খুলে app-এ দেখানো fixed server মিলিয়ে নিন। App থেকে server URL change করা যাবে না।\n"
+        "3️⃣ Seller mode অন করুন। Seller ফোনে admin/main mode ব্যবহার করবেন না।\n"
+        "4️⃣ আপনার Seller token paste করে Save setup চাপুন। সব ঠিক থাকলে app দেখাবে Ready to forward।\n"
+        "5️⃣ Check server চাপুন। Internet, server reachable, token — তিনটাই OK হওয়া দরকার। Token fail হলে Seller Center থেকে token আবার copy করে setup save করুন।\n"
+        "6️⃣ Allow SMS Permission চাপুন। তারপর Enable Notification Access চাপুন এবং SCB-Forwarder enable করুন। SMS ও notification দুইটাই on রাখলে সমস্যা নেই, bot TrxID দিয়ে duplicate বাদ দেয়।\n"
+        "7️⃣ Start Background Service চাপুন এবং SCB-Forwarder running notification visible রাখুন।\n"
+        "8️⃣ Battery/autostart guide খুলে SCB-Forwarder-এর battery restriction/autostart blocking off করুন। Samsung হলে Never sleeping apps-এ add করুন; Xiaomi/Redmi/Poco হলে Autostart on ও No restrictions দিন।\n"
+        "9️⃣ Seller Center → Delivery Wallet এ আপনি যে network sell করবেন, প্রতিটির private key add/update করুন। প্রতিটি seller wallet-এ native gas token রাখুন।\n"
+        "🔟 Custom rate চাইলে seller rate set করুন; 0 দিলে global/admin rate use হবে।\n\n"
+        "Supported seller auto-delivery: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20। TON seller auto-delivery supported না। Telegram Stars seller sale হলে pending payout ledger তৈরি হয়, admin manual paid mark করবেন।"
     )
+
+
+def seller_approval_text(seller=None, lang="bn"):
+    if lang == "en":
+        return "🎉 Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
+    return "🎉 আপনার seller account approved হয়েছে।\n\n" + seller_guide_text(seller, lang)
 
 
 def seller_rate_or_global(seller_id, network):
@@ -2872,7 +2964,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SELLER_APP_NAME
 
     elif query.data == "seller_guide":
-        await query.edit_message_text(seller_guide_text(get_seller(user_id)), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="seller_center")]]))
+        await query.edit_message_text(seller_guide_text(get_seller(user_id), lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="seller_center")]]))
 
     elif query.data == "seller_wallet":
         seller = get_seller(user_id)
@@ -2928,12 +3020,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         action, seller_id = query.data.replace("sellerapp_", "", 1).split("_", 1)
         if action == "a":
             approve_seller(seller_id)
+            seller = get_seller(seller_id)
+            seller_lang = user_lang(seller_id)
             text = "✅ Seller approved."
-            notify = "🎉 আপনার seller account approved হয়েছে। Seller Center খুলুন।"
+            notify = seller_approval_text(seller, seller_lang)
         else:
             reject_seller(seller_id)
             text = "❌ Seller rejected."
-            notify = f"❌ Seller application rejected. Support: @{SUPPORT_USERNAME.lstrip('@')}"
+            notify = ltext(user_lang(seller_id), f"❌ Seller application rejected. Support: @{SUPPORT_USERNAME.lstrip('@')}", f"❌ Seller application rejected হয়েছে। Support: @{SUPPORT_USERNAME.lstrip('@')}")
         add_audit(user_id, "seller_application_decision", "seller", seller_id, action)
         await query.edit_message_text(f"{text}\nSeller: {seller_id}")
         try:
@@ -3166,6 +3260,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "ai_support":
         context.user_data.clear()
         context.user_data["ai_support"] = True
+        context.user_data["ai_support_history"] = []
         await query.edit_message_text(tr("ai_support_intro", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]))
 
     elif query.data == "ai_support_cancel":
@@ -3183,14 +3278,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data.clear()
         context.user_data["ai_support"] = True
+        context.user_data["ai_support_history"] = []
         context.user_data["ai_order_context_identifier"] = identifier
+        initial_question = ai_order_status_question(identifier, lang)
+        pending_token = secrets.token_hex(8)
+        context.user_data["ai_support_pending"] = pending_token
         await query.edit_message_text(
             ltext(
                 lang,
-                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nNow ask your question. You do not need to type the TrxID/order ID again.\n\nSend /cancel to close.",
-                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nএখন আপনার প্রশ্ন লিখুন। TrxID/Order ID আবার লিখতে হবে না।\n\nবন্ধ করতে /cancel লিখুন।",
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nPreparing a simple status explanation...\n\nAfter the answer, you can ask follow-up questions without typing the order ID again. Send /cancel to close.",
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nসহজ status explanation তৈরি করছি...\n\nউত্তর পাওয়ার পর follow-up প্রশ্ন করতে পারবেন; TrxID/Order ID আবার লিখতে হবে না। বন্ধ করতে /cancel লিখুন।",
             ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]),
+        )
+        chat_id = query.message.chat_id if query.message else query.from_user.id
+        context.application.create_task(
+            _send_ai_support_answer(context.bot, chat_id, user_id, initial_question, lang, pending_token, context.user_data)
         )
 
     elif query.data == "balance":
@@ -3553,6 +3656,7 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     context.user_data.clear()
     context.user_data["ai_support"] = True
+    context.user_data["ai_support_history"] = []
     await update.message.reply_text(tr("ai_support_intro", lang))
 
 
@@ -4678,7 +4782,8 @@ async def referral_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def seller_guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(seller_guide_text(get_seller(str(update.effective_user.id))))
+    lang = user_lang(update.effective_user.id)
+    await update.message.reply_text(seller_guide_text(get_seller(str(update.effective_user.id)), lang))
 
 
 async def seller_apply_name_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
