@@ -18,6 +18,10 @@ import android.os.PowerManager;
 import android.provider.Telephony;
 import android.service.notification.NotificationListenerService;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
@@ -27,26 +31,7 @@ public class ForwarderForegroundService extends Service {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable scanInbox = () -> ForwarderClient.scanSmsInboxFromForegroundService(ForwarderForegroundService.this);
-    private final Runnable pollInbox = new Runnable() {
-        @Override
-        public void run() {
-            DebugLog.append(ForwarderForegroundService.this, "Foreground service poll fired");
-            scanInbox.run();
-            handler.postDelayed(this, INBOX_POLL_INTERVAL_MS);
-        }
-    };
-    private final Runnable keepAlive = new Runnable() {
-        @Override
-        public void run() {
-            if (wakeLock == null || !wakeLock.isHeld()) acquireWakeLock();
-            ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
-            ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Foreground service keep-alive tick; battery/autostart still required for reliable forwarding");
-            scanInbox.run();
-            ForwarderClient.flushQueue(ForwarderForegroundService.this);
-            requestNotificationListenerRebind();
-            handler.postDelayed(this, FLUSH_INTERVAL_MS);
-        }
-    };
+    private ScheduledExecutorService serviceScheduler;
     private final ContentObserver inboxObserver = new ContentObserver(handler) {
         @Override
         public void onChange(boolean selfChange) {
@@ -89,8 +74,7 @@ public class ForwarderForegroundService extends Service {
         startForeground(NOTIFICATION_ID, notification());
         acquireWakeLock();
         registerInboxObserver();
-        handler.post(keepAlive);
-        handler.post(pollInbox);
+        startServiceScheduler();
     }
 
     @Override
@@ -98,9 +82,8 @@ public class ForwarderForegroundService extends Service {
         DebugLog.append(this, "Foreground service onStartCommand");
         ForwarderClient.scheduleRetry(this);
         registerInboxObserver();
+        startServiceScheduler();
         scanInbox.run();
-        handler.removeCallbacks(pollInbox);
-        handler.postDelayed(pollInbox, INBOX_POLL_INTERVAL_MS);
         ForwarderClient.flushQueue(this);
         requestNotificationListenerRebind();
         return START_STICKY;
@@ -109,9 +92,8 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onDestroy() {
         DebugLog.append(this, "Foreground service destroyed");
-        handler.removeCallbacks(keepAlive);
-        handler.removeCallbacks(pollInbox);
         handler.removeCallbacks(scanInbox);
+        stopServiceScheduler();
         unregisterInboxObserver();
         releaseWakeLock();
         ForwarderClient.scheduleRetry(this);
@@ -162,6 +144,28 @@ public class ForwarderForegroundService extends Service {
         } catch (Exception exc) {
             ForwardingStats.recordFailure(this, "Wake lock failed: " + exc.getClass().getSimpleName());
         }
+    }
+
+    private void startServiceScheduler() {
+        if (serviceScheduler != null && !serviceScheduler.isShutdown()) return;
+        serviceScheduler = Executors.newSingleThreadScheduledExecutor();
+        serviceScheduler.scheduleWithFixedDelay(() -> {
+            DebugLog.append(ForwarderForegroundService.this, "Foreground service scheduler poll fired");
+            scanInbox.run();
+        }, 0, INBOX_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        serviceScheduler.scheduleWithFixedDelay(() -> {
+            if (wakeLock == null || !wakeLock.isHeld()) acquireWakeLock();
+            ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
+            ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Foreground service scheduler keep-alive tick; battery/autostart still required for reliable forwarding");
+            ForwarderClient.flushQueue(ForwarderForegroundService.this);
+            requestNotificationListenerRebind();
+        }, 0, FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void stopServiceScheduler() {
+        if (serviceScheduler == null) return;
+        serviceScheduler.shutdownNow();
+        serviceScheduler = null;
     }
 
     private void releaseWakeLock() {

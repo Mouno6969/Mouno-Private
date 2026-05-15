@@ -2,6 +2,7 @@ package com.mouno.forwarder;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -197,6 +198,7 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
         }));
         setupCard.addView(actionButton("Start Background Service", v -> startBackgroundService()));
+        if (Build.VERSION.SDK_INT >= 31) setupCard.addView(actionButton("Allow Exact Alarm", v -> openExactAlarmSettings()));
         setupCard.addView(actionButton("Open Battery Optimization Settings", v -> openBatterySettings()));
 
         configDetails = bodyText();
@@ -356,6 +358,7 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+                + "Exact alarm: " + exactAlarmStatusText() + "\n"
                 + "Background: foreground service requested/running notification visible.\n"
                 + "Battery optimization/autostart permission is still required for reliable forwarding.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
@@ -544,6 +547,25 @@ public class MainActivity extends Activity {
             DebugLog.append(this, "Battery settings fallback: " + exc.getClass().getSimpleName());
             openAppSettings();
         }
+    }
+
+    private void openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT < 31) return;
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            DebugLog.append(this, "Exact alarm settings opened");
+            startActivity(intent);
+        } catch (Exception exc) {
+            DebugLog.append(this, "Exact alarm settings fallback: " + exc.getClass().getSimpleName());
+            openAppSettings();
+        }
+    }
+
+    private String exactAlarmStatusText() {
+        if (Build.VERSION.SDK_INT < 31) return "not required";
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        return alarmManager != null && alarmManager.canScheduleExactAlarms() ? "OK" : "Needs allow";
     }
 
     private void startBackgroundService() {
