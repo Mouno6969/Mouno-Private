@@ -31,6 +31,9 @@ import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends Activity {
     private static final int PRIMARY = Color.rgb(49, 46, 129);
     private static final int PRIMARY_LIGHT = Color.rgb(224, 231, 255);
@@ -188,10 +191,8 @@ public class MainActivity extends Activity {
         setContentView(scroll);
         refreshStatus();
         requestSmsPermissions();
-        ForwarderForegroundService.start(this);
         registerConnectivityFlush();
-        ForwarderClient.scheduleRetry(this);
-        ForwarderClient.flushQueue(this, this::refreshStatus);
+        if (hasNotificationPermission()) startBackgroundWork();
     }
 
     private void applyPalette() {
@@ -442,14 +443,25 @@ public class MainActivity extends Activity {
     }
 
     private void requestSmsPermissions() {
-        if (Build.VERSION.SDK_INT >= 23
-            && (checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED
-                || checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)) {
-            requestPermissions(new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, 10);
+        if (Build.VERSION.SDK_INT < 23) return;
+        List<String> permissions = new ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.RECEIVE_SMS);
+        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.READ_SMS);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        if (!permissions.isEmpty()) {
+            requestPermissions(permissions.toArray(new String[0]), 10);
         }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11);
-        }
+    }
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        refreshStatus();
+        if (hasNotificationPermission()) startBackgroundWork();
     }
 
     private void openBatterySettings() {
@@ -461,8 +473,15 @@ public class MainActivity extends Activity {
     }
 
     private void startBackgroundService() {
-        boolean started = ForwarderForegroundService.start(this);
-        ForwarderClient.scheduleRetry(this);
+        if (!hasNotificationPermission()) {
+            requestSmsPermissions();
+            if (retryStatus != null) {
+                retryStatus.setTextColor(WARNING);
+                retryStatus.setText("Allow notification permission first, then background service can stay running.");
+            }
+            return;
+        }
+        boolean started = startBackgroundWork();
         refreshStatus();
         if (retryStatus != null) {
             retryStatus.setTextColor(started ? SUCCESS : ERROR);
@@ -470,6 +489,13 @@ public class MainActivity extends Activity {
                 ? "Background service started. Keep the SCB-Forwarder notification visible."
                 : "Background service could not start. Disable battery restrictions/autostart blocking, then tap Start Background Service again.");
         }
+    }
+
+    private boolean startBackgroundWork() {
+        boolean started = ForwarderForegroundService.start(this);
+        ForwarderClient.scheduleRetry(this);
+        ForwarderClient.flushQueue(this, this::refreshStatus);
+        return started;
     }
 
     private void openAppSettings() {

@@ -58,8 +58,16 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createChannel();
-        startForeground(NOTIFICATION_ID, notification());
+        try {
+            createChannel();
+            startForeground(NOTIFICATION_ID, notification());
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service foreground failed: " + exc.getClass().getSimpleName());
+            ForwarderClient.scheduleRetry(this);
+            ForwarderClient.scheduleNetworkFlush(this);
+            stopSelf();
+            return;
+        }
         handler.post(keepAlive);
         handler.post(smsPoller);
     }
@@ -115,7 +123,11 @@ public class ForwarderForegroundService extends Service {
 
     private void requestNotificationListenerRebind() {
         if (Build.VERSION.SDK_INT >= 24) {
-            NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
+            try {
+                NotificationListenerService.requestRebind(new ComponentName(this, BkashNotificationListener.class));
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(this, "Notification listener rebind failed: " + exc.getClass().getSimpleName());
+            }
         }
     }
 }
