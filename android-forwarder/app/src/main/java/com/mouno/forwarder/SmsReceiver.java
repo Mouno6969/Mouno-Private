@@ -35,8 +35,7 @@ public class SmsReceiver extends BroadcastReceiver {
                 ForwarderClient.queueSmsDurably(context, sender, text, queued -> {
                     if (queued) SmsInboxReader.markSeenPayment(context, parsed);
                     ForwarderForegroundService.start(context);
-                    ForwarderClient.flushQueue(context);
-                    pendingResult.finish();
+                    ForwarderClient.flushLatestQueuedSmsForReceiver(context, pendingResult::finish);
                 });
                 return;
             }

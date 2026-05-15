@@ -31,6 +31,10 @@ import java.util.concurrent.Executors;
 final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final int NETWORK_FLUSH_JOB_ID = 202;
+    private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
+    private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
+    private static final int RECEIVER_CONNECT_TIMEOUT_MS = 4_000;
+    private static final int RECEIVER_READ_TIMEOUT_MS = 4_000;
 
     private ForwarderClient() {}
 
@@ -130,6 +134,14 @@ final class ForwarderClient {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
             flushQueueNow(appContext);
+            if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
+        });
+    }
+
+    static void flushLatestQueuedSmsForReceiver(Context context, Runnable onComplete) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            flushLatestQueueItemNow(appContext, RECEIVER_CONNECT_TIMEOUT_MS, RECEIVER_READ_TIMEOUT_MS);
             if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
         });
     }
@@ -235,6 +247,35 @@ final class ForwarderClient {
         if (!failed.isEmpty()) scheduleNetworkFlush(context);
     }
 
+    private static void flushLatestQueueItemNow(Context context, int connectTimeoutMs, int readTimeoutMs) {
+        Set<String> current = NoticeQueue.snapshot(context);
+        if (current.isEmpty()) return;
+        String newestRow = null;
+        long newestReceivedAt = Long.MIN_VALUE;
+        for (String row : current) {
+            try {
+                long receivedAt = NoticeQueue.decode(row).optLong("received_at", 0L);
+                if (newestRow == null || receivedAt >= newestReceivedAt) {
+                    newestRow = row;
+                    newestReceivedAt = receivedAt;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (newestRow == null) return;
+        boolean sent = false;
+        try {
+            sent = post(context, NoticeQueue.decode(newestRow), connectTimeoutMs, readTimeoutMs);
+        } catch (Exception ignored) {
+        }
+        if (sent) {
+            current.remove(newestRow);
+            NoticeQueue.save(context, current);
+        } else {
+            scheduleNetworkFlush(context);
+        }
+    }
+
     private static HealthResult checkHealthSync(Context context) {
         boolean internetOk = hasInternet(context);
         if (!internetOk) {
@@ -318,6 +359,10 @@ final class ForwarderClient {
     }
 
     private static boolean post(Context context, JSONObject notice) {
+        return post(context, notice, DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+    }
+
+    private static boolean post(Context context, JSONObject notice, int connectTimeoutMs, int readTimeoutMs) {
         if (!ForwarderConfig.isConfigured(context)) {
             ForwardingStats.recordFailure(context, "Forwarder is not configured");
             return false;
@@ -328,8 +373,8 @@ final class ForwarderClient {
             URL url = new URL(ForwarderConfig.endpoint(context, endpoint));
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
-            connection.setConnectTimeout(10_000);
-            connection.setReadTimeout(10_000);
+            connection.setConnectTimeout(connectTimeoutMs);
+            connection.setReadTimeout(readTimeoutMs);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
             if (!ForwarderConfig.isSellerMode(context) && ForwarderConfig.hasForwarderSecret(context)) {
