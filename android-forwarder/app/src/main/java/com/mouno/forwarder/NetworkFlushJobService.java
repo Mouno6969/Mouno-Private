@@ -7,7 +7,7 @@ public class NetworkFlushJobService extends JobService {
     @Override
     public boolean onStartJob(JobParameters params) {
         new Thread(() -> {
-            ForwarderClient.scanSmsInbox(this, false, null);
+            SmsInboxReader.queueRecentPaymentNotices(this, false);
             ForwarderClient.flushQueueSync(this);
             jobFinished(params, false);
         }).start();

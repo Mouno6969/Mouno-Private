@@ -475,8 +475,10 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 10) {
-            requestSmsPermissions();
-            if (hasSmsPermissions()) ForwarderClient.scanSmsInbox(this, false, this::onInboxScanFinished);
+            if (hasSmsPermissions()) {
+                requestSmsPermissions();
+                ForwarderClient.scanSmsInbox(this, false, this::onInboxScanFinished);
+            }
         }
     }
 
