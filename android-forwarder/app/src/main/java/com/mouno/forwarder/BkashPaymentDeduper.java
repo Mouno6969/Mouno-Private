@@ -1,0 +1,50 @@
+package com.mouno.forwarder;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import java.util.Locale;
+import java.util.Map;
+
+final class BkashPaymentDeduper {
+    private static final String PREFS = "bkash_payment_dedupe";
+    private static final String KEY_PREFIX = "trx:";
+    private static final long RETENTION_MS = 7L * 24L * 60L * 60L * 1000L;
+
+    private BkashPaymentDeduper() {}
+
+    static synchronized boolean markSeenPayment(Context context, BkashNoticeParser.Parsed parsed) {
+        String trxId = normalize(parsed);
+        if (trxId.isEmpty()) return true;
+        SharedPreferences prefs = prefs(context);
+        String key = KEY_PREFIX + trxId;
+        if (prefs.contains(key)) return false;
+        long now = System.currentTimeMillis();
+        SharedPreferences.Editor editor = prefs.edit().putLong(key, now);
+        pruneExpired(prefs, editor, now);
+        if (!editor.commit()) prefs.edit().putLong(key, now).apply();
+        return true;
+    }
+
+    static synchronized void releaseSeenPayment(Context context, BkashNoticeParser.Parsed parsed) {
+        String trxId = normalize(parsed);
+        if (!trxId.isEmpty()) prefs(context).edit().remove(KEY_PREFIX + trxId).apply();
+    }
+
+    private static void pruneExpired(SharedPreferences prefs, SharedPreferences.Editor editor, long now) {
+        for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            Object value = entry.getValue();
+            if (entry.getKey().startsWith(KEY_PREFIX) && value instanceof Long && now - (Long) value > RETENTION_MS) {
+                editor.remove(entry.getKey());
+            }
+        }
+    }
+
+    private static String normalize(BkashNoticeParser.Parsed parsed) {
+        return parsed == null || parsed.trxId == null ? "" : parsed.trxId.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static SharedPreferences prefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+}

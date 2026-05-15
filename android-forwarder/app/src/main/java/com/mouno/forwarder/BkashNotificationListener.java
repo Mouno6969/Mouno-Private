@@ -39,14 +39,29 @@ public class BkashNotificationListener extends NotificationListenerService {
         String subText = value(extras, Notification.EXTRA_SUB_TEXT);
         String summary = value(extras, Notification.EXTRA_SUMMARY_TEXT);
         String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
-        if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
+        BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(all);
+        if (isTrustedBkashPackage(packageName) && parsed != null) {
+            if (!BkashPaymentDeduper.markSeenPayment(this, parsed)) {
+                ForwardingStats.recordPhoneEvent(this, "bKash app notification ignored: duplicate " + parsed.summary());
+                return;
+            }
             ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
-            ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all);
-            ForwarderForegroundService.start(this);
-        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
+            if (ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all)) {
+                ForwarderForegroundService.start(this);
+            } else {
+                BkashPaymentDeduper.releaseSeenPayment(this, parsed);
+            }
+        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && parsed != null) {
+            if (!BkashPaymentDeduper.markSeenPayment(this, parsed)) {
+                ForwardingStats.recordPhoneEvent(this, "SMS notification ignored: duplicate " + parsed.summary());
+                return;
+            }
             ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
-            ForwarderClient.queueNotification(this, "sms_notification", title, all);
-            ForwarderForegroundService.start(this);
+            if (ForwarderClient.queueNotification(this, "sms_notification", title, all)) {
+                ForwarderForegroundService.start(this);
+            } else {
+                BkashPaymentDeduper.releaseSeenPayment(this, parsed);
+            }
         } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
             ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
@@ -73,15 +88,6 @@ public class BkashNotificationListener extends NotificationListenerService {
     private static boolean isTrustedBkashSender(String sender) {
         String value = sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT);
         return value.contains("bkash") || value.contains("16247");
-    }
-
-    private static boolean isBkashNotice(String text) {
-        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
-        return lower.contains("bkash") || lower.contains("trxid") || lower.contains("trx id") || lower.contains("txnid") || lower.contains("txn id") || text.contains("বিকাশ");
-    }
-
-    private static boolean isBkashPaymentNotice(String text) {
-        return isBkashNotice(text) && BkashNoticeParser.parse(text) != null;
     }
 
     private static String value(Bundle extras, String key) {

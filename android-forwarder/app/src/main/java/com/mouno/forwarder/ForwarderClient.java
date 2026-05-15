@@ -46,14 +46,14 @@ final class ForwarderClient {
         send(context, "sms", "sms", sender, body, onComplete);
     }
 
-    static void queueSms(Context context, String sender, String body) {
-        if (!BuildConfig.FORWARD_SMS) return;
-        queueNotice(context, "sms", "sms", sender, body, "SMS");
+    static boolean queueSms(Context context, String sender, String body) {
+        if (!BuildConfig.FORWARD_SMS) return false;
+        return queueNotice(context, "sms", "sms", sender, body, "SMS");
     }
 
-    static void queueNotification(Context context, String appName, String title, String text) {
-        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        queueNotice(context, "notification", appName, title, text, "Notification");
+    static boolean queueNotification(Context context, String appName, String title, String text) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) return false;
+        return queueNotice(context, "notification", appName, title, text, "Notification");
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -113,19 +113,21 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
-    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+    private static boolean queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
             if (!NoticeQueue.enqueueSync(appContext, notice)) {
                 ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
-                return;
+                return false;
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
             flushQueue(appContext);
+            return true;
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+            return false;
         }
     }
 
