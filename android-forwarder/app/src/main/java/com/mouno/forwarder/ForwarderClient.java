@@ -58,6 +58,10 @@ final class ForwarderClient {
         queueNotice(context, "sms", "sms", sender, body, "SMS", onComplete);
     }
 
+    static boolean queueSmsSync(Context context, String sender, String body) {
+        return BuildConfig.FORWARD_SMS && queueNoticeSync(context, "sms", "sms", sender, body, "SMS");
+    }
+
     static void queueNotification(Context context, String appName, String title, String text) {
         if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
         queueNotice(context, "notification", appName, title, text, "Notification", null);
@@ -121,20 +125,27 @@ final class ForwarderClient {
     }
 
     private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label, Runnable onComplete) {
+        if (queueNoticeSync(context, endpoint, source, title, text, label)) {
+            flushQueue(context, onComplete);
+        } else if (onComplete != null) {
+            onComplete.run();
+        }
+    }
+
+    private static boolean queueNoticeSync(Context context, String endpoint, String source, String title, String text, String label) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
             if (!NoticeQueue.enqueueSync(appContext, notice)) {
                 ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
-                if (onComplete != null) onComplete.run();
-                return;
+                return false;
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext, onComplete);
+            return true;
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
-            if (onComplete != null) onComplete.run();
+            return false;
         }
     }
 

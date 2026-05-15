@@ -14,6 +14,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 final class SmsInboxReader {
     private static final String PREFS = "sms_inbox_poll";
@@ -25,6 +28,8 @@ final class SmsInboxReader {
     private static final long POLL_LOOKBACK_MS = 30 * 60_000L;
     private static final int MAX_ROWS = 40;
     private static final int MAX_FORWARD_PER_POLL = 5;
+    private static final ExecutorService POLL_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final AtomicBoolean POLL_IN_FLIGHT = new AtomicBoolean(false);
 
     private SmsInboxReader() {}
 
@@ -57,7 +62,14 @@ final class SmsInboxReader {
 
     static void pollAndForward(Context context) {
         Context appContext = context.getApplicationContext();
-        new Thread(() -> pollAndForwardNow(appContext)).start();
+        if (!POLL_IN_FLIGHT.compareAndSet(false, true)) return;
+        POLL_EXECUTOR.execute(() -> {
+            try {
+                pollAndForwardNow(appContext);
+            } finally {
+                POLL_IN_FLIGHT.set(false);
+            }
+        });
     }
 
     private static void pollAndForwardNow(Context context) {
@@ -68,11 +80,19 @@ final class SmsInboxReader {
         List<SmsNotice> notices = latestUnseenPaymentNotices(context);
         Collections.reverse(notices);
         for (SmsNotice notice : notices) {
-            if (markSeen(context, notice.parsed.trxId)) {
-                ForwardingStats.recordPhoneEvent(context, "SMS inbox poll payment captured: " + notice.parsed.summary());
-                ForwarderClient.queueSms(context, notice.address, notice.body);
-            }
+            queueUnseenPaymentNotice(context, notice.address, notice.body, notice.parsed, "SMS inbox poll payment captured");
         }
+    }
+
+    static synchronized boolean queueUnseenPaymentNotice(Context context, String address, String body, BkashNoticeParser.Parsed parsed, String eventPrefix) {
+        if (parsed == null || isSeen(context, parsed.trxId)) return false;
+        if (!ForwarderClient.queueSmsSync(context, address, body)) return false;
+        if (!markSeen(context, parsed.trxId)) {
+            ForwardingStats.recordFailure(context, "SMS inbox dedupe failed for " + parsed.trxId);
+        }
+        ForwardingStats.recordPhoneEvent(context, eventPrefix + ": " + parsed.summary());
+        ForwarderClient.flushQueue(context);
+        return true;
     }
 
     private static List<SmsNotice> latestUnseenPaymentNotices(Context context) {

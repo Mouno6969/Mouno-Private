@@ -47,8 +47,7 @@ public class BkashNotificationListener extends NotificationListenerService {
             String smsText = BkashNoticeParser.parse(all) != null ? all : SmsInboxReader.latestPaymentNotice(this, sbn.getPostTime());
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(smsText);
             if (parsed != null) {
-                ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured: " + parsed.summary());
-                ForwarderClient.queueSms(this, title, smsText);
+                SmsInboxReader.queueUnseenPaymentNotice(this, title, smsText, parsed, "SMS notification payment captured");
                 ForwarderForegroundService.start(this);
             } else {
                 ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
