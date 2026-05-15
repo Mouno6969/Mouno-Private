@@ -33,7 +33,7 @@ final class SmsInboxReader {
         if (!manualScan && !prefs.contains(KEY_LAST_AUTO_SCAN_AT)) {
             prefs.edit()
                 .putLong(KEY_LAST_AUTO_SCAN_AT, now)
-                .putLong(KEY_LAST_AUTO_SCAN_ID, Long.MAX_VALUE)
+                .putLong(KEY_LAST_AUTO_SCAN_ID, -1L)
                 .apply();
             return 0;
         }
