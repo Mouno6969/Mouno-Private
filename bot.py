@@ -103,6 +103,8 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
     RATE,
+    SCB_FORWARDER_APP_URL,
+    SCB_FORWARDER_SERVER_URL,
     SELLER_WALLET_MASTER_KEY,
     STAR_RATE,
     SUPPORT_USERNAME,
@@ -2511,20 +2513,49 @@ def seller_public_name(row):
     return row[2] or row[1] or f"Seller {row[0]}"
 
 
-def seller_guide_text(seller=None):
+def seller_guide_text(seller=None, lang="bn"):
     token = seller[6] if seller else "YOUR_SMS_TOKEN"
+    if lang == "en":
+        return (
+            "🏪 Seller Setup Guide\n\n"
+            f"App link: {SCB_FORWARDER_APP_URL}\n"
+            f"Fixed server: {SCB_FORWARDER_SERVER_URL}\n"
+            f"Seller token: {token}\n\n"
+            "1️⃣ Install SCB-Forwarder on the Android phone that receives your seller bKash SMS or bKash app notifications.\n"
+            "2️⃣ Open SCB-Forwarder and confirm the fixed server shown in the app. You cannot edit the server URL inside the app.\n"
+            "3️⃣ Turn on Seller mode. Do not use admin/main mode for a seller phone.\n"
+            "4️⃣ Paste your Seller token, then tap Save setup. The app should show Ready to forward.\n"
+            "5️⃣ Tap Check server. Internet, server reachable, and token should all show OK. If token fails, copy the token from Seller Center again and save setup.\n"
+            "6️⃣ Tap Allow SMS Permission. Then tap Enable Notification Access and enable SCB-Forwarder. Keeping both SMS and notification forwarding on is safe because the bot removes duplicate TrxID notices.\n"
+            "7️⃣ Tap Start Background Service and keep the SCB-Forwarder running notification visible.\n"
+            "8️⃣ Open Battery/autostart guide and disable battery restrictions/autostart blocking for SCB-Forwarder. On Samsung add it to Never sleeping apps; on Xiaomi/Redmi/Poco enable Autostart and No restrictions.\n"
+            "9️⃣ In Seller Center → Delivery Wallet, add/update the private key for each network you sell. Keep native gas token in each seller wallet.\n"
+            "🔟 Set seller rates if you want custom rates; 0 uses the global/admin rate.\n\n"
+            "Supported seller auto-delivery: Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20. TON seller auto-delivery is not supported. Telegram Stars seller sales create a pending payout ledger that admin marks paid manually."
+        )
     return (
         "🏪 Seller Setup Guide\n\n"
-        "1️⃣ Apply করুন এবং admin approval এর জন্য অপেক্ষা করুন।\n"
-        "2️⃣ যে network sell করবেন তার আলাদা crypto wallet/private key প্রস্তুত রাখুন; gas token রাখবেন।\n"
-        "3️⃣ Seller Center → Delivery Wallet এ private key add/update করুন। Server master key দিয়ে encrypt হবে; Telegram message delete হবে।\n"
-        "4️⃣ Seller rate set করুন; 0 দিলে global/admin rate use হবে।\n"
-        "5️⃣ Mouno Forwarder APK install করে Seller token save করুন। Server fixed: https://cryptobuybot6969.duckdns.org\n"
-        f"Seller Token: {token}\n"
-        "Forwarder app automatically posts to seller SMS/notification endpoints.\n"
-        "6️⃣ TON seller auto-delivery unsupported; supported: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20.\n"
-        "7️⃣ Telegram Stars seller sales create a pending payout ledger; admin marks payout paid manually."
+        f"অ্যাপ লিংক: {SCB_FORWARDER_APP_URL}\n"
+        f"Fixed server: {SCB_FORWARDER_SERVER_URL}\n"
+        f"Seller token: {token}\n\n"
+        "1️⃣ যে Android ফোনে আপনার seller bKash SMS বা bKash app notification আসে, সেই ফোনে SCB-Forwarder install করুন।\n"
+        "2️⃣ SCB-Forwarder খুলে app-এ দেখানো fixed server মিলিয়ে নিন। App থেকে server URL change করা যাবে না।\n"
+        "3️⃣ Seller mode অন করুন। Seller ফোনে admin/main mode ব্যবহার করবেন না।\n"
+        "4️⃣ আপনার Seller token paste করে Save setup চাপুন। সব ঠিক থাকলে app দেখাবে Ready to forward।\n"
+        "5️⃣ Check server চাপুন। Internet, server reachable, token — তিনটাই OK হওয়া দরকার। Token fail হলে Seller Center থেকে token আবার copy করে setup save করুন।\n"
+        "6️⃣ Allow SMS Permission চাপুন। তারপর Enable Notification Access চাপুন এবং SCB-Forwarder enable করুন। SMS ও notification দুইটাই on রাখলে সমস্যা নেই, bot TrxID দিয়ে duplicate বাদ দেয়।\n"
+        "7️⃣ Start Background Service চাপুন এবং SCB-Forwarder running notification visible রাখুন।\n"
+        "8️⃣ Battery/autostart guide খুলে SCB-Forwarder-এর battery restriction/autostart blocking off করুন। Samsung হলে Never sleeping apps-এ add করুন; Xiaomi/Redmi/Poco হলে Autostart on ও No restrictions দিন।\n"
+        "9️⃣ Seller Center → Delivery Wallet এ আপনি যে network sell করবেন, প্রতিটির private key add/update করুন। প্রতিটি seller wallet-এ native gas token রাখুন।\n"
+        "🔟 Custom rate চাইলে seller rate set করুন; 0 দিলে global/admin rate use হবে।\n\n"
+        "Supported seller auto-delivery: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20। TON seller auto-delivery supported না। Telegram Stars seller sale হলে pending payout ledger তৈরি হয়, admin manual paid mark করবেন।"
     )
+
+
+def seller_approval_text(seller=None, lang="bn"):
+    if lang == "en":
+        return "🎉 Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
+    return "🎉 আপনার seller account approved হয়েছে।\n\n" + seller_guide_text(seller, lang)
 
 
 def seller_rate_or_global(seller_id, network):
@@ -2913,7 +2944,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SELLER_APP_NAME
 
     elif query.data == "seller_guide":
-        await query.edit_message_text(seller_guide_text(get_seller(user_id)), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="seller_center")]]))
+        await query.edit_message_text(seller_guide_text(get_seller(user_id), lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="seller_center")]]))
 
     elif query.data == "seller_wallet":
         seller = get_seller(user_id)
@@ -2969,12 +3000,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         action, seller_id = query.data.replace("sellerapp_", "", 1).split("_", 1)
         if action == "a":
             approve_seller(seller_id)
+            seller = get_seller(seller_id)
+            seller_lang = user_lang(seller_id)
             text = "✅ Seller approved."
-            notify = "🎉 আপনার seller account approved হয়েছে। Seller Center খুলুন।"
+            notify = seller_approval_text(seller, seller_lang)
         else:
             reject_seller(seller_id)
             text = "❌ Seller rejected."
-            notify = f"❌ Seller application rejected. Support: @{SUPPORT_USERNAME.lstrip('@')}"
+            notify = ltext(user_lang(seller_id), f"❌ Seller application rejected. Support: @{SUPPORT_USERNAME.lstrip('@')}", f"❌ Seller application rejected হয়েছে। Support: @{SUPPORT_USERNAME.lstrip('@')}")
         add_audit(user_id, "seller_application_decision", "seller", seller_id, action)
         await query.edit_message_text(f"{text}\nSeller: {seller_id}")
         try:
@@ -4722,7 +4755,8 @@ async def referral_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def seller_guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(seller_guide_text(get_seller(str(update.effective_user.id))))
+    lang = user_lang(update.effective_user.id)
+    await update.message.reply_text(seller_guide_text(get_seller(str(update.effective_user.id)), lang))
 
 
 async def seller_apply_name_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
