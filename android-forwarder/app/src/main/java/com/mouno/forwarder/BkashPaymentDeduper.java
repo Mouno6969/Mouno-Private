@@ -22,9 +22,9 @@ final class BkashPaymentDeduper {
         if (trxId.isEmpty()) return action.enqueue();
         SharedPreferences prefs = prefs(context);
         String key = KEY_PREFIX + trxId;
-        if (prefs.contains(key)) return false;
-        if (!action.enqueue()) return false;
         long now = System.currentTimeMillis();
+        if (prefs.contains(key) && now - prefs.getLong(key, 0L) <= RETENTION_MS) return false;
+        if (!action.enqueue()) return false;
         SharedPreferences.Editor editor = prefs.edit().putLong(key, now);
         pruneExpired(prefs, editor, now);
         if (!editor.commit()) prefs.edit().putLong(key, now).apply();
