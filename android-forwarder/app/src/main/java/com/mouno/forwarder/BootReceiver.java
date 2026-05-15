@@ -9,6 +9,7 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         ForwarderForegroundService.start(context);
         ForwarderClient.scheduleRetry(context);
+        ForwarderClient.scanSmsInbox(context, false, null);
         ForwarderClient.flushQueue(context);
     }
 }

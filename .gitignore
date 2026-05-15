@@ -9,5 +9,6 @@ venv/
 .env.*
 !.env.example
 android-forwarder/.gradle/
+android-forwarder/local.properties
 android-forwarder/build/
 android-forwarder/app/build/

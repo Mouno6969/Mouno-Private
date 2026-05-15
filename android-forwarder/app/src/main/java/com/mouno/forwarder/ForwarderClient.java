@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -31,6 +32,8 @@ import java.util.concurrent.Executors;
 final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final int NETWORK_FLUSH_JOB_ID = 202;
+    private static final int BACKGROUND_SCAN_ALARM_REQUEST_CODE = 101;
+    private static final long BACKGROUND_SCAN_INTERVAL_MS = 5 * 60_000L;
 
     private ForwarderClient() {}
 
@@ -46,14 +49,19 @@ final class ForwarderClient {
         send(context, "sms", "sms", sender, body, onComplete);
     }
 
-    static void queueSms(Context context, String sender, String body) {
-        if (!BuildConfig.FORWARD_SMS) return;
-        queueNotice(context, "sms", "sms", sender, body, "SMS");
+    static boolean queueSms(Context context, String sender, String body) {
+        if (!BuildConfig.FORWARD_SMS) return false;
+        return queueNotice(context, "sms", "sms", sender, body, "SMS", true);
     }
 
-    static void queueNotification(Context context, String appName, String title, String text) {
-        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        queueNotice(context, "notification", appName, title, text, "Notification");
+    static boolean queueSmsFromInboxScan(Context context, String sender, String body) {
+        if (!BuildConfig.FORWARD_SMS) return false;
+        return queueNotice(context, "sms", "sms_inbox", sender, body, "SMS inbox", false);
+    }
+
+    static boolean queueNotification(Context context, String appName, String title, String text) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) return false;
+        return queueNotice(context, "notification", appName, title, text, "Notification", true);
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -104,7 +112,9 @@ final class ForwarderClient {
     static void flushQueue(Context context, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         EXECUTOR.execute(() -> {
+            DebugLog.append(appContext, "Flush started. Queue=" + NoticeQueue.count(appContext));
             flushQueueNow(appContext);
+            DebugLog.append(appContext, "Flush finished. Queue=" + NoticeQueue.count(appContext));
             if (onComplete != null) new Handler(Looper.getMainLooper()).post(onComplete);
         });
     }
@@ -113,24 +123,31 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
-    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+    private static boolean queueNotice(Context context, String endpoint, String source, String title, String text, String label, boolean flushAfterQueue) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
             if (!NoticeQueue.enqueueSync(appContext, notice)) {
                 ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
-                return;
+                return false;
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext);
+            DebugLog.append(appContext, "Queued " + label + ". Flush after queue=" + flushAfterQueue + " queue=" + NoticeQueue.count(appContext));
+            if (flushAfterQueue) flushQueue(appContext);
+            return true;
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+            return false;
         }
     }
 
     interface HealthCallback {
         void onResult(HealthResult result);
+    }
+
+    interface SmsInboxScanCallback {
+        void onResult(int queued);
     }
 
     static final class HealthResult {
@@ -155,13 +172,55 @@ final class ForwarderClient {
         });
     }
 
+    static void scanSmsInbox(Context context, boolean recordNoNew, SmsInboxScanCallback callback) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            int queued = scanSmsInboxSync(appContext, recordNoNew);
+            if (callback != null) new Handler(Looper.getMainLooper()).post(() -> callback.onResult(queued));
+        });
+    }
+
+    static void scanSmsInboxFromForegroundService(Context context) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            DebugLog.append(appContext, "Foreground service background scan tick started");
+            int queued = scanSmsInboxSync(appContext, false);
+            DebugLog.append(appContext, "Foreground service background scan tick finished queued=" + queued + " queue=" + NoticeQueue.count(appContext));
+        });
+    }
+
+    static int scanSmsInboxSync(Context context, boolean recordNoNew) {
+        Context appContext = context.getApplicationContext();
+        int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, recordNoNew);
+        if (queued > 0) flushQueueNow(appContext);
+        return queued;
+    }
+
+    static int scanSmsInboxForBackgroundAlarm(Context context) {
+        Context appContext = context.getApplicationContext();
+        int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, false);
+        scheduleNetworkFlush(appContext);
+        return queued;
+    }
+
     static void scheduleRetry(Context context) {
-        Intent intent = new Intent(context, RetryReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 101, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Context appContext = context.getApplicationContext();
+        Intent intent = new Intent(appContext, RetryReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(appContext, BACKGROUND_SCAN_ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        AlarmManager alarmManager = (AlarmManager) appContext.getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
-            alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000L, 5 * 60_000L, pendingIntent);
+            long triggerAt = System.currentTimeMillis() + BACKGROUND_SCAN_INTERVAL_MS;
+            try {
+                if (Build.VERSION.SDK_INT >= 19) {
+                    alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, BACKGROUND_SCAN_INTERVAL_MS, pendingIntent);
+                } else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                }
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(appContext, "Background scan alarm schedule failed: " + exc.getClass().getSimpleName());
+            }
         }
+        scheduleNetworkFlush(appContext);
     }
 
     static void scheduleNetworkFlush(Context context) {
@@ -169,6 +228,7 @@ final class ForwarderClient {
         if (scheduler == null) return;
         JobInfo job = new JobInfo.Builder(NETWORK_FLUSH_JOB_ID, new ComponentName(context, NetworkFlushJobService.class))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setMinimumLatency(0)
             .setPersisted(true)
             .build();
         scheduler.schedule(job);
@@ -218,7 +278,7 @@ final class ForwarderClient {
             if (code == 404) message = "Health endpoint not found. Check URL or update server code.";
             return new HealthResult(true, reachable, authOk, message + " (HTTP " + code + ")");
         } catch (Exception exc) {
-            return new HealthResult(true, false, false, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            return new HealthResult(true, false, false, exc.getClass().getSimpleName());
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -280,6 +340,7 @@ final class ForwarderClient {
         try {
             String endpoint = notice.optString("endpoint", "notification");
             URL url = new URL(ForwarderConfig.endpoint(context, endpoint));
+            DebugLog.append(context, "HTTP post start endpoint=" + endpoint);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(10_000);
@@ -305,11 +366,13 @@ final class ForwarderClient {
                 }
                 ForwardingStats.recordSuccess(context, endpoint, ack);
             } else {
+                DebugLog.append(context, "HTTP post failed code=" + code + " endpoint=" + endpoint);
                 ForwardingStats.recordFailure(context, "HTTP " + code + " from " + endpoint + " endpoint");
             }
             return ok;
         } catch (Exception exc) {
-            ForwardingStats.recordFailure(context, exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            DebugLog.append(context, "HTTP post exception endpoint=" + notice.optString("endpoint", "notification") + " error=" + exc.getClass().getSimpleName());
+            ForwardingStats.recordFailure(context, "HTTP post exception: " + exc.getClass().getSimpleName());
             return false;
         } finally {
             if (connection != null) connection.disconnect();
