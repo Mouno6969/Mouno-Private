@@ -864,6 +864,21 @@ def append_ai_support_history(user_data, question, answer):
     user_data["ai_support_history"] = history[-AI_SUPPORT_HISTORY_TURNS:]
 
 
+def ai_order_status_question(identifier, lang="bn"):
+    identifier = normalize_order_context_identifier(identifier)
+    if lang == "en":
+        return (
+            f"Explain the current status of order {identifier} in simple English. "
+            "Include the status, amount, network, wallet summary, likely reason if it is pending/failed/manual review, and what the user should do next. "
+            "Keep it concise and easy for a beginner."
+        )
+    return (
+        f"Order {identifier} এর current status সহজ বাংলায় বুঝিয়ে দিন। "
+        "Status, amount, network, wallet summary, pending/failed/manual review হলে সম্ভাব্য কারণ, এবং user-এর next step লিখুন। "
+        "নতুন user যেন সহজে বুঝতে পারে, সংক্ষেপে বলুন।"
+    )
+
+
 def select_ai_response_language(question, lang="bn"):
     question = str(question or "")
     bengali_chars = sum(1 for char in question if "\u0980" <= char <= "\u09FF")
@@ -3262,13 +3277,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["ai_support"] = True
         context.user_data["ai_support_history"] = []
         context.user_data["ai_order_context_identifier"] = identifier
+        initial_question = ai_order_status_question(identifier, lang)
+        pending_token = secrets.token_hex(8)
+        context.user_data["ai_support_pending"] = pending_token
         await query.edit_message_text(
             ltext(
                 lang,
-                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nNow ask your question. You do not need to type the TrxID/order ID again.\n\nSend /cancel to close.",
-                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nএখন আপনার প্রশ্ন লিখুন। TrxID/Order ID আবার লিখতে হবে না।\n\nবন্ধ করতে /cancel লিখুন।",
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nPreparing a simple status explanation...\n\nAfter the answer, you can ask follow-up questions without typing the order ID again. Send /cancel to close.",
+                f"🤖 AI Support\n\nOrder context loaded: {identifier}\nসহজ status explanation তৈরি করছি...\n\nউত্তর পাওয়ার পর follow-up প্রশ্ন করতে পারবেন; TrxID/Order ID আবার লিখতে হবে না। বন্ধ করতে /cancel লিখুন।",
             ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]),
+        )
+        chat_id = query.message.chat_id if query.message else query.from_user.id
+        context.application.create_task(
+            _send_ai_support_answer(context.bot, chat_id, user_id, initial_question, lang, pending_token, context.user_data)
         )
 
     elif query.data == "balance":
