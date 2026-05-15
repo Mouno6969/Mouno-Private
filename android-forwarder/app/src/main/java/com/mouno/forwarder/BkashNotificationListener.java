@@ -54,7 +54,7 @@ public class BkashNotificationListener extends NotificationListenerService {
             if (queued[0]) {
                 ForwarderForegroundService.start(this);
             }
-        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && parsed != null) {
+        } else if (isTrustedSmsPackage(packageName) && parsed != null) {
             final boolean[] queued = new boolean[]{false};
             boolean accepted = BkashPaymentDeduper.enqueueIfNew(this, parsed, () -> {
                 queued[0] = ForwarderClient.queueNotification(this, "sms_notification", title, all);

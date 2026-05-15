@@ -149,7 +149,7 @@ public class ForwarderForegroundService extends Service {
     private void registerInboxObserver() {
         if (inboxObserverRegistered) return;
         try {
-            getContentResolver().registerContentObserver(Telephony.Sms.Inbox.CONTENT_URI, true, inboxObserver);
+            getContentResolver().registerContentObserver(Telephony.Sms.CONTENT_URI, true, inboxObserver);
             inboxObserverRegistered = true;
             ForwardingStats.recordPhoneEvent(this, "SMS inbox observer active");
         } catch (Exception exc) {
