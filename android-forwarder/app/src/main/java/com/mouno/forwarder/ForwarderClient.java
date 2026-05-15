@@ -33,7 +33,7 @@ final class ForwarderClient {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final int NETWORK_FLUSH_JOB_ID = 202;
     private static final int BACKGROUND_SCAN_ALARM_REQUEST_CODE = 101;
-    private static final long BACKGROUND_SCAN_INTERVAL_MS = 30_000L;
+    private static final long BACKGROUND_SCAN_INTERVAL_MS = 5 * 60_000L;
 
     private ForwarderClient() {}
 
@@ -211,14 +211,8 @@ final class ForwarderClient {
         if (alarmManager != null) {
             long triggerAt = System.currentTimeMillis() + BACKGROUND_SCAN_INTERVAL_MS;
             try {
-                if (Build.VERSION.SDK_INT >= 31 && alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-                } else if (Build.VERSION.SDK_INT >= 31) {
+                if (Build.VERSION.SDK_INT >= 19) {
                     alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, BACKGROUND_SCAN_INTERVAL_MS, pendingIntent);
-                } else if (Build.VERSION.SDK_INT >= 23) {
-                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-                } else if (Build.VERSION.SDK_INT >= 19) {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
                 } else {
                     alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
                 }

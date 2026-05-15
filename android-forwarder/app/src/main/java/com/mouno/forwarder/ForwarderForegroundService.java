@@ -14,7 +14,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.PowerManager;
 import android.provider.Telephony;
 import android.service.notification.NotificationListenerService;
 
@@ -46,7 +45,6 @@ public class ForwarderForegroundService extends Service {
         }
     };
     private boolean inboxObserverRegistered;
-    private PowerManager.WakeLock wakeLock;
 
     static boolean start(Context context) {
         Intent intent = new Intent(context.getApplicationContext(), ForwarderForegroundService.class);
@@ -72,7 +70,6 @@ public class ForwarderForegroundService extends Service {
         DebugLog.append(this, "Foreground service created");
         createChannel();
         startForeground(NOTIFICATION_ID, notification());
-        acquireWakeLock();
         registerInboxObserver();
         startServiceScheduler();
     }
@@ -95,16 +92,14 @@ public class ForwarderForegroundService extends Service {
         handler.removeCallbacks(scanInbox);
         stopServiceScheduler();
         unregisterInboxObserver();
-        releaseWakeLock();
         ForwarderClient.scheduleRetry(this);
         super.onDestroy();
     }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        DebugLog.append(this, "Foreground service task removed; restart requested");
+        DebugLog.append(this, "Foreground service task removed; delayed retry scheduled");
         ForwarderClient.scheduleRetry(this);
-        start(this);
         super.onTaskRemoved(rootIntent);
     }
 
@@ -147,19 +142,6 @@ public class ForwarderForegroundService extends Service {
         return builder.build();
     }
 
-    private void acquireWakeLock() {
-        try {
-            PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-            if (powerManager == null) return;
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MounoForwarder:BackgroundForwarding");
-            wakeLock.setReferenceCounted(false);
-            wakeLock.acquire(10 * 60_000L);
-            DebugLog.append(this, "Background forwarding wake lock active");
-        } catch (Exception exc) {
-            ForwardingStats.recordFailure(this, "Wake lock failed: " + exc.getClass().getSimpleName());
-        }
-    }
-
     private void startServiceScheduler() {
         if (serviceScheduler != null && !serviceScheduler.isShutdown()) return;
         serviceScheduler = Executors.newSingleThreadScheduledExecutor();
@@ -168,7 +150,6 @@ public class ForwarderForegroundService extends Service {
             scanInbox.run();
         }, 0, INBOX_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
         serviceScheduler.scheduleWithFixedDelay(() -> {
-            if (wakeLock == null || !wakeLock.isHeld()) acquireWakeLock();
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
             ForwardingStats.recordPhoneEvent(ForwarderForegroundService.this, "Foreground service scheduler keep-alive tick; battery/autostart still required for reliable forwarding");
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
@@ -180,14 +161,6 @@ public class ForwarderForegroundService extends Service {
         if (serviceScheduler == null) return;
         serviceScheduler.shutdownNow();
         serviceScheduler = null;
-    }
-
-    private void releaseWakeLock() {
-        try {
-            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        } catch (Exception ignored) {
-        }
-        wakeLock = null;
     }
 
     private void requestNotificationListenerRebind() {
