@@ -135,6 +135,10 @@ final class ForwarderClient {
         void onResult(HealthResult result);
     }
 
+    interface SmsInboxScanCallback {
+        void onResult(int queued);
+    }
+
     static final class HealthResult {
         final boolean internetOk;
         final boolean serverReachable;
@@ -154,6 +158,15 @@ final class ForwarderClient {
         EXECUTOR.execute(() -> {
             HealthResult result = checkHealthSync(appContext);
             new Handler(Looper.getMainLooper()).post(() -> callback.onResult(result));
+        });
+    }
+
+    static void scanSmsInbox(Context context, boolean recordNoNew, SmsInboxScanCallback callback) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, recordNoNew);
+            if (queued > 0) flushQueueNow(appContext);
+            if (callback != null) new Handler(Looper.getMainLooper()).post(() -> callback.onResult(queued));
         });
     }
 

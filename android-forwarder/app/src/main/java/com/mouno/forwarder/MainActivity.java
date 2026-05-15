@@ -165,6 +165,10 @@ public class MainActivity extends Activity {
         retryButton.setOnClickListener(v -> retryQueuedNotices());
         queueCard.addView(retryButton);
 
+        Button scanInboxButton = primaryButton("Scan SMS inbox now / SMS inbox স্ক্যান করুন");
+        scanInboxButton.setOnClickListener(v -> scanSmsInboxNow());
+        queueCard.addView(scanInboxButton);
+
         retryStatus = bodyText();
         retryStatus.setTextColor(mutedTextColor);
         queueCard.addView(retryStatus);
@@ -189,6 +193,7 @@ public class MainActivity extends Activity {
         refreshStatus();
         requestSmsPermissions();
         ForwarderForegroundService.start(this);
+        ForwarderClient.scanSmsInbox(this, false, this::onInboxScanFinished);
         registerConnectivityFlush();
         ForwarderClient.scheduleRetry(this);
         ForwarderClient.flushQueue(this, this::refreshStatus);
@@ -354,6 +359,21 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void scanSmsInboxNow() {
+        requestSmsPermissions();
+        retryStatus.setTextColor(WARNING);
+        retryStatus.setText("Scanning SMS inbox for bKash payments...");
+        ForwarderClient.scanSmsInbox(this, true, this::onInboxScanFinished);
+    }
+
+    private void onInboxScanFinished(int queued) {
+        refreshStatus();
+        if (retryStatus != null) {
+            retryStatus.setTextColor(queued > 0 ? SUCCESS : WARNING);
+            retryStatus.setText("SMS inbox scan finished. New queued/forwarded payments: " + queued + ".");
+        }
+    }
+
     private void checkServer() {
         String warning = setupValidationWarning();
         if (warning != null) {
@@ -437,12 +457,19 @@ public class MainActivity extends Activity {
     }
 
     private void requestSmsPermissions() {
-        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 23 && (checkSelfPermission(Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED
+            || checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)) {
             requestPermissions(new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS}, 10);
         }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11);
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 10) ForwarderClient.scanSmsInbox(this, false, this::onInboxScanFinished);
     }
 
     private void openBatterySettings() {

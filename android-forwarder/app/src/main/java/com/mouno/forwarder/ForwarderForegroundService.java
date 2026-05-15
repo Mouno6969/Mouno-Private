@@ -24,6 +24,7 @@ public class ForwarderForegroundService extends Service {
         @Override
         public void run() {
             ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
+            ForwarderClient.scanSmsInbox(ForwarderForegroundService.this, false, null);
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
             requestNotificationListenerRebind();
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
@@ -58,6 +59,7 @@ public class ForwarderForegroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         ForwarderClient.scheduleRetry(this);
+        ForwarderClient.scanSmsInbox(this, false, null);
         ForwarderClient.flushQueue(this);
         requestNotificationListenerRebind();
         return START_STICKY;
