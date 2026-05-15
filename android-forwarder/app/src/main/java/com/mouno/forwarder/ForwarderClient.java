@@ -47,13 +47,27 @@ final class ForwarderClient {
     }
 
     static void queueSms(Context context, String sender, String body) {
-        if (!BuildConfig.FORWARD_SMS) return;
-        queueNotice(context, "sms", "sms", sender, body, "SMS");
+        queueSms(context, sender, body, null);
+    }
+
+    static void queueSms(Context context, String sender, String body, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_SMS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        queueNotice(context, "sms", "sms", sender, body, "SMS", onComplete);
     }
 
     static void queueNotification(Context context, String appName, String title, String text) {
-        if (!BuildConfig.FORWARD_NOTIFICATIONS) return;
-        queueNotice(context, "notification", appName, title, text, "Notification");
+        queueNotification(context, appName, title, text, null);
+    }
+
+    static void queueNotification(Context context, String appName, String title, String text, Runnable onComplete) {
+        if (!BuildConfig.FORWARD_NOTIFICATIONS) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        queueNotice(context, "notification", appName, title, text, "Notification", onComplete);
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -113,19 +127,21 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
-    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+    private static void queueNotice(Context context, String endpoint, String source, String title, String text, String label, Runnable onComplete) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
             if (!NoticeQueue.enqueueSync(appContext, notice)) {
                 ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: commit returned false");
+                if (onComplete != null) onComplete.run();
                 return;
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext);
+            flushQueue(appContext, onComplete);
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
+            if (onComplete != null) onComplete.run();
         }
     }
 
@@ -169,6 +185,7 @@ final class ForwarderClient {
         if (scheduler == null) return;
         JobInfo job = new JobInfo.Builder(NETWORK_FLUSH_JOB_ID, new ComponentName(context, NetworkFlushJobService.class))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setMinimumLatency(0)
             .setPersisted(true)
             .build();
         scheduler.schedule(job);
