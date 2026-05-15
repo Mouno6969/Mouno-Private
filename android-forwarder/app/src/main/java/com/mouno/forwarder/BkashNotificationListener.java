@@ -43,10 +43,16 @@ public class BkashNotificationListener extends NotificationListenerService {
             ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
             ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all);
             ForwarderForegroundService.start(this);
-        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title) && isBkashPaymentNotice(all)) {
-            ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured");
-            ForwarderClient.queueNotification(this, "sms_notification", title, all);
-            ForwarderForegroundService.start(this);
+        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title)) {
+            String smsText = BkashNoticeParser.parse(all) != null ? all : SmsInboxReader.latestPaymentNotice(this, sbn.getPostTime());
+            BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(smsText);
+            if (parsed != null) {
+                ForwardingStats.recordPhoneEvent(this, "SMS notification payment captured: " + parsed.summary());
+                ForwarderClient.queueSms(this, title, smsText);
+                ForwarderForegroundService.start(this);
+            } else {
+                ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
+            }
         } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
             ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
