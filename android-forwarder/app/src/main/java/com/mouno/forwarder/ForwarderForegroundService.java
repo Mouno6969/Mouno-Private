@@ -23,7 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class ForwarderForegroundService extends Service {
-    private static final String CHANNEL_ID = "forwarder_background";
+    private static final String CHANNEL_ID = "forwarder_background_persistent";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 60_000L;
     private static final long INBOX_POLL_INTERVAL_MS = 15_000L;
@@ -101,6 +101,14 @@ public class ForwarderForegroundService extends Service {
     }
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        DebugLog.append(this, "Foreground service task removed; restart requested");
+        ForwarderClient.scheduleRetry(this);
+        start(this);
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         return null;
     }
@@ -110,9 +118,12 @@ public class ForwarderForegroundService extends Service {
         NotificationChannel channel = new NotificationChannel(
             CHANNEL_ID,
             "SCB Forwarder background",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         );
         channel.setDescription("Foreground service requested; allow battery/autostart for reliable forwarding");
+        channel.setSound(null, null);
+        channel.enableVibration(false);
+        channel.setShowBadge(false);
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (manager != null) manager.createNotificationChannel(channel);
     }
@@ -125,11 +136,14 @@ public class ForwarderForegroundService extends Service {
             : new Notification.Builder(this);
         builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("SCB-Forwarder running")
-            .setContentText("Allow battery/autostart for reliable forwarding")
+            .setContentText("Background SMS scan active")
             .setContentIntent(contentIntent)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setShowWhen(false);
-        if (Build.VERSION.SDK_INT < 26) builder.setPriority(Notification.PRIORITY_LOW);
+        if (Build.VERSION.SDK_INT >= 31) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
+        if (Build.VERSION.SDK_INT < 26) builder.setPriority(Notification.PRIORITY_HIGH);
         return builder.build();
     }
 
