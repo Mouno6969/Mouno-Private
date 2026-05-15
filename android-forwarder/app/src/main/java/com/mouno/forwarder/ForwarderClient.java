@@ -180,6 +180,15 @@ final class ForwarderClient {
         });
     }
 
+    static void scanSmsInboxFromForegroundService(Context context) {
+        Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            DebugLog.append(appContext, "Foreground service background scan tick started");
+            int queued = scanSmsInboxSync(appContext, false);
+            DebugLog.append(appContext, "Foreground service background scan tick finished queued=" + queued + " queue=" + NoticeQueue.count(appContext));
+        });
+    }
+
     static int scanSmsInboxSync(Context context, boolean recordNoNew) {
         Context appContext = context.getApplicationContext();
         int queued = SmsInboxReader.queueRecentPaymentNotices(appContext, recordNoNew);
@@ -202,8 +211,14 @@ final class ForwarderClient {
         if (alarmManager != null) {
             long triggerAt = System.currentTimeMillis() + BACKGROUND_SCAN_INTERVAL_MS;
             try {
-                if (Build.VERSION.SDK_INT >= 23) {
+                if (Build.VERSION.SDK_INT >= 31 && alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                } else if (Build.VERSION.SDK_INT >= 31) {
+                    alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, BACKGROUND_SCAN_INTERVAL_MS, pendingIntent);
+                } else if (Build.VERSION.SDK_INT >= 23) {
                     alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                } else if (Build.VERSION.SDK_INT >= 19) {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
                 } else {
                     alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
                 }

@@ -717,6 +717,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         DebugLog.append(this, "Admin UI hidden; foreground service requested/running notification visible; battery/autostart still required for reliable forwarding");
+        ForwarderForegroundService.start(this);
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
     }

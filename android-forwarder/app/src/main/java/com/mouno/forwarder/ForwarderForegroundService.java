@@ -26,10 +26,11 @@ public class ForwarderForegroundService extends Service {
     private static final long INBOX_OBSERVER_DEBOUNCE_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable scanInbox = () -> ForwarderClient.scanSmsInbox(ForwarderForegroundService.this, false, null);
+    private final Runnable scanInbox = () -> ForwarderClient.scanSmsInboxFromForegroundService(ForwarderForegroundService.this);
     private final Runnable pollInbox = new Runnable() {
         @Override
         public void run() {
+            DebugLog.append(ForwarderForegroundService.this, "Foreground service poll fired");
             scanInbox.run();
             handler.postDelayed(this, INBOX_POLL_INTERVAL_MS);
         }
