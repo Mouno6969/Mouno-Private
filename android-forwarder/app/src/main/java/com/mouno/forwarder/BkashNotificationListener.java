@@ -13,47 +13,59 @@ public class BkashNotificationListener extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         super.onListenerConnected();
-        ForwardingStats.recordPhoneEvent(this, "Notification listener connected");
-        ForwarderForegroundService.start(this);
+        try {
+            ForwardingStats.recordPhoneEvent(this, "Notification listener connected");
+            ForwarderForegroundService.start(this);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Notification listener connect failed: " + exc.getClass().getSimpleName());
+        }
     }
 
     @Override
     public void onListenerDisconnected() {
-        ForwardingStats.recordPhoneEvent(this, "Notification listener disconnected; rebind requested");
-        if (Build.VERSION.SDK_INT >= 24) {
-            requestRebind(new ComponentName(this, BkashNotificationListener.class));
+        try {
+            ForwardingStats.recordPhoneEvent(this, "Notification listener disconnected; rebind requested");
+            if (Build.VERSION.SDK_INT >= 24) {
+                requestRebind(new ComponentName(this, BkashNotificationListener.class));
+            }
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Notification listener disconnect failed: " + exc.getClass().getSimpleName());
         }
         super.onListenerDisconnected();
     }
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        if (sbn == null || sbn.getNotification() == null) return;
-        String packageName = sbn.getPackageName() == null ? "" : sbn.getPackageName().toLowerCase();
-        Notification notification = sbn.getNotification();
-        Bundle extras = notification.extras;
-        String title = value(extras, Notification.EXTRA_TITLE);
-        String text = value(extras, Notification.EXTRA_TEXT);
-        String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
-        String textLines = textLines(extras);
-        String subText = value(extras, Notification.EXTRA_SUB_TEXT);
-        String summary = value(extras, Notification.EXTRA_SUMMARY_TEXT);
-        String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
-        if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
-            ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
-            ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all);
-            ForwarderForegroundService.start(this);
-        } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title)) {
-            String smsText = BkashNoticeParser.parse(all) != null ? all : SmsInboxReader.latestPaymentNotice(this, sbn.getPostTime());
-            BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(smsText);
-            if (parsed != null) {
-                SmsInboxReader.queueUnseenPaymentNotice(this, title, smsText, parsed, "SMS notification payment captured");
+        try {
+            if (sbn == null || sbn.getNotification() == null) return;
+            String packageName = sbn.getPackageName() == null ? "" : sbn.getPackageName().toLowerCase();
+            Notification notification = sbn.getNotification();
+            Bundle extras = notification.extras;
+            String title = value(extras, Notification.EXTRA_TITLE);
+            String text = value(extras, Notification.EXTRA_TEXT);
+            String bigText = value(extras, Notification.EXTRA_BIG_TEXT);
+            String textLines = textLines(extras);
+            String subText = value(extras, Notification.EXTRA_SUB_TEXT);
+            String summary = value(extras, Notification.EXTRA_SUMMARY_TEXT);
+            String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
+            if (isTrustedBkashPackage(packageName) && isBkashPaymentNotice(all)) {
+                ForwardingStats.recordPhoneEvent(this, "bKash app notification payment captured");
+                ForwarderClient.queueNotification(this, sbn.getPackageName(), title, all);
                 ForwarderForegroundService.start(this);
-            } else {
+            } else if (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title)) {
+                String smsText = BkashNoticeParser.parse(all) != null ? all : SmsInboxReader.latestPaymentNotice(this, sbn.getPostTime());
+                BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(smsText);
+                if (parsed != null) {
+                    SmsInboxReader.queueUnseenPaymentNotice(this, title, smsText, parsed, "SMS notification payment captured");
+                    ForwarderForegroundService.start(this);
+                } else {
+                    ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
+                }
+            } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
                 ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
             }
-        } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
-            ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Notification processing failed: " + exc.getClass().getSimpleName());
         }
     }
 

@@ -24,16 +24,24 @@ public class ForwarderForegroundService extends Service {
     private final Runnable keepAlive = new Runnable() {
         @Override
         public void run() {
-            ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
-            ForwarderClient.flushQueue(ForwarderForegroundService.this);
-            requestNotificationListenerRebind();
+            try {
+                ForwarderClient.scheduleRetry(ForwarderForegroundService.this);
+                ForwarderClient.flushQueue(ForwarderForegroundService.this);
+                requestNotificationListenerRebind();
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(ForwarderForegroundService.this, "Background keepalive failed: " + exc.getClass().getSimpleName());
+            }
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
         }
     };
     private final Runnable smsPoller = new Runnable() {
         @Override
         public void run() {
-            SmsInboxReader.pollAndForward(ForwarderForegroundService.this);
+            try {
+                SmsInboxReader.pollAndForward(ForwarderForegroundService.this);
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(ForwarderForegroundService.this, "SMS poller failed: " + exc.getClass().getSimpleName());
+            }
             handler.postDelayed(this, SMS_POLL_INTERVAL_MS);
         }
     };
@@ -74,9 +82,13 @@ public class ForwarderForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        ForwarderClient.scheduleRetry(this);
-        ForwarderClient.flushQueue(this);
-        requestNotificationListenerRebind();
+        try {
+            ForwarderClient.scheduleRetry(this);
+            ForwarderClient.flushQueue(this);
+            requestNotificationListenerRebind();
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service command failed: " + exc.getClass().getSimpleName());
+        }
         return START_STICKY;
     }
 
@@ -84,7 +96,11 @@ public class ForwarderForegroundService extends Service {
     public void onDestroy() {
         handler.removeCallbacks(keepAlive);
         handler.removeCallbacks(smsPoller);
-        ForwarderClient.scheduleRetry(this);
+        try {
+            ForwarderClient.scheduleRetry(this);
+        } catch (Exception exc) {
+            ForwardingStats.recordFailure(this, "Background service destroy retry failed: " + exc.getClass().getSimpleName());
+        }
         super.onDestroy();
     }
 

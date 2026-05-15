@@ -66,6 +66,8 @@ final class SmsInboxReader {
         POLL_EXECUTOR.execute(() -> {
             try {
                 pollAndForwardNow(appContext);
+            } catch (Exception exc) {
+                ForwardingStats.recordFailure(appContext, "SMS inbox poll failed: " + exc.getClass().getSimpleName());
             } finally {
                 POLL_IN_FLIGHT.set(false);
             }
