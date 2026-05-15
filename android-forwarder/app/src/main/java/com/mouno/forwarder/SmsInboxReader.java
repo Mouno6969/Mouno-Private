@@ -10,17 +10,20 @@ final class SmsInboxReader {
     private static final Uri SMS_INBOX = Uri.parse("content://sms/inbox");
     private static final String[] PROJECTION = new String[]{"address", "body", "date"};
     private static final long LOOKBACK_MS = 15 * 60_000L;
+    private static final long FUTURE_SKEW_MS = 60_000L;
     private static final int MAX_ROWS = 40;
 
     private SmsInboxReader() {}
 
     static String latestPaymentNotice(Context context, long notificationTimeMillis) {
-        long since = Math.max(0L, notificationTimeMillis - LOOKBACK_MS);
+        long postedAt = notificationTimeMillis > 0L ? notificationTimeMillis : System.currentTimeMillis();
+        long since = Math.max(0L, postedAt - LOOKBACK_MS);
+        long until = postedAt + FUTURE_SKEW_MS;
         try (Cursor cursor = context.getApplicationContext().getContentResolver().query(
             SMS_INBOX,
             PROJECTION,
-            "date>=?",
-            new String[]{String.valueOf(since)},
+            "date>=? AND date<=?",
+            new String[]{String.valueOf(since), String.valueOf(until)},
             "date DESC"
         )) {
             if (cursor == null) return "";
