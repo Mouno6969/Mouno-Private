@@ -182,6 +182,7 @@ final class ForwarderClient {
         if (alarmManager != null) {
             alarmManager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 60_000L, 5 * 60_000L, pendingIntent);
         }
+        scheduleNetworkFlush(context);
     }
 
     static void scheduleNetworkFlush(Context context) {
@@ -189,6 +190,7 @@ final class ForwarderClient {
         if (scheduler == null) return;
         JobInfo job = new JobInfo.Builder(NETWORK_FLUSH_JOB_ID, new ComponentName(context, NetworkFlushJobService.class))
             .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            .setMinimumLatency(0)
             .setPersisted(true)
             .build();
         scheduler.schedule(job);
