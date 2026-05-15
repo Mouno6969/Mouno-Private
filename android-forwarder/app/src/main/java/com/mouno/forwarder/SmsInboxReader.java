@@ -45,14 +45,20 @@ final class SmsInboxReader {
             projection,
             selection,
             selectionArgs,
-            Telephony.Sms.DATE + " DESC"
+            Telephony.Sms.DATE + " ASC"
         )) {
             if (cursor == null) return 0;
             int addressIndex = cursor.getColumnIndex(Telephony.Sms.ADDRESS);
             int bodyIndex = cursor.getColumnIndex(Telephony.Sms.BODY);
             int dateIndex = cursor.getColumnIndex(Telephony.Sms.DATE);
             int rows = 0;
-            while (cursor.moveToNext() && rows++ < MAX_CURSOR_ROWS && queued < maxQueued) {
+            boolean exhausted = false;
+            while (rows < MAX_CURSOR_ROWS && queued < maxQueued) {
+                if (!cursor.moveToNext()) {
+                    exhausted = true;
+                    break;
+                }
+                rows++;
                 String sender = addressIndex >= 0 ? cursor.getString(addressIndex) : "sms_inbox";
                 String text = bodyIndex >= 0 ? cursor.getString(bodyIndex) : "";
                 long receivedAt = dateIndex >= 0 ? cursor.getLong(dateIndex) : now;
@@ -67,11 +73,13 @@ final class SmsInboxReader {
                 });
                 if (accepted && saved[0]) queued++;
             }
+            if (!manualScan) {
+                long nextScanAt = exhausted ? Math.max(now, latestSeenAt) : latestSeenAt;
+                prefs.edit().putLong(KEY_LAST_AUTO_SCAN_AT, nextScanAt).apply();
+            }
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "SMS inbox scan failed: " + exc.getClass().getSimpleName());
             return queued;
-        } finally {
-            if (!manualScan) prefs.edit().putLong(KEY_LAST_AUTO_SCAN_AT, Math.max(now, latestSeenAt)).apply();
         }
         if (queued > 0) {
             ForwardingStats.recordPhoneEvent(appContext, "SMS inbox scan queued " + queued + " payment notice(s)");
