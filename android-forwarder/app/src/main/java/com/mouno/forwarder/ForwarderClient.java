@@ -336,7 +336,7 @@ final class ForwarderClient {
             }
             return ok;
         } catch (Exception exc) {
-            DebugLog.append(context, "HTTP post exception endpoint=" + notice.optString("endpoint", "notification") + " error=" + exc.getClass().getSimpleName() + ": " + exc.getMessage());
+            DebugLog.append(context, "HTTP post exception endpoint=" + notice.optString("endpoint", "notification") + " error=" + exc.getClass().getSimpleName());
             ForwardingStats.recordFailure(context, exc.getClass().getSimpleName() + ": " + exc.getMessage());
             return false;
         } finally {

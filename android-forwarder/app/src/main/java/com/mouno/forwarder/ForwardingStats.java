@@ -25,7 +25,7 @@ final class ForwardingStats {
     private ForwardingStats() {}
 
     static void recordSuccess(Context context, String endpoint, JSONObject ack) {
-        DebugLog.append(context, "Forward success: " + sourceLabel(endpoint) + ackSummary(ack));
+        DebugLog.append(context, "Forward success: " + sourceLabel(endpoint));
         SharedPreferences prefs = prefs(context);
         SharedPreferences.Editor editor = prefs.edit()
             .putInt(KEY_SUCCESS_COUNT, prefs.getInt(KEY_SUCCESS_COUNT, 0) + 1)
@@ -109,18 +109,6 @@ final class ForwardingStats {
         if (value.equals("ignored")) return "Server received the message, but it was not a supported payment notice.";
         if (value.equals("parsed")) return "Server parsed the payment, but no waiting order matched yet.";
         return "Server accepted the notice.";
-    }
-
-    private static String ackSummary(JSONObject ack) {
-        if (ack == null) return "";
-        String status = ack.optString("payment_status", "");
-        String trxId = ack.optString("trx_id", "");
-        String amount = ack.has("amount_bdt") ? ack.optString("amount_bdt") : "";
-        String summary = "";
-        if (!status.isEmpty()) summary += " status=" + status;
-        if (!trxId.isEmpty()) summary += " trx=" + trxId;
-        if (!amount.isEmpty()) summary += " amount=" + amount;
-        return summary;
     }
 
     private static String formatTime(long millis) {

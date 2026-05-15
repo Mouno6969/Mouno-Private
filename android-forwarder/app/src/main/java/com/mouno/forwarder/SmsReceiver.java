@@ -35,7 +35,7 @@ public class SmsReceiver extends BroadcastReceiver {
             }
             String text = body.toString();
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
-            DebugLog.append(context, "SMS receiver parsed=" + (parsed != null) + " sender=" + sender + " bkashIdentity=" + hasBkashIdentity(text));
+            DebugLog.append(context, "SMS receiver parsed=" + (parsed != null) + " trustedSender=" + isTrustedBkashSender(sender) + " bkashIdentity=" + hasBkashIdentity(text));
             if (parsed != null && (isTrustedBkashSender(sender) || hasBkashIdentity(text))) {
                 String smsSender = sender;
                 final boolean[] queued = new boolean[]{false};
@@ -44,7 +44,7 @@ public class SmsReceiver extends BroadcastReceiver {
                     return queued[0];
                 });
                 if (!accepted) {
-                    DebugLog.append(context, "SMS receiver duplicate/not queued: " + parsed.summary());
+                    DebugLog.append(context, "SMS receiver duplicate/not queued");
                     ForwardingStats.recordPhoneEvent(context, "SMS payment ignored: duplicate " + parsed.summary());
                     return;
                 }
@@ -56,7 +56,7 @@ public class SmsReceiver extends BroadcastReceiver {
                 return;
             }
             if (isTrustedBkashSender(sender) || isBkashNotice(text)) {
-                DebugLog.append(context, "SMS receiver ignored: not parseable payment sender=" + sender);
+                DebugLog.append(context, "SMS receiver ignored: not parseable payment trustedSender=" + isTrustedBkashSender(sender));
                 ForwardingStats.recordPhoneEvent(context, "SMS ignored before send: not a parseable payment from " + sender);
             }
         } finally {

@@ -43,7 +43,7 @@ public class BkashNotificationListener extends NotificationListenerService {
         String all = (title + " " + text + " " + bigText + " " + textLines + " " + subText + " " + summary).trim();
         BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(all);
         if (isTrustedBkashPackage(packageName) || isTrustedSmsPackage(packageName)) {
-            DebugLog.append(this, "Notification posted package=" + packageName + " title=" + title + " parsed=" + (parsed != null) + " bkashIdentity=" + hasBkashIdentity(all));
+            DebugLog.append(this, "Notification posted package=" + packageName + " parsed=" + (parsed != null) + " trustedTitle=" + isTrustedBkashSender(title) + " bkashIdentity=" + hasBkashIdentity(all));
         }
         if (isTrustedBkashPackage(packageName) && parsed != null) {
             final boolean[] queued = new boolean[]{false};
@@ -52,7 +52,7 @@ public class BkashNotificationListener extends NotificationListenerService {
                 return queued[0];
             });
             if (!accepted) {
-                DebugLog.append(this, "Notification duplicate/not queued: " + parsed.summary());
+                DebugLog.append(this, "Notification duplicate/not queued");
                 ForwardingStats.recordPhoneEvent(this, "bKash app notification ignored: duplicate " + parsed.summary());
                 return;
             }
@@ -68,7 +68,7 @@ public class BkashNotificationListener extends NotificationListenerService {
                 return queued[0];
             });
             if (!accepted) {
-                DebugLog.append(this, "SMS notification duplicate/not queued: " + parsed.summary());
+                DebugLog.append(this, "SMS notification duplicate/not queued");
                 ForwardingStats.recordPhoneEvent(this, "SMS notification ignored: duplicate " + parsed.summary());
                 return;
             }
@@ -78,7 +78,7 @@ public class BkashNotificationListener extends NotificationListenerService {
                 ForwarderForegroundService.start(this);
             }
         } else if (isTrustedBkashPackage(packageName) || (isTrustedSmsPackage(packageName) && isTrustedBkashSender(title))) {
-            DebugLog.append(this, "Notification ignored before send: package=" + packageName + " title=" + title);
+            DebugLog.append(this, "Notification ignored before send: package=" + packageName);
             ForwardingStats.recordPhoneEvent(this, "Notification ignored before send: not a parseable payment");
         }
     }
