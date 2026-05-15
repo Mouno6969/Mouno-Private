@@ -48,12 +48,17 @@ final class ForwarderClient {
 
     static boolean queueSms(Context context, String sender, String body) {
         if (!BuildConfig.FORWARD_SMS) return false;
-        return queueNotice(context, "sms", "sms", sender, body, "SMS");
+        return queueNotice(context, "sms", "sms", sender, body, "SMS", true);
+    }
+
+    static boolean queueSmsFromInboxScan(Context context, String sender, String body) {
+        if (!BuildConfig.FORWARD_SMS) return false;
+        return queueNotice(context, "sms", "sms_inbox", sender, body, "SMS inbox", false);
     }
 
     static boolean queueNotification(Context context, String appName, String title, String text) {
         if (!BuildConfig.FORWARD_NOTIFICATIONS) return false;
-        return queueNotice(context, "notification", appName, title, text, "Notification");
+        return queueNotice(context, "notification", appName, title, text, "Notification", true);
     }
 
     static void sendNotification(Context context, String appName, String title, String text) {
@@ -113,7 +118,7 @@ final class ForwarderClient {
         flushQueueNow(context.getApplicationContext());
     }
 
-    private static boolean queueNotice(Context context, String endpoint, String source, String title, String text, String label) {
+    private static boolean queueNotice(Context context, String endpoint, String source, String title, String text, String label, boolean flushAfterQueue) {
         Context appContext = context.getApplicationContext();
         try {
             JSONObject notice = makeNotice(appContext, endpoint, source, title, text);
@@ -123,7 +128,7 @@ final class ForwarderClient {
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext);
+            if (flushAfterQueue) flushQueue(appContext);
             return true;
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
