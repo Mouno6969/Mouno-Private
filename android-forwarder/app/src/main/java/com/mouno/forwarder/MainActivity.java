@@ -210,7 +210,7 @@ public class MainActivity extends Activity {
         batteryCard.addView(actionButton("Open Autostart/Battery Settings", v -> openAutostartSettings()));
 
         setContentView(scroll);
-        DebugLog.append(this, "Admin screen opened");
+        DebugLog.append(this, "Admin UI opened; background service starting");
         refreshStatus();
         requestSmsPermissions();
         ForwarderForegroundService.start(this);
@@ -356,6 +356,7 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+                + "Background: foreground service keeps forwarding after this screen is hidden.\n"
                 + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
@@ -689,7 +690,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        DebugLog.append(this, "Admin screen destroyed");
+        DebugLog.append(this, "Admin UI destroyed; background service scheduled");
         super.onDestroy();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
@@ -705,7 +706,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        DebugLog.append(this, "Admin screen resumed");
+        DebugLog.append(this, "Admin UI visible; live log refresh active");
         registerRealtimeStatusUpdates();
         refreshStatus();
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
@@ -715,7 +716,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        DebugLog.append(this, "Admin screen paused");
+        DebugLog.append(this, "Admin UI hidden; background service continues");
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable);
         unregisterRealtimeStatusUpdates();
     }
