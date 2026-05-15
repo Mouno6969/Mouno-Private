@@ -29,9 +29,10 @@ public class SmsReceiver extends BroadcastReceiver {
             String text = body.toString();
             BkashNoticeParser.Parsed parsed = BkashNoticeParser.parse(text);
             if (isTrustedBkashSender(sender) && parsed != null) {
+                String smsSender = sender;
                 final boolean[] queued = new boolean[]{false};
                 boolean accepted = BkashPaymentDeduper.enqueueIfNew(context, parsed, () -> {
-                    queued[0] = ForwarderClient.queueSms(context, sender, text);
+                    queued[0] = ForwarderClient.queueSms(context, smsSender, text);
                     return queued[0];
                 });
                 if (!accepted) {

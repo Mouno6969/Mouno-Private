@@ -29,7 +29,7 @@ public class BkashNotificationListener extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || sbn.getNotification() == null) return;
-        String packageName = sbn.getPackageName() == null ? "" : sbn.getPackageName().toLowerCase();
+        String packageName = sbn.getPackageName() == null ? "" : sbn.getPackageName().toLowerCase(Locale.ROOT);
         Notification notification = sbn.getNotification();
         Bundle extras = notification.extras;
         String title = value(extras, Notification.EXTRA_TITLE);
