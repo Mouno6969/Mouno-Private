@@ -18,6 +18,7 @@ public class ForwarderForegroundService extends Service {
     private static final String CHANNEL_ID = "forwarder_background";
     private static final int NOTIFICATION_ID = 6969;
     private static final long FLUSH_INTERVAL_MS = 5 * 60_000L;
+    private static final long SMS_POLL_INTERVAL_MS = 15_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable keepAlive = new Runnable() {
@@ -27,6 +28,13 @@ public class ForwarderForegroundService extends Service {
             ForwarderClient.flushQueue(ForwarderForegroundService.this);
             requestNotificationListenerRebind();
             handler.postDelayed(this, FLUSH_INTERVAL_MS);
+        }
+    };
+    private final Runnable smsPoller = new Runnable() {
+        @Override
+        public void run() {
+            SmsInboxReader.pollAndForward(ForwarderForegroundService.this);
+            handler.postDelayed(this, SMS_POLL_INTERVAL_MS);
         }
     };
 
@@ -53,6 +61,7 @@ public class ForwarderForegroundService extends Service {
         createChannel();
         startForeground(NOTIFICATION_ID, notification());
         handler.post(keepAlive);
+        handler.post(smsPoller);
     }
 
     @Override
@@ -66,6 +75,7 @@ public class ForwarderForegroundService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(keepAlive);
+        handler.removeCallbacks(smsPoller);
         ForwarderClient.scheduleRetry(this);
         super.onDestroy();
     }

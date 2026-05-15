@@ -330,6 +330,7 @@ public class MainActivity extends Activity {
             configDetails.setText("Status: " + (ForwarderConfig.isConfigured(this) ? "Ready to forward / ফরওয়ার্ড করার জন্য প্রস্তুত" : "Not ready / প্রস্তুত নয় - token save করুন") + "\n"
                 + "Mode: " + (ForwarderConfig.isSellerMode(this) ? "seller" : "main/admin") + "\n"
                 + "SMS: " + (BuildConfig.FORWARD_SMS ? "on" : "off") + " · Notifications: " + (BuildConfig.FORWARD_NOTIFICATIONS ? "on" : "off") + "\n"
+                + "Permissions: RECEIVE_SMS " + permissionText(Manifest.permission.RECEIVE_SMS) + " · READ_SMS " + permissionText(Manifest.permission.READ_SMS) + "\n"
                 + "Keep the SCB-Forwarder running notification visible, allow permissions, enable notification access, and disable battery restrictions.");
             configDetails.setTextColor(ForwarderConfig.isConfigured(this) ? SUCCESS : ERROR);
         }
@@ -393,6 +394,10 @@ public class MainActivity extends Activity {
 
     private String statusText(boolean ok) {
         return ok ? "OK" : "FAILED";
+    }
+
+    private String permissionText(String permission) {
+        return Build.VERSION.SDK_INT < 23 || checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED ? "OK" : "missing";
     }
 
     private int paymentStatusColor(String status) {
