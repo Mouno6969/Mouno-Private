@@ -138,7 +138,8 @@ final class ForwarderClient {
             }
             BkashNoticeHistory.recordIfParsed(appContext, notice);
             scheduleNetworkFlush(appContext);
-            flushQueue(appContext, onComplete);
+            if (onComplete != null) onComplete.run();
+            flushQueue(appContext);
         } catch (Exception exc) {
             ForwardingStats.recordFailure(appContext, "Queue " + label + " failed: " + exc.getClass().getSimpleName());
             if (onComplete != null) onComplete.run();
