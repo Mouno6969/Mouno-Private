@@ -99,6 +99,18 @@ class AISupportKnowledgeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, self.knowledge)
 
+    def test_solana_ata_refund_guidance_is_in_ai_knowledge(self):
+        for text in (
+            "Free Service Solana ATA Refund",
+            "empty Associated Token Accounts",
+            "rent SOL is estimated to be refundable",
+            "closes only empty ATA accounts",
+            "ATAs with token balances must be skipped",
+            "Solana ATA refund steps in Bengali for Bengali questions and English for English questions",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, self.knowledge)
+
 
 if __name__ == "__main__":
     unittest.main()
