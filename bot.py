@@ -3491,6 +3491,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     username = query.from_user.username or query.from_user.first_name
     lang = user_lang(user_id)
+    if query.data != "tid_start":
+        context.user_data.pop("telegram_id_finder", None)
 
     if query.data == "language_menu":
         await query.edit_message_text(tr("choose_language", lang), reply_markup=language_keyboard())

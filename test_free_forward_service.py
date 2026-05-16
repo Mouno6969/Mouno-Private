@@ -188,6 +188,7 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn('tr("free_service", lang)', main_menu)
         self.assertIn('callback_data="free_service"', main_menu)
         self.assertIn('query.data == "free_service"', button_handler)
+        self.assertIn('if query.data != "tid_start":', button_handler)
         self.assertIn('context.user_data.pop("telegram_id_finder", None)', button_handler)
         self.assertIn('callback_data="telegram_message_forwarder"', function_source("free_service_keyboard"))
         self.assertIn('callback_data="solana_ata_refund"', function_source("free_service_keyboard"))
