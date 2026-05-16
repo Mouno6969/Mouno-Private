@@ -17,6 +17,7 @@ def load_free_forward_namespace():
         "FREE_FORWARD_MIN_INTERVAL_MINUTES",
         "PERSONAL_FORWARD_MAX_TARGETS",
         "PERSONAL_FORWARD_MIN_INTERVAL_MINUTES",
+        "PERSONAL_FORWARD_DIALOG_PAGE_SIZE",
         "ltext",
         "tr",
         "panel",
@@ -29,6 +30,7 @@ def load_free_forward_namespace():
         "normalize_free_forward_target",
         "parse_free_forward_targets",
         "free_forward_text",
+        "personal_forward_picker_text",
         "send_personal_forward_message",
     }
     body = []
@@ -42,7 +44,7 @@ def load_free_forward_namespace():
 
     module = ast.Module(body=body, type_ignores=[])
     ast.fix_missing_locations(module)
-    namespace = {"re": __import__("re")}
+    namespace = {"re": __import__("re"), "math": __import__("math")}
     exec(compile(module, str(BOT_PATH), "exec"), namespace)
     return namespace
 
@@ -136,6 +138,18 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("secure web login link", bangla)
         self.assertIn("Telegram chat-এ login code কখনো পাঠাবেন না", bangla)
 
+    def test_personal_forward_picker_text_is_localized(self):
+        picker_text = self.namespace["personal_forward_picker_text"]
+        dialogs = [{"id": str(index), "title": f"Group {index}"} for index in range(12)]
+
+        english = picker_text("en", 0, dialogs, ["1", "2"])
+        bangla = picker_text("bn", 1, dialogs, ["1"])
+
+        self.assertIn("Select target groups/channels", english)
+        self.assertIn("Selected: 2/10", english)
+        self.assertIn("Connected account থেকে target group/channel select করুন", bangla)
+        self.assertIn("Selected: 1/10", bangla)
+
     def test_solana_refund_text_is_localized(self):
         solana_refund_text = self.namespace["solana_refund_text"]
 
@@ -212,6 +226,12 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("personal_auth_link", button_handler)
         self.assertIn("Open secure web login", button_handler)
         self.assertIn('query.data in {"pf_one_time", "pf_schedule"}', button_handler)
+        self.assertIn('query.data == "pf_pick_list"', button_handler)
+        self.assertIn('query.data == "pf_manual_targets"', button_handler)
+        self.assertIn('query.data.startswith("pf_pick_toggle_")', button_handler)
+        self.assertIn('query.data == "pf_pick_done"', button_handler)
+        self.assertIn("list_personal_forward_dialogs", button_handler)
+        self.assertIn("personal_forward_target_source_keyboard", button_handler)
         self.assertIn("handle_free_forward_text", waiting_trxid)
         self.assertIn("personal_forward_send_to_targets", function_source("handle_free_forward_text"))
         self.assertIn("free_forward_media_handler", main)
