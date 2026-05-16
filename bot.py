@@ -3514,6 +3514,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(faq_text(lang), reply_markup=back_keyboard(lang))
 
     elif query.data == "free_service":
+        context.user_data.pop("telegram_id_finder", None)
         await query.edit_message_text(free_service_text(lang), reply_markup=free_service_keyboard(lang))
 
     elif query.data == "telegram_id_finder":
@@ -3535,6 +3536,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(ltext(lang, "✅ Telegram ID Finder closed.", "✅ Telegram ID Finder বন্ধ হয়েছে।"), reply_markup=telegram_id_finder_keyboard(lang))
 
     elif query.data == "solana_ata_refund":
+        context.user_data.pop("telegram_id_finder", None)
         wallet = context.user_data.get("solana_refund_wallet")
         summary = context.user_data.get("solana_refund_summary")
         await query.edit_message_text(
@@ -3626,6 +3628,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(ltext(lang, "🔌 Solana refund wallet disconnected.", "🔌 Solana refund wallet disconnect হয়েছে।"), reply_markup=solana_refund_keyboard(lang))
 
     elif query.data == "telegram_message_forwarder":
+        context.user_data.pop("telegram_id_finder", None)
         connection = free_forward_connection(user_id)
         personal_connection = personal_forward_connection(user_id)
         await query.edit_message_text(
