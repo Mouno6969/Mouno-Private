@@ -80,6 +80,8 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn('query.data == "free_service"', button_handler)
         self.assertIn('query.data in {"ff_one_time", "ff_schedule"}', button_handler)
         self.assertIn("handle_free_forward_text", waiting_trxid)
+        self.assertIn("free_forward_media_handler", main)
+        self.assertIn("MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid)", main)
         self.assertIn("filters.PHOTO", main)
         self.assertIn("filters.Document.ALL", main)
 

@@ -5679,6 +5679,14 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def free_forward_media_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if not context.user_data.get("free_forward_step"):
+        return
+    incoming_text = (update.message.text or update.message.caption or "").strip()
+    await handle_free_forward_text(update, context, user_id, user_lang(user_id), incoming_text)
+
+
 async def handle_giveaway_text(update, context, user_id):
     lang = user_lang(user_id)
     step = context.user_data.get("giveaway_step")
@@ -6533,8 +6541,9 @@ async def main():
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_star_payment))
     app.add_handler(CallbackQueryHandler(button_handler))
-    free_forward_message_filter = filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.Sticker.ALL
-    app.add_handler(MessageHandler(free_forward_message_filter & ~filters.COMMAND, waiting_trxid))
+    free_forward_media_filter = filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.Sticker.ALL
+    app.add_handler(MessageHandler(free_forward_media_filter & ~filters.COMMAND, free_forward_media_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid))
     app.add_handler(CommandHandler("cancel", cancel_cmd), group=1)
 
     await app.initialize()
