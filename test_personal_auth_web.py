@@ -1,6 +1,7 @@
 import unittest
+import asyncio
 
-from personal_auth import PERSONAL_AUTH_SESSIONS, create_personal_auth_session
+from personal_auth import PERSONAL_AUTH_SESSIONS, create_personal_auth_session, send_personal_auth_code
 from webhook import app
 
 
@@ -39,6 +40,13 @@ class PersonalAuthWebTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("runtime is not ready", response.get_data(as_text=True))
+
+    def test_connected_auth_link_cannot_start_new_login(self):
+        token = create_personal_auth_session("123", "en")
+        PERSONAL_AUTH_SESSIONS[token]["status"] = "connected"
+
+        with self.assertRaisesRegex(RuntimeError, "already connected"):
+            asyncio.run(send_personal_auth_code(token, "1", "0" * 32, "+8801711111111"))
 
 
 if __name__ == "__main__":

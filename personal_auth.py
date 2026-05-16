@@ -120,6 +120,8 @@ async def send_personal_auth_code(token, api_id, api_hash, phone):
     session = get_personal_auth_session(token)
     if not session:
         raise RuntimeError("Auth link expired. Go back to the bot and create a new link.")
+    if session.get("status") == "connected":
+        raise RuntimeError("This auth link has already connected an account. Go back to the bot to create a new link.")
     if not personal_auth_available():
         raise RuntimeError("Telethon is not installed on this server.")
     try:
