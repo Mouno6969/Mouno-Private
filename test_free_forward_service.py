@@ -22,6 +22,9 @@ def load_free_forward_namespace():
         "panel",
         "free_service_text",
         "free_service_keyboard",
+        "telegram_id_finder_text",
+        "telegram_id_result_text",
+        "normalize_telegram_lookup_target",
         "solana_refund_text",
         "normalize_free_forward_target",
         "parse_free_forward_targets",
@@ -103,6 +106,8 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("Telegram Message Forwarder", free_service_text("bn"))
         self.assertIn("Solana ATA Refund", free_service_text("en"))
         self.assertIn("Solana ATA Refund", free_service_text("bn"))
+        self.assertIn("Telegram ID Finder", free_service_text("en"))
+        self.assertIn("Telegram ID Finder", free_service_text("bn"))
 
         english = free_forward_text("en", True, "SenderBot", True)
         bangla = free_forward_text("bn", False, None, False)
@@ -142,6 +147,32 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("rent SOL", bangla)
         self.assertIn("Token balance থাকা ATA close করা হবে না", bangla)
 
+    def test_telegram_id_finder_text_is_localized(self):
+        telegram_id_finder_text = self.namespace["telegram_id_finder_text"]
+        result_text = self.namespace["telegram_id_result_text"]
+
+        english = telegram_id_finder_text("en")
+        bangla = telegram_id_finder_text("bn")
+
+        self.assertIn("Telegram ID Finder", english)
+        self.assertIn("public @username", english)
+        self.assertIn("forward a message", english)
+        self.assertIn("current chat ID", english)
+        self.assertIn("Telegram ID Finder", bangla)
+        self.assertIn("Public @username", bangla)
+        self.assertIn("message forward", bangla)
+        self.assertIn("current chat ID", bangla)
+        self.assertIn("ID: -100123", result_text("en", [{"label": "Current chat", "id": -100123, "type": "Supergroup"}]))
+
+    def test_telegram_id_lookup_target_normalization(self):
+        normalize = self.namespace["normalize_telegram_lookup_target"]
+
+        self.assertEqual(normalize("@mychannel"), "@mychannel")
+        self.assertEqual(normalize("https://t.me/mychannel/123"), "@mychannel")
+        self.assertEqual(normalize("https://t.me/c/123456/7"), "-100123456")
+        self.assertEqual(normalize("-100123456"), -100123456)
+        self.assertIsNone(normalize("https://t.me/+privateinvite"))
+
     def test_ai_support_knowledge_includes_free_service_guidance(self):
         self.assertIn("Free Service forwarding", BOT_SOURCE)
         self.assertIn("Connect personal account", BOT_SOURCE)
@@ -159,10 +190,15 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn('query.data == "free_service"', button_handler)
         self.assertIn('callback_data="telegram_message_forwarder"', function_source("free_service_keyboard"))
         self.assertIn('callback_data="solana_ata_refund"', function_source("free_service_keyboard"))
+        self.assertIn('callback_data="telegram_id_finder"', function_source("free_service_keyboard"))
         self.assertIn('query.data == "telegram_message_forwarder"', button_handler)
         self.assertIn('query.data == "solana_ata_refund"', button_handler)
+        self.assertIn('query.data == "telegram_id_finder"', button_handler)
+        self.assertIn('query.data == "tid_start"', button_handler)
         self.assertIn('query.data == "sr_connect"', button_handler)
         self.assertIn('query.data == "sr_refund_confirm"', button_handler)
+        self.assertIn("handle_telegram_id_finder_message", function_source("waiting_trxid"))
+        self.assertIn("handle_telegram_id_finder_message", function_source("free_forward_media_handler"))
         self.assertIn("handle_solana_refund_text", function_source("waiting_trxid"))
         self.assertIn('query.data in {"ff_one_time", "ff_schedule"}', button_handler)
         self.assertIn('query.data == "pf_connect_account"', button_handler)
