@@ -31,11 +31,13 @@ try:
     from telethon import TelegramClient
     from telethon.errors import FloodWaitError, SessionPasswordNeededError
     from telethon.sessions import StringSession
+    from telethon import utils as telethon_utils
 except Exception:
     TelegramClient = None
     FloodWaitError = None
     SessionPasswordNeededError = None
     StringSession = None
+    telethon_utils = None
 
 
 def is_command_update(update):
@@ -291,6 +293,8 @@ FREE_FORWARD_MIN_INTERVAL_MINUTES = 1
 PERSONAL_FORWARD_MAX_TARGETS = 10
 PERSONAL_FORWARD_MIN_INTERVAL_MINUTES = 15
 PERSONAL_FORWARD_TARGET_DELAY_SECONDS = 3
+PERSONAL_FORWARD_DIALOG_PAGE_SIZE = 8
+PERSONAL_FORWARD_DIALOG_FETCH_LIMIT = 200
 
 RATE_FILE = "rate.json"
 DIVIDER = "────────────────"
@@ -500,7 +504,7 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - SCB-Forwarder reliability/status: it forwards trusted bKash SMS senders (bKash/16247) and known official bKash app packages, can parse matching notices on the phone while offline, queues notices if internet/server is unavailable, retries queued uploads automatically, and has a Retry queued notices now button. Status screen shows successful forwards, failed/queued attempts, last forwarded time, last SMS/notification source, queue count, and last error. Forwarding both SMS and notification is safe because the bot deduplicates by TrxID.
 - SCB-Forwarder setup troubleshooting by step: if setup is stuck at token save, ask whether the phone is in Seller mode or main/admin mode and whether the correct Seller token/Admin token was pasted. If Check server fails, ask for the three displayed lines: Internet, Server reachable, Token, plus Details. Internet FAILED means fix phone internet/VPN/DNS first; Server reachable FAILED means check network/server availability and the fixed server shown in the app; Token FAILED usually means wrong mode or wrong/old token, so copy the token again from Seller Center or ask admin for the correct admin token. If SMS permission fails, open Android app settings and allow SMS/notification permissions manually. If Notification Access fails, open Android Notification access settings and enable SCB-Forwarder. If background service will not stay running, start it again, keep the persistent notification visible, disable battery optimization, allow autostart/auto launch/background activity, and lock the app in recent apps if the phone supports it.
 - SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
-- Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code through the secure web login link, never inside Telegram chat, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, open the secure web login link for personal account login, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: easiest is a public @username or public t.me link; for private groups/channels use a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or your own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
+- Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code through the secure web login link, never inside Telegram chat, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, open the secure web login link for personal account login, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, then either select targets from the connected account's group/channel list or enter target IDs/usernames/links manually; for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: for personal-account mode the built-in group/channel picker can show private groups/channels where the connected account is already a member; public group/channel targets can also use @username or public t.me link; private group/channel manual targets need a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or your own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
 - Free Service Solana ATA Refund: Free Service also has a Solana ATA Refund button. It lets a user connect their own Solana wallet for this refund flow, checks empty Associated Token Accounts (ATAs), shows how much rent SOL is estimated to be refundable, and after confirmation closes only empty ATA accounts so the rent SOL returns to the same wallet. ATAs with token balances must be skipped and never auto-closed. Explain that Solana network fee applies, signatures may be returned, and the user should only connect their own wallet. AI Support must explain the Solana ATA refund steps in Bengali for Bengali questions and English for English questions.
 - Free Service Telegram ID Finder: Free Service also has a Telegram ID Finder button. It helps users find Telegram user/account, group, supergroup, or channel IDs by sending a public @username, public t.me/telegram.me link, numeric chat ID, or a forwarded message from the target. If used in a group/channel where the bot can read messages, it can show the current chat ID. Public usernames/links are resolved with bot access; private chats/channels usually require bot access or a forwarded message with visible origin. If Telegram hides the forward sender because of privacy settings, AI Support must explain that the hidden ID cannot be revealed by the bot. AI Support must explain Telegram ID Finder steps in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
@@ -1618,8 +1622,61 @@ def free_forward_mode_keyboard(lang, prefix="ff"):
     )
 
 
+def personal_forward_target_source_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(ltext(lang, "📋 Select from my groups/channels", "📋 আমার group/channel list থেকে select"), callback_data="pf_pick_list")],
+            [InlineKeyboardButton(ltext(lang, "✍️ Enter target manually", "✍️ Target manually লিখুন"), callback_data="pf_manual_targets")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")],
+        ]
+    )
+
+
 def free_forward_cancel_keyboard(lang):
     return InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")]])
+
+
+def personal_forward_dialog_title(dialog):
+    title = (dialog.get("title") or "Telegram chat").strip()
+    if len(title) > 34:
+        title = title[:31].rstrip() + "…"
+    username = dialog.get("username")
+    return f"{title} (@{username})" if username else title
+
+
+def personal_forward_picker_text(lang, page, dialogs, selected):
+    total = len(dialogs)
+    start = page * PERSONAL_FORWARD_DIALOG_PAGE_SIZE + 1 if total else 0
+    end = min(total, (page + 1) * PERSONAL_FORWARD_DIALOG_PAGE_SIZE)
+    selected_count = len(selected)
+    return ltext(
+        lang,
+        f"Select target groups/channels from your connected account.\n\nShowing {start}-{end} of {total}. Selected: {selected_count}/{PERSONAL_FORWARD_MAX_TARGETS}.\n\nIf a private group/channel is missing, make sure your account is still a member.",
+        f"Connected account থেকে target group/channel select করুন।\n\nদেখানো হচ্ছে {start}-{end}, মোট {total}। Selected: {selected_count}/{PERSONAL_FORWARD_MAX_TARGETS}.\n\nকোনো private group/channel না দেখালে নিশ্চিত করুন আপনার account সেখানে member আছে।",
+    )
+
+
+def personal_forward_picker_keyboard(lang, page, dialogs, selected):
+    selected = {str(value) for value in selected}
+    total_pages = max(1, math.ceil(len(dialogs) / PERSONAL_FORWARD_DIALOG_PAGE_SIZE))
+    page = max(0, min(page, total_pages - 1))
+    start = page * PERSONAL_FORWARD_DIALOG_PAGE_SIZE
+    rows = []
+    for index, dialog in enumerate(dialogs[start:start + PERSONAL_FORWARD_DIALOG_PAGE_SIZE], start=start):
+        checked = "✅" if str(dialog.get("id")) in selected else "⬜"
+        rows.append([InlineKeyboardButton(f"{checked} {personal_forward_dialog_title(dialog)}", callback_data=f"pf_pick_toggle_{index}")])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"pf_pick_page_{page - 1}"))
+    nav.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="pf_pick_noop"))
+    if page + 1 < total_pages:
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"pf_pick_page_{page + 1}"))
+    rows.append(nav)
+    rows.append([InlineKeyboardButton(ltext(lang, "✅ Done", "✅ Done"), callback_data="pf_pick_done")])
+    rows.append([InlineKeyboardButton(ltext(lang, "🔄 Refresh list", "🔄 List refresh"), callback_data="pf_pick_list")])
+    rows.append([InlineKeyboardButton(ltext(lang, "✍️ Enter manually", "✍️ Manually লিখুন"), callback_data="pf_manual_targets")])
+    rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")])
+    return InlineKeyboardMarkup(rows)
 
 
 def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, has_personal=False, personal_name=None):
@@ -1646,7 +1703,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "5. Or tap Connect personal account and open the secure web login link. Enter your Telegram API ID, API hash, phone number, login code, and 2FA password there if Telegram asks. Never send login codes in Telegram chat. The session is kept only in bot memory.\n"
         "6. Tap Forward with bot token or Forward with personal account.\n"
         "7. Choose One-time forward to send once, or Forward repeatedly to send after a fixed interval.\n"
-        f"8. Send target chat IDs, @usernames, or public t.me links separated by space/comma/new line. Bot-token maximum: {FREE_FORWARD_MAX_TARGETS}; personal-account maximum: {PERSONAL_FORWARD_MAX_TARGETS}.\n"
+        f"8. Send target chat IDs, @usernames, or public t.me links separated by space/comma/new line. In personal-account mode you can also select private groups/channels from your connected account list. Bot-token maximum: {FREE_FORWARD_MAX_TARGETS}; personal-account maximum: {PERSONAL_FORWARD_MAX_TARGETS}.\n"
         f"9. For repeated forwarding, send the interval in minutes. Personal account minimum interval: {PERSONAL_FORWARD_MIN_INTERVAL_MINUTES} minutes.\n"
         "10. Send the message you want to forward. Text, photo, video, document, audio, voice, animation, and sticker are supported.\n\n"
         "Where to get API ID/API hash\n"
@@ -1674,7 +1731,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "৫. অথবা Connect personal account চাপুন এবং secure web login link খুলুন। Telegram API ID, API hash, phone number, login code এবং Telegram চাইলে 2FA password সেখানে দিন। Telegram chat-এ login code কখনো পাঠাবেন না। Session শুধু bot memory-তে থাকবে।\n"
         "৬. Forward with bot token অথবা Forward with personal account চাপুন।\n"
         "৭. একবার পাঠাতে One-time forward, আর নির্দিষ্ট সময় পরপর পাঠাতে Forward repeatedly বেছে নিন।\n"
-        f"৮. Target chat ID, @username অথবা public t.me link পাঠান। Space/comma/new line দিয়ে আলাদা করুন। Bot-token maximum {FREE_FORWARD_MAX_TARGETS}, personal-account maximum {PERSONAL_FORWARD_MAX_TARGETS} target।\n"
+        f"৮. Target chat ID, @username অথবা public t.me link পাঠান। Personal-account mode-এ connected account list থেকেও private group/channel select করা যাবে। Space/comma/new line দিয়ে আলাদা করুন। Bot-token maximum {FREE_FORWARD_MAX_TARGETS}, personal-account maximum {PERSONAL_FORWARD_MAX_TARGETS} target।\n"
         f"৯. নির্দিষ্ট সময় পরপর পাঠালে interval কত মিনিট হবে সেটা লিখুন। Personal account minimum {PERSONAL_FORWARD_MIN_INTERVAL_MINUTES} মিনিট।\n"
         "১০. যে message পাঠাতে চান সেটি পাঠান। Text, photo, video, document, audio, voice, animation এবং sticker supported।\n\n"
         "API ID/API hash কোথা থেকে পাবেন\n"
@@ -1746,6 +1803,9 @@ def free_forward_clear_flow(context):
         "personal_forward_api_id",
         "personal_forward_api_hash",
         "personal_forward_phone",
+        "personal_forward_dialogs",
+        "personal_forward_selected_targets",
+        "personal_forward_picker_page",
     ]:
         context.user_data.pop(key, None)
 
@@ -1795,6 +1855,40 @@ async def personal_forward_client(connection):
     )
     await client.connect()
     return client
+
+
+def personal_forward_dialog_peer_id(entity):
+    if telethon_utils:
+        return str(telethon_utils.get_peer_id(entity))
+    return str(getattr(entity, "id", ""))
+
+
+async def list_personal_forward_dialogs(connection, limit=PERSONAL_FORWARD_DIALOG_FETCH_LIMIT):
+    dialogs = []
+    client = await personal_forward_client(connection)
+    try:
+        if not await client.is_user_authorized():
+            raise RuntimeError("personal account session expired")
+        async for dialog in client.iter_dialogs(limit=limit):
+            if not (getattr(dialog, "is_group", False) or getattr(dialog, "is_channel", False)):
+                continue
+            entity = getattr(dialog, "entity", None)
+            if not entity:
+                continue
+            peer_id = personal_forward_dialog_peer_id(entity)
+            if not peer_id:
+                continue
+            username = getattr(entity, "username", None)
+            title = getattr(dialog, "title", None) or getattr(entity, "title", None) or username or peer_id
+            dialogs.append({
+                "id": peer_id,
+                "title": title,
+                "username": username,
+                "type": "channel" if getattr(dialog, "is_channel", False) else "group",
+            })
+    finally:
+        await client.disconnect()
+    return dialogs
 
 
 async def personal_forward_store_connection(user_id, client, api_id, api_hash):
@@ -3738,6 +3832,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data["free_forward_sender"] = "personal"
         context.user_data["free_forward_mode"] = "schedule" if query.data == "pf_schedule" else "one_time"
+        context.user_data.pop("free_forward_step", None)
+        await query.edit_message_text(
+            ltext(
+                lang,
+                "Choose how to select target groups/channels for your personal account.",
+                "Personal account-এর target group/channel কীভাবে select করবেন বেছে নিন।",
+            ),
+            reply_markup=personal_forward_target_source_keyboard(lang),
+        )
+
+    elif query.data == "pf_manual_targets":
+        if not personal_forward_connected(user_id):
+            await query.edit_message_text(
+                ltext(lang, "👤 Personal account is not connected. Connect it first.", "👤 Personal account connect করা নেই। আগে connect করুন।"),
+                reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), free_forward_task_running(user_id), False),
+            )
+            return ConversationHandler.END
+        context.user_data["free_forward_sender"] = "personal"
         context.user_data["free_forward_step"] = "targets"
         await query.edit_message_text(
             ltext(
@@ -3747,6 +3859,106 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             reply_markup=free_forward_cancel_keyboard(lang),
         )
+
+    elif query.data == "pf_pick_list":
+        if not personal_forward_connected(user_id):
+            await query.edit_message_text(
+                ltext(lang, "👤 Personal account is not connected. Connect it first.", "👤 Personal account connect করা নেই। আগে connect করুন।"),
+                reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), free_forward_task_running(user_id), False),
+            )
+            return ConversationHandler.END
+        await query.edit_message_text(ltext(lang, "📋 Loading your groups/channels...", "📋 আপনার group/channel list loading হচ্ছে..."))
+        try:
+            dialogs = await list_personal_forward_dialogs(personal_forward_connection(user_id))
+        except Exception as exc:
+            await query.edit_message_text(
+                ltext(lang, f"❌ Could not load groups/channels: {safe_free_forward_error(exc)}", f"❌ Group/channel list load করা যায়নি: {safe_free_forward_error(exc)}"),
+                reply_markup=personal_forward_target_source_keyboard(lang),
+            )
+            return ConversationHandler.END
+        context.user_data["personal_forward_dialogs"] = dialogs
+        context.user_data["personal_forward_selected_targets"] = []
+        context.user_data["personal_forward_picker_page"] = 0
+        if not dialogs:
+            await query.edit_message_text(
+                ltext(lang, "No groups/channels were found on your connected account. You can enter a target manually instead.", "Connected account-এ কোনো group/channel পাওয়া যায়নি। চাইলে target manually লিখতে পারেন।"),
+                reply_markup=personal_forward_target_source_keyboard(lang),
+            )
+            return ConversationHandler.END
+        await query.edit_message_text(
+            personal_forward_picker_text(lang, 0, dialogs, []),
+            reply_markup=personal_forward_picker_keyboard(lang, 0, dialogs, []),
+        )
+
+    elif query.data.startswith("pf_pick_page_"):
+        dialogs = context.user_data.get("personal_forward_dialogs") or []
+        selected = context.user_data.get("personal_forward_selected_targets") or []
+        try:
+            page = int(query.data.rsplit("_", 1)[1])
+        except Exception:
+            page = 0
+        context.user_data["personal_forward_picker_page"] = page
+        await query.edit_message_text(
+            personal_forward_picker_text(lang, page, dialogs, selected),
+            reply_markup=personal_forward_picker_keyboard(lang, page, dialogs, selected),
+        )
+
+    elif query.data.startswith("pf_pick_toggle_"):
+        dialogs = context.user_data.get("personal_forward_dialogs") or []
+        selected = [str(value) for value in (context.user_data.get("personal_forward_selected_targets") or [])]
+        page = int(context.user_data.get("personal_forward_picker_page") or 0)
+        try:
+            index = int(query.data.rsplit("_", 1)[1])
+            dialog = dialogs[index]
+        except Exception:
+            await query.answer(ltext(lang, "That item is no longer available.", "এই item আর available নেই।"), show_alert=True)
+            return ConversationHandler.END
+        target = str(dialog.get("id"))
+        if target in selected:
+            selected.remove(target)
+        elif len(selected) >= PERSONAL_FORWARD_MAX_TARGETS:
+            await query.answer(ltext(lang, f"Maximum {PERSONAL_FORWARD_MAX_TARGETS} targets.", f"সর্বোচ্চ {PERSONAL_FORWARD_MAX_TARGETS} target."), show_alert=True)
+            return ConversationHandler.END
+        else:
+            selected.append(target)
+        context.user_data["personal_forward_selected_targets"] = selected
+        await query.edit_message_text(
+            personal_forward_picker_text(lang, page, dialogs, selected),
+            reply_markup=personal_forward_picker_keyboard(lang, page, dialogs, selected),
+        )
+
+    elif query.data == "pf_pick_done":
+        selected = [str(value) for value in (context.user_data.get("personal_forward_selected_targets") or [])]
+        if not selected:
+            await query.answer(ltext(lang, "Select at least one target.", "কমপক্ষে একটি target select করুন।"), show_alert=True)
+            return ConversationHandler.END
+        context.user_data["free_forward_sender"] = "personal"
+        context.user_data["free_forward_targets"] = selected
+        dialogs_by_id = {str(dialog.get("id")): dialog for dialog in (context.user_data.get("personal_forward_dialogs") or [])}
+        names = [personal_forward_dialog_title(dialogs_by_id.get(target, {"title": target})) for target in selected[:5]]
+        if context.user_data.get("free_forward_mode") == "schedule":
+            context.user_data["free_forward_step"] = "interval"
+            await query.edit_message_text(
+                ltext(
+                    lang,
+                    f"✅ Selected {len(selected)} target(s): {', '.join(names)}\n\nSend interval in minutes. Minimum {PERSONAL_FORWARD_MIN_INTERVAL_MINUTES} minute(s).",
+                    f"✅ {len(selected)} target select হয়েছে: {', '.join(names)}\n\nকত মিনিট পরপর পাঠাবেন লিখুন। Minimum {PERSONAL_FORWARD_MIN_INTERVAL_MINUTES} মিনিট।",
+                ),
+                reply_markup=free_forward_cancel_keyboard(lang),
+            )
+        else:
+            context.user_data["free_forward_step"] = "message"
+            await query.edit_message_text(
+                ltext(
+                    lang,
+                    f"✅ Selected {len(selected)} target(s): {', '.join(names)}\n\nNow send the message to forward. Text, photo, video, document, audio, voice, animation, or sticker is supported.",
+                    f"✅ {len(selected)} target select হয়েছে: {', '.join(names)}\n\nএখন যে message forward/send করতে চান সেটি পাঠান। Text, photo, video, document, audio, voice, animation বা sticker supported।",
+                ),
+                reply_markup=free_forward_cancel_keyboard(lang),
+            )
+
+    elif query.data == "pf_pick_noop":
+        await query.answer()
 
     elif query.data == "ff_cancel_flow":
         await personal_forward_disconnect_pending(user_id)
