@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     Application,
     BaseUpdateProcessor,
@@ -268,6 +268,8 @@ SELLER_SETUP_KEY = 63
 SELLER_SET_RATE = 64
 SELLER_BUY_WALLET = 65
 SELLER_BUY_AMOUNT = 66
+FREE_FORWARD_MAX_TARGETS = 25
+FREE_FORWARD_MIN_INTERVAL_MINUTES = 1
 
 RATE_FILE = "rate.json"
 DIVIDER = "────────────────"
@@ -275,6 +277,8 @@ RECEIPT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "mouno_log
 RECEIPT_FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
 WELCOME_VIDEO_PATH = os.path.join(os.path.dirname(__file__), "assets", "welcome_video.mp4")
 TELEGRAM_VIDEO_CAPTION_LIMIT = 1024
+FREE_FORWARD_CONNECTIONS = {}
+FREE_FORWARD_TASKS = {}
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -310,6 +314,7 @@ TEXT = {
     "support": {"bn": "📞 Support", "en": "📞 Support"},
     "ai_support": {"bn": "🤖 AI Support", "en": "🤖 AI Support"},
     "faq": {"bn": "FAQ", "en": "FAQ"},
+    "free_service": {"bn": "🆓 ফ্রী সার্ভিস", "en": "🆓 Free Service"},
     "sellers": {"bn": "🛍️ Sellers", "en": "🛍️ Sellers"},
     "seller_center": {"bn": "🏪 Seller Center", "en": "🏪 Seller Center"},
     "order_status": {"bn": "🔎 Order Status", "en": "🔎 Order Status"},
@@ -473,6 +478,7 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - SCB-Forwarder reliability/status: it forwards trusted bKash SMS senders (bKash/16247) and known official bKash app packages, can parse matching notices on the phone while offline, queues notices if internet/server is unavailable, retries queued uploads automatically, and has a Retry queued notices now button. Status screen shows successful forwards, failed/queued attempts, last forwarded time, last SMS/notification source, queue count, and last error. Forwarding both SMS and notification is safe because the bot deduplicates by TrxID.
 - SCB-Forwarder setup troubleshooting by step: if setup is stuck at token save, ask whether the phone is in Seller mode or main/admin mode and whether the correct Seller token/Admin token was pasted. If Check server fails, ask for the three displayed lines: Internet, Server reachable, Token, plus Details. Internet FAILED means fix phone internet/VPN/DNS first; Server reachable FAILED means check network/server availability and the fixed server shown in the app; Token FAILED usually means wrong mode or wrong/old token, so copy the token again from Seller Center or ask admin for the correct admin token. If SMS permission fails, open Android app settings and allow SMS/notification permissions manually. If Notification Access fails, open Android Notification access settings and enable SCB-Forwarder. If background service will not stay running, start it again, keep the persistent notification visible, disable battery optimization, allow autostart/auto launch/background activity, and lock the app in recent apps if the phone supports it.
 - SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
+- Free Service forwarding: Free Service is a user-facing bot menu that lets a user connect their own @BotFather Telegram bot token and send the same message to many Telegram groups/channels. It supports numeric chat IDs, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. The connected bot must already be added to every target group/channel and may need admin permission to post in channels or restricted groups. Flow: tap Free Service, connect Telegram token, choose Forward to many groups, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token with Disconnect token. If sending fails, likely causes are invalid token, bot not added to the target, missing post permission, private/invalid link, blocked bot, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
 - Pending/manual bKash cases: pending can happen when SMS/notification has not reached the server, user submitted TrxID before notice arrived, amount does not match, TrxID is wrong/duplicate/already used, payer/order does not match, selected wallet/network is invalid, stock is low, gas is low, or RPC/network is busy. User action: check /order or /status, wait if webhook is delayed, and contact support with Order ID + TrxID. Admin action: verify via /pending before approving/rejecting.
 - Order status and receipts: /order or /status can check order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipts include proof/explorer URL or compact receipt details and QR when available. Never tell a user an order is paid/completed unless context says verified/completed.
@@ -1366,6 +1372,266 @@ def back_keyboard(lang):
     return InlineKeyboardMarkup([[InlineKeyboardButton(tr("back", lang), callback_data="back")]])
 
 
+def free_forward_keyboard(lang, has_token=False, has_schedule=False):
+    rows = []
+    rows.append([InlineKeyboardButton(ltext(lang, "🔐 Connect Telegram token", "🔐 Telegram token connect করুন"), callback_data="ff_connect_token")])
+    rows.append([InlineKeyboardButton(ltext(lang, "📣 Forward to many groups", "📣 অনেক group-এ forward"), callback_data="ff_forward")])
+    if has_schedule:
+        rows.append([InlineKeyboardButton(ltext(lang, "🛑 Stop scheduled forward", "🛑 নির্দিষ্ট সময়ের forward বন্ধ"), callback_data="ff_cancel_schedule")])
+    if has_token:
+        rows.append([InlineKeyboardButton(ltext(lang, "🔌 Disconnect token", "🔌 Token disconnect"), callback_data="ff_disconnect_token")])
+    rows.append([InlineKeyboardButton(tr("back", lang), callback_data="back")])
+    return InlineKeyboardMarkup(rows)
+
+
+def free_forward_mode_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(ltext(lang, "⚡ One-time forward", "⚡ এককালীন forward"), callback_data="ff_one_time")],
+            [InlineKeyboardButton(ltext(lang, "⏰ Forward repeatedly", "⏰ নির্দিষ্ট সময় পরপর forward"), callback_data="ff_schedule")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")],
+        ]
+    )
+
+
+def free_forward_cancel_keyboard(lang):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")]])
+
+
+def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False):
+    status = ltext(lang, "Connected", "Connected") if has_token else ltext(lang, "Not connected", "Connect করা নেই")
+    if has_token and bot_name:
+        status = f"{status}: @{bot_name}" if bot_name else status
+    schedule = ltext(lang, "Running", "চলছে") if has_schedule else ltext(lang, "Not running", "চলছে না")
+    body = ltext(
+        lang,
+        "What is this?\n"
+        "Send the same message to many Telegram groups/channels using your own connected Telegram bot token.\n\n"
+        "How to use\n"
+        "1. Create or copy a bot token from @BotFather.\n"
+        "2. Add that bot to every target group/channel. For channels or restricted groups, make it admin or allow it to post messages.\n"
+        "3. Tap Connect Telegram token and send the token. The token message is deleted after checking.\n"
+        "4. Tap Forward to many groups.\n"
+        "5. Choose One-time forward to send once, or Forward repeatedly to send after a fixed interval.\n"
+        f"6. Send target chat IDs, @usernames, or public t.me links separated by space/comma/new line. Maximum {FREE_FORWARD_MAX_TARGETS} targets.\n"
+        "7. For repeated forwarding, send the interval in minutes.\n"
+        "8. Send the message you want to forward. Text, photo, video, document, audio, voice, animation, and sticker are supported.\n\n"
+        "Important\n"
+        "• Private invite links do not work directly; use a chat ID after the bot is a member.\n"
+        "• If a target fails, check that the bot is added and has permission to post.\n"
+        "• Use Stop scheduled forward to stop repeats, and Disconnect token to remove the connected token from this session.\n\n"
+        f"Token: {status}\nScheduled forward: {schedule}",
+        "এটা কী?\n"
+        "নিজের connected Telegram bot token দিয়ে একই message অনেক Telegram group/channel-এ পাঠানোর সার্ভিস।\n\n"
+        "কীভাবে ব্যবহার করবেন\n"
+        "১. @BotFather থেকে bot token তৈরি/copy করুন।\n"
+        "২. যেসব group/channel-এ পাঠাতে চান, সেসব জায়গায় ওই bot add করুন। Channel বা restricted group হলে bot-কে admin করুন অথবা post করার permission দিন।\n"
+        "৩. Connect Telegram token চাপুন এবং token পাঠান। Check করার পর token message delete করা হবে।\n"
+        "৪. Forward to many groups চাপুন।\n"
+        "৫. একবার পাঠাতে One-time forward, আর নির্দিষ্ট সময় পরপর পাঠাতে Forward repeatedly বেছে নিন।\n"
+        f"৬. Target chat ID, @username অথবা public t.me link পাঠান। Space/comma/new line দিয়ে আলাদা করুন। সর্বোচ্চ {FREE_FORWARD_MAX_TARGETS} target।\n"
+        "৭. নির্দিষ্ট সময় পরপর পাঠালে interval কত মিনিট হবে সেটা লিখুন।\n"
+        "৮. যে message পাঠাতে চান সেটি পাঠান। Text, photo, video, document, audio, voice, animation এবং sticker supported।\n\n"
+        "গুরুত্বপূর্ণ\n"
+        "• Private invite link সরাসরি কাজ করে না; bot member হওয়ার পর chat ID ব্যবহার করুন।\n"
+        "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
+        "• বারবার forward বন্ধ করতে Stop scheduled forward, আর token সরাতে Disconnect token ব্যবহার করুন।\n\n"
+        f"Token: {status}\nনির্দিষ্ট সময়ের forward: {schedule}",
+    )
+    return panel(tr("free_service", lang), body)
+
+
+def normalize_free_forward_target(value):
+    raw = (value or "").strip().strip(",")
+    if not raw:
+        return None
+    raw = raw.split("?", 1)[0].rstrip("/")
+    match = re.match(r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/(.+)$", raw, re.IGNORECASE)
+    if match:
+        path = match.group(1).strip("/")
+        if path.startswith("+") or path.lower().startswith("joinchat/") or path.startswith("c/"):
+            return None
+        raw = path.split("/", 1)[0]
+    if re.fullmatch(r"-?\d+", raw):
+        return raw
+    raw = raw.lstrip("@")
+    if re.fullmatch(r"[A-Za-z0-9_]{5,32}", raw):
+        return f"@{raw}"
+    return None
+
+
+def parse_free_forward_targets(text):
+    values = re.split(r"[\s,]+", text or "")
+    targets = []
+    invalid = []
+    for value in values:
+        if not value.strip():
+            continue
+        target = normalize_free_forward_target(value)
+        if not target:
+            invalid.append(value.strip())
+            continue
+        if target not in targets:
+            targets.append(target)
+    return targets[:FREE_FORWARD_MAX_TARGETS], invalid
+
+
+def safe_free_forward_error(exc):
+    return re.sub(r"\b\d{5,}:[A-Za-z0-9_-]+\b", "[REDACTED_TOKEN]", str(exc))[:160]
+
+
+def free_forward_clear_flow(context):
+    for key in [
+        "free_forward_step",
+        "free_forward_mode",
+        "free_forward_targets",
+        "free_forward_interval_minutes",
+    ]:
+        context.user_data.pop(key, None)
+
+
+async def validate_free_forward_token(token):
+    async with Bot(token=token) as connected_bot:
+        return await connected_bot.get_me()
+
+
+async def free_forward_message_spec(update, context):
+    message = update.message
+    text = (getattr(message, "text", None) or getattr(message, "caption", None) or "").strip()
+    if getattr(message, "text", None):
+        return {"type": "text", "text": text}
+
+    media = None
+    media_type = None
+    filename = None
+    if getattr(message, "photo", None):
+        media = message.photo[-1]
+        media_type = "photo"
+        filename = "photo.jpg"
+    elif getattr(message, "video", None):
+        media = message.video
+        media_type = "video"
+        filename = getattr(media, "file_name", None) or "video.mp4"
+    elif getattr(message, "document", None):
+        media = message.document
+        media_type = "document"
+        filename = getattr(media, "file_name", None) or "document"
+    elif getattr(message, "animation", None):
+        media = message.animation
+        media_type = "animation"
+        filename = getattr(media, "file_name", None) or "animation.gif"
+    elif getattr(message, "audio", None):
+        media = message.audio
+        media_type = "audio"
+        filename = getattr(media, "file_name", None) or "audio"
+    elif getattr(message, "voice", None):
+        media = message.voice
+        media_type = "voice"
+        filename = "voice.ogg"
+    elif getattr(message, "sticker", None):
+        media = message.sticker
+        media_type = "sticker"
+        filename = "sticker.webp"
+
+    if not media or not media_type:
+        return None
+    buffer = BytesIO()
+    tg_file = await context.bot.get_file(media.file_id)
+    await tg_file.download_to_memory(buffer)
+    return {"type": media_type, "bytes": buffer.getvalue(), "caption": text, "filename": filename}
+
+
+async def send_free_forward_message(connected_bot, target, spec):
+    message_type = spec.get("type")
+    if message_type == "text":
+        await connected_bot.send_message(chat_id=target, text=spec.get("text") or "")
+        return
+    data = BytesIO(spec.get("bytes") or b"")
+    data.name = spec.get("filename") or "message"
+    caption = spec.get("caption") or None
+    if message_type == "photo":
+        await connected_bot.send_photo(chat_id=target, photo=data, caption=caption)
+    elif message_type == "video":
+        await connected_bot.send_video(chat_id=target, video=data, caption=caption)
+    elif message_type == "document":
+        await connected_bot.send_document(chat_id=target, document=data, caption=caption)
+    elif message_type == "animation":
+        await connected_bot.send_animation(chat_id=target, animation=data, caption=caption)
+    elif message_type == "audio":
+        await connected_bot.send_audio(chat_id=target, audio=data, caption=caption)
+    elif message_type == "voice":
+        await connected_bot.send_voice(chat_id=target, voice=data, caption=caption)
+    elif message_type == "sticker":
+        await connected_bot.send_sticker(chat_id=target, sticker=data)
+    else:
+        raise ValueError("unsupported message type")
+
+
+async def free_forward_send_to_targets(token, targets, spec):
+    ok = []
+    failed = []
+    async with Bot(token=token) as connected_bot:
+        for target in targets:
+            try:
+                await send_free_forward_message(connected_bot, target, spec)
+                ok.append(target)
+            except Exception as exc:
+                failed.append((target, safe_free_forward_error(exc)))
+    return ok, failed
+
+
+def free_forward_result_text(lang, ok, failed, scheduled=False, interval_minutes=None):
+    lines = []
+    if scheduled:
+        lines.append(ltext(lang, f"⏰ Scheduled forward started. Interval: {interval_minutes} minute(s).", f"⏰ নির্দিষ্ট সময়ের forward শুরু হয়েছে। Interval: {interval_minutes} মিনিট।"))
+    lines.append(ltext(lang, f"✅ Sent: {len(ok)}", f"✅ পাঠানো হয়েছে: {len(ok)}"))
+    if failed:
+        lines.append(ltext(lang, f"❌ Failed: {len(failed)}", f"❌ ব্যর্থ: {len(failed)}"))
+        lines.extend([f"• {target}: {error}" for target, error in failed[:5]])
+    if not failed:
+        lines.append(ltext(lang, "All targets accepted the message.", "সব target message গ্রহণ করেছে।"))
+    return "\n".join(lines)
+
+
+async def free_forward_schedule_loop(application, user_id, chat_id, lang, token, targets, spec, interval_minutes):
+    try:
+        while True:
+            ok, failed = await free_forward_send_to_targets(token, targets, spec)
+            await application.bot.send_message(
+                chat_id,
+                free_forward_result_text(lang, ok, failed),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(ltext(lang, "🛑 Stop scheduled forward", "🛑 নির্দিষ্ট সময়ের forward বন্ধ"), callback_data="ff_cancel_schedule")]]),
+            )
+            await asyncio.sleep(float(interval_minutes) * 60)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        FREE_FORWARD_TASKS.pop(str(user_id), None)
+        error = safe_free_forward_error(exc)
+        await application.bot.send_message(chat_id, ltext(lang, f"❌ Scheduled forward stopped: {error}", f"❌ নির্দিষ্ট সময়ের forward বন্ধ হয়েছে: {error}"), reply_markup=free_forward_keyboard(lang, has_token=True, has_schedule=False))
+
+
+def free_forward_task_running(user_id):
+    task = FREE_FORWARD_TASKS.get(str(user_id))
+    return bool(task and not task.done())
+
+
+def free_forward_cancel_schedule(user_id):
+    task = FREE_FORWARD_TASKS.pop(str(user_id), None)
+    if task and not task.done():
+        task.cancel()
+        return True
+    return False
+
+
+def free_forward_connection(user_id):
+    return FREE_FORWARD_CONNECTIONS.get(str(user_id), {})
+
+
+def free_forward_connected(user_id):
+    return bool(free_forward_connection(user_id).get("token"))
+
+
 def get_rate(network="solana"):
     db_rate = get_network_rate(network)
     if db_rate:
@@ -2208,6 +2474,7 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
         [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status"), InlineKeyboardButton(tr("referral", lang), callback_data="referral_menu")],
         [InlineKeyboardButton(tr("sellers", lang), callback_data="sellers_market"), InlineKeyboardButton(tr("seller_center", lang), callback_data="seller_center")],
+        [InlineKeyboardButton(tr("free_service", lang), callback_data="free_service")],
         [InlineKeyboardButton(tr("ai_support", lang), callback_data="ai_support"), InlineKeyboardButton(tr("faq", lang), callback_data="faq")],
         [InlineKeyboardButton(tr("seller_dashboard", lang), callback_data="seller_dashboard")],
         [InlineKeyboardButton(tr("support", lang), url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
@@ -2885,6 +3152,72 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "faq":
         await query.edit_message_text(faq_text(lang), reply_markup=back_keyboard(lang))
+
+    elif query.data == "free_service":
+        connection = free_forward_connection(user_id)
+        await query.edit_message_text(
+            free_forward_text(lang, bool(connection.get("token")), connection.get("bot_username"), free_forward_task_running(user_id)),
+            reply_markup=free_forward_keyboard(lang, bool(connection.get("token")), free_forward_task_running(user_id)),
+        )
+
+    elif query.data == "ff_connect_token":
+        context.user_data["free_forward_step"] = "token"
+        await query.edit_message_text(
+            ltext(
+                lang,
+                "🔐 Send your Telegram bot token from @BotFather.\n\nYour next message will be deleted after checking. The token is kept only in this bot session. Send /cancel to stop.",
+                "🔐 @BotFather থেকে পাওয়া Telegram bot token পাঠান।\n\nCheck করার পর আপনার next message delete করা হবে। Token শুধু এই bot session-এ রাখা হবে। বন্ধ করতে /cancel লিখুন।",
+            ),
+            reply_markup=free_forward_cancel_keyboard(lang),
+        )
+
+    elif query.data == "ff_forward":
+        if not free_forward_connected(user_id):
+            context.user_data["free_forward_step"] = "token"
+            await query.edit_message_text(
+                ltext(lang, "🔐 Connect a Telegram bot token first. Send the token now.", "🔐 আগে Telegram bot token connect করুন। এখন token পাঠান।"),
+                reply_markup=free_forward_cancel_keyboard(lang),
+            )
+        else:
+            await query.edit_message_text(ltext(lang, "Choose forwarding type:", "Forward type বেছে নিন:"), reply_markup=free_forward_mode_keyboard(lang))
+
+    elif query.data in {"ff_one_time", "ff_schedule"}:
+        if not free_forward_connected(user_id):
+            await query.edit_message_text(ltext(lang, "🔐 Token is not connected. Connect token first.", "🔐 Token connect করা নেই। আগে token connect করুন।"), reply_markup=free_forward_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data["free_forward_mode"] = "schedule" if query.data == "ff_schedule" else "one_time"
+        context.user_data["free_forward_step"] = "targets"
+        await query.edit_message_text(
+            ltext(
+                lang,
+                f"Send target group/channel IDs, @usernames, or public t.me links.\n\nSeparate by space, comma, or new line. Maximum {FREE_FORWARD_MAX_TARGETS} targets. The connected bot must be added to every target.",
+                f"Target group/channel ID, @username অথবা public t.me link পাঠান।\n\nSpace, comma অথবা new line দিয়ে আলাদা করুন। সর্বোচ্চ {FREE_FORWARD_MAX_TARGETS} target। Connected bot প্রত্যেক target-এ add থাকতে হবে।",
+            ),
+            reply_markup=free_forward_cancel_keyboard(lang),
+        )
+
+    elif query.data == "ff_cancel_flow":
+        free_forward_clear_flow(context)
+        connection = free_forward_connection(user_id)
+        await query.edit_message_text(
+            free_forward_text(lang, bool(connection.get("token")), connection.get("bot_username"), free_forward_task_running(user_id)),
+            reply_markup=free_forward_keyboard(lang, bool(connection.get("token")), free_forward_task_running(user_id)),
+        )
+
+    elif query.data == "ff_cancel_schedule":
+        stopped = free_forward_cancel_schedule(user_id)
+        await query.edit_message_text(
+            ltext(lang, "🛑 Scheduled forward stopped." if stopped else "No scheduled forward is running.", "🛑 নির্দিষ্ট সময়ের forward বন্ধ হয়েছে।" if stopped else "কোনো নির্দিষ্ট সময়ের forward চলছে না।"),
+            reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), False),
+        )
+
+    elif query.data == "ff_disconnect_token":
+        free_forward_cancel_schedule(user_id)
+        free_forward_clear_flow(context)
+        FREE_FORWARD_CONNECTIONS.pop(user_id, None)
+        for key in ["free_forward_token", "free_forward_bot_username", "free_forward_bot_id"]:
+            context.user_data.pop(key, None)
+        await query.edit_message_text(ltext(lang, "🔌 Token disconnected.", "🔌 Token disconnect হয়েছে।"), reply_markup=free_forward_keyboard(lang))
 
     elif query.data == "order_status":
         context.user_data.clear()
@@ -5032,10 +5365,127 @@ async def handle_referral_withdraw_text(update: Update, context: ContextTypes.DE
             pass
 
 
+async def handle_free_forward_text(update, context, user_id, lang, incoming_text):
+    step = context.user_data.get("free_forward_step")
+    if not step:
+        return False
+    if incoming_text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+        free_forward_clear_flow(context)
+        await update.message.reply_text(
+            ltext(lang, "✅ Free forwarding flow cancelled.", "✅ Free forwarding flow বাতিল হয়েছে।"),
+            reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), free_forward_task_running(user_id)),
+        )
+        return True
+
+    if step == "token":
+        token = incoming_text.strip()
+        try:
+            me = await validate_free_forward_token(token)
+        except Exception:
+            await update.message.reply_text(ltext(lang, "❌ Token check failed. Send a valid @BotFather bot token, or send /cancel.", "❌ Token check ব্যর্থ। সঠিক @BotFather bot token পাঠান, অথবা /cancel লিখুন।"), reply_markup=free_forward_cancel_keyboard(lang))
+            return True
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        FREE_FORWARD_CONNECTIONS[str(user_id)] = {
+            "token": token,
+            "bot_username": getattr(me, "username", None),
+            "bot_id": str(getattr(me, "id", "")),
+        }
+        free_forward_clear_flow(context)
+        await update.message.reply_text(
+            ltext(lang, f"✅ Token connected: @{getattr(me, 'username', 'bot')}\n\nNow choose forwarding type.", f"✅ Token connected: @{getattr(me, 'username', 'bot')}\n\nএখন forward type বেছে নিন।"),
+            reply_markup=free_forward_mode_keyboard(lang),
+        )
+        return True
+
+    if step == "targets":
+        targets, invalid = parse_free_forward_targets(incoming_text)
+        if not targets:
+            await update.message.reply_text(ltext(lang, "❌ No valid target found. Send numeric chat IDs, @usernames, or public t.me links.", "❌ কোনো valid target পাওয়া যায়নি। Numeric chat ID, @username অথবা public t.me link পাঠান।"), reply_markup=free_forward_cancel_keyboard(lang))
+            return True
+        context.user_data["free_forward_targets"] = targets
+        ignored = ""
+        if invalid:
+            ignored = ltext(lang, f"\n\nIgnored invalid/private targets: {', '.join(invalid[:5])}", f"\n\nInvalid/private target বাদ দেওয়া হয়েছে: {', '.join(invalid[:5])}")
+        if context.user_data.get("free_forward_mode") == "schedule":
+            context.user_data["free_forward_step"] = "interval"
+            await update.message.reply_text(
+                ltext(lang, f"✅ Targets saved: {len(targets)}{ignored}\n\nSend interval in minutes. Minimum {FREE_FORWARD_MIN_INTERVAL_MINUTES} minute.", f"✅ Target save হয়েছে: {len(targets)}{ignored}\n\nকত মিনিট পরপর পাঠাবেন লিখুন। Minimum {FREE_FORWARD_MIN_INTERVAL_MINUTES} মিনিট।"),
+                reply_markup=free_forward_cancel_keyboard(lang),
+            )
+        else:
+            context.user_data["free_forward_step"] = "message"
+            await update.message.reply_text(
+                ltext(lang, f"✅ Targets saved: {len(targets)}{ignored}\n\nNow send the message to forward. Text, photo, video, document, audio, voice, animation, or sticker is supported.", f"✅ Target save হয়েছে: {len(targets)}{ignored}\n\nএখন যে message forward/send করতে চান সেটি পাঠান। Text, photo, video, document, audio, voice, animation বা sticker supported।"),
+                reply_markup=free_forward_cancel_keyboard(lang),
+            )
+        return True
+
+    if step == "interval":
+        try:
+            interval_minutes = float(incoming_text.strip())
+            if interval_minutes < FREE_FORWARD_MIN_INTERVAL_MINUTES:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(ltext(lang, f"❌ Send a number of minutes. Minimum {FREE_FORWARD_MIN_INTERVAL_MINUTES}.", f"❌ মিনিট সংখ্যা লিখুন। Minimum {FREE_FORWARD_MIN_INTERVAL_MINUTES}।"), reply_markup=free_forward_cancel_keyboard(lang))
+            return True
+        context.user_data["free_forward_interval_minutes"] = interval_minutes
+        context.user_data["free_forward_step"] = "message"
+        await update.message.reply_text(
+            ltext(lang, "✅ Interval saved. Now send the message to repeat.", "✅ Interval save হয়েছে। এখন যে message বারবার পাঠাবেন সেটি পাঠান।"),
+            reply_markup=free_forward_cancel_keyboard(lang),
+        )
+        return True
+
+    if step == "message":
+        spec = await free_forward_message_spec(update, context)
+        if not spec or (spec.get("type") == "text" and not spec.get("text")):
+            await update.message.reply_text(ltext(lang, "❌ Unsupported or empty message. Send text, photo, video, document, audio, voice, animation, or sticker.", "❌ Unsupported/খালি message। Text, photo, video, document, audio, voice, animation বা sticker পাঠান।"), reply_markup=free_forward_cancel_keyboard(lang))
+            return True
+        token = free_forward_connection(user_id).get("token")
+        targets = context.user_data.get("free_forward_targets") or []
+        if not token or not targets:
+            free_forward_clear_flow(context)
+            await update.message.reply_text(ltext(lang, "❌ Session expired. Start again from Free Service.", "❌ Session expire হয়েছে। Free Service থেকে আবার শুরু করুন।"), reply_markup=free_forward_keyboard(lang, bool(token), free_forward_task_running(user_id)))
+            return True
+        if context.user_data.get("free_forward_mode") == "schedule":
+            interval_minutes = context.user_data.get("free_forward_interval_minutes") or FREE_FORWARD_MIN_INTERVAL_MINUTES
+            free_forward_cancel_schedule(user_id)
+            task = context.application.create_task(
+                free_forward_schedule_loop(context.application, user_id, update.effective_chat.id, lang, token, list(targets), dict(spec), interval_minutes)
+            )
+            FREE_FORWARD_TASKS[str(user_id)] = task
+            free_forward_clear_flow(context)
+            await update.message.reply_text(
+                ltext(lang, f"⏰ Scheduled forward saved. It will send now and then every {interval_minutes} minute(s).", f"⏰ নির্দিষ্ট সময়ের forward save হয়েছে। এখন পাঠাবে, এরপর প্রতি {interval_minutes} মিনিট পরপর পাঠাবে।"),
+                reply_markup=free_forward_keyboard(lang, True, True),
+            )
+            return True
+        try:
+            ok, failed = await free_forward_send_to_targets(token, targets, spec)
+        except Exception as exc:
+            free_forward_clear_flow(context)
+            error = safe_free_forward_error(exc)
+            await update.message.reply_text(ltext(lang, f"❌ Forward failed before sending: {error}", f"❌ Forward পাঠানোর আগেই ব্যর্থ: {error}"), reply_markup=free_forward_keyboard(lang, True, free_forward_task_running(user_id)))
+            return True
+        free_forward_clear_flow(context)
+        await update.message.reply_text(free_forward_result_text(lang, ok, failed), reply_markup=free_forward_keyboard(lang, True, free_forward_task_running(user_id)))
+        return True
+
+    return False
+
+
 async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
-    incoming_text = update.message.text.strip()
+    incoming_text = (update.message.text or update.message.caption or "").strip()
+    lang = user_lang(user_id)
+
+    if await handle_free_forward_text(update, context, user_id, lang, incoming_text):
+        return
+
     lang = maybe_update_language(user_id, incoming_text)
 
     if context.user_data.get("order_status_lookup"):
@@ -5254,6 +5704,14 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if lang == "en"
             else f"❌ পাঠাতে সমস্যা!\n\n💡 {reason}\n\nআপনার TrxID: {trx_id}\nসংরক্ষণ করুন।\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
         )
+
+
+async def free_forward_media_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if not context.user_data.get("free_forward_step"):
+        return
+    incoming_text = (update.message.text or update.message.caption or "").strip()
+    await handle_free_forward_text(update, context, user_id, user_lang(user_id), incoming_text)
 
 
 async def handle_giveaway_text(update, context, user_id):
@@ -6110,6 +6568,8 @@ async def main():
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_star_payment))
     app.add_handler(CallbackQueryHandler(button_handler))
+    free_forward_media_filter = filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.Sticker.ALL
+    app.add_handler(MessageHandler(free_forward_media_filter & ~filters.COMMAND, free_forward_media_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid))
     app.add_handler(CommandHandler("cancel", cancel_cmd), group=1)
 
