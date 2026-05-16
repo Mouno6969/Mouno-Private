@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import pathlib
 import unittest
 
@@ -22,6 +23,7 @@ def load_free_forward_namespace():
         "normalize_free_forward_target",
         "parse_free_forward_targets",
         "free_forward_text",
+        "send_personal_forward_message",
     }
     body = []
     for node in BOT_TREE.body:
@@ -29,7 +31,7 @@ def load_free_forward_namespace():
             targets = {target.id for target in node.targets if isinstance(target, ast.Name)}
             if targets & names:
                 body.append(node)
-        elif isinstance(node, ast.FunctionDef) and node.name in names:
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names:
             body.append(node)
 
     module = ast.Module(body=body, type_ignores=[])
@@ -37,6 +39,19 @@ def load_free_forward_namespace():
     namespace = {"re": __import__("re")}
     exec(compile(module, str(BOT_PATH), "exec"), namespace)
     return namespace
+
+
+class FakePersonalForwardClient:
+    def __init__(self):
+        self.entity_targets = []
+        self.sent_messages = []
+
+    async def get_entity(self, target):
+        self.entity_targets.append(target)
+        return {"entity": target}
+
+    async def send_message(self, entity, text):
+        self.sent_messages.append((entity, text))
 
 
 def function_source(name):
@@ -67,6 +82,15 @@ class FreeForwardServiceTests(unittest.TestCase):
 
         self.assertEqual(len(targets), max_targets)
         self.assertEqual(invalid, [])
+
+    def test_personal_forward_resolves_numeric_string_targets_as_ints(self):
+        send_personal = self.namespace["send_personal_forward_message"]
+        client = FakePersonalForwardClient()
+
+        asyncio.run(send_personal(client, "-10012345", {"type": "text", "text": "hello"}))
+
+        self.assertEqual(client.entity_targets, [-10012345])
+        self.assertEqual(client.sent_messages, [({"entity": -10012345}, "hello")])
 
     def test_free_service_text_is_localized(self):
         free_forward_text = self.namespace["free_forward_text"]

@@ -1654,7 +1654,8 @@ async def send_free_forward_message(connected_bot, target, spec):
 
 async def send_personal_forward_message(client, target, spec):
     message_type = spec.get("type")
-    entity = await client.get_entity(target)
+    entity_target = int(target) if re.fullmatch(r"-?\d+", str(target)) else target
+    entity = await client.get_entity(entity_target)
     if message_type == "text":
         await client.send_message(entity, spec.get("text") or "")
         return
