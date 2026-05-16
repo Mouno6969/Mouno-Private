@@ -478,6 +478,7 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - SCB-Forwarder reliability/status: it forwards trusted bKash SMS senders (bKash/16247) and known official bKash app packages, can parse matching notices on the phone while offline, queues notices if internet/server is unavailable, retries queued uploads automatically, and has a Retry queued notices now button. Status screen shows successful forwards, failed/queued attempts, last forwarded time, last SMS/notification source, queue count, and last error. Forwarding both SMS and notification is safe because the bot deduplicates by TrxID.
 - SCB-Forwarder setup troubleshooting by step: if setup is stuck at token save, ask whether the phone is in Seller mode or main/admin mode and whether the correct Seller token/Admin token was pasted. If Check server fails, ask for the three displayed lines: Internet, Server reachable, Token, plus Details. Internet FAILED means fix phone internet/VPN/DNS first; Server reachable FAILED means check network/server availability and the fixed server shown in the app; Token FAILED usually means wrong mode or wrong/old token, so copy the token again from Seller Center or ask admin for the correct admin token. If SMS permission fails, open Android app settings and allow SMS/notification permissions manually. If Notification Access fails, open Android Notification access settings and enable SCB-Forwarder. If background service will not stay running, start it again, keep the persistent notification visible, disable battery optimization, allow autostart/auto launch/background activity, and lock the app in recent apps if the phone supports it.
 - SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
+- Free Service forwarding: Free Service is a user-facing bot menu that lets a user connect their own @BotFather Telegram bot token and send the same message to many Telegram groups/channels. It supports numeric chat IDs, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. The connected bot must already be added to every target group/channel and may need admin permission to post in channels or restricted groups. Flow: tap Free Service, connect Telegram token, choose Forward to many groups, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token with Disconnect token. If sending fails, likely causes are invalid token, bot not added to the target, missing post permission, private/invalid link, blocked bot, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
 - Pending/manual bKash cases: pending can happen when SMS/notification has not reached the server, user submitted TrxID before notice arrived, amount does not match, TrxID is wrong/duplicate/already used, payer/order does not match, selected wallet/network is invalid, stock is low, gas is low, or RPC/network is busy. User action: check /order or /status, wait if webhook is delayed, and contact support with Order ID + TrxID. Admin action: verify via /pending before approving/rejecting.
 - Order status and receipts: /order or /status can check order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipts include proof/explorer URL or compact receipt details and QR when available. Never tell a user an order is paid/completed unless context says verified/completed.
@@ -1404,11 +1405,37 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False):
     schedule = ltext(lang, "Running", "চলছে") if has_schedule else ltext(lang, "Not running", "চলছে না")
     body = ltext(
         lang,
-        "Use your own Telegram bot token to send the same message to many groups/channels.\n\n"
-        "Targets can be numeric chat IDs, @usernames, or public t.me links. The connected bot must already be added to each target group/channel; private invite links only work after the bot is a member and you use the chat ID.\n\n"
+        "What is this?\n"
+        "Send the same message to many Telegram groups/channels using your own connected Telegram bot token.\n\n"
+        "How to use\n"
+        "1. Create or copy a bot token from @BotFather.\n"
+        "2. Add that bot to every target group/channel. For channels or restricted groups, make it admin or allow it to post messages.\n"
+        "3. Tap Connect Telegram token and send the token. The token message is deleted after checking.\n"
+        "4. Tap Forward to many groups.\n"
+        "5. Choose One-time forward to send once, or Forward repeatedly to send after a fixed interval.\n"
+        f"6. Send target chat IDs, @usernames, or public t.me links separated by space/comma/new line. Maximum {FREE_FORWARD_MAX_TARGETS} targets.\n"
+        "7. For repeated forwarding, send the interval in minutes.\n"
+        "8. Send the message you want to forward. Text, photo, video, document, audio, voice, animation, and sticker are supported.\n\n"
+        "Important\n"
+        "• Private invite links do not work directly; use a chat ID after the bot is a member.\n"
+        "• If a target fails, check that the bot is added and has permission to post.\n"
+        "• Use Stop scheduled forward to stop repeats, and Disconnect token to remove the connected token from this session.\n\n"
         f"Token: {status}\nScheduled forward: {schedule}",
-        "নিজের Telegram bot token দিয়ে একই message অনেক group/channel-এ পাঠাতে পারবেন।\n\n"
-        "Target হিসেবে numeric chat ID, @username অথবা public t.me link দিতে পারবেন। Connected bot-টি target group/channel-এ আগে থেকেই add/admin থাকতে হবে; private invite link সরাসরি পাঠানো যায় না, bot member হলে chat ID দিন।\n\n"
+        "এটা কী?\n"
+        "নিজের connected Telegram bot token দিয়ে একই message অনেক Telegram group/channel-এ পাঠানোর সার্ভিস।\n\n"
+        "কীভাবে ব্যবহার করবেন\n"
+        "১. @BotFather থেকে bot token তৈরি/copy করুন।\n"
+        "২. যেসব group/channel-এ পাঠাতে চান, সেসব জায়গায় ওই bot add করুন। Channel বা restricted group হলে bot-কে admin করুন অথবা post করার permission দিন।\n"
+        "৩. Connect Telegram token চাপুন এবং token পাঠান। Check করার পর token message delete করা হবে।\n"
+        "৪. Forward to many groups চাপুন।\n"
+        "৫. একবার পাঠাতে One-time forward, আর নির্দিষ্ট সময় পরপর পাঠাতে Forward repeatedly বেছে নিন।\n"
+        f"৬. Target chat ID, @username অথবা public t.me link পাঠান। Space/comma/new line দিয়ে আলাদা করুন। সর্বোচ্চ {FREE_FORWARD_MAX_TARGETS} target।\n"
+        "৭. নির্দিষ্ট সময় পরপর পাঠালে interval কত মিনিট হবে সেটা লিখুন।\n"
+        "৮. যে message পাঠাতে চান সেটি পাঠান। Text, photo, video, document, audio, voice, animation এবং sticker supported।\n\n"
+        "গুরুত্বপূর্ণ\n"
+        "• Private invite link সরাসরি কাজ করে না; bot member হওয়ার পর chat ID ব্যবহার করুন।\n"
+        "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
+        "• বারবার forward বন্ধ করতে Stop scheduled forward, আর token সরাতে Disconnect token ব্যবহার করুন।\n\n"
         f"Token: {status}\nনির্দিষ্ট সময়ের forward: {schedule}",
     )
     return panel(tr("free_service", lang), body)

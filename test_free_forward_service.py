@@ -64,10 +64,18 @@ class FreeForwardServiceTests(unittest.TestCase):
 
         self.assertIn("Free Service", english)
         self.assertIn("@SenderBot", english)
-        self.assertIn("many groups/channels", english)
+        self.assertIn("What is this?", english)
+        self.assertIn("How to use", english)
+        self.assertIn("Forward repeatedly", english)
         self.assertIn("ফ্রী সার্ভিস", bangla)
-        self.assertIn("অনেক group/channel", bangla)
+        self.assertIn("এটা কী?", bangla)
+        self.assertIn("কীভাবে ব্যবহার করবেন", bangla)
+        self.assertIn("নির্দিষ্ট সময় পরপর", bangla)
         self.assertIn("Connect করা নেই", bangla)
+
+    def test_ai_support_knowledge_includes_free_service_guidance(self):
+        self.assertIn("Free Service forwarding", BOT_SOURCE)
+        self.assertIn("AI Support must explain these steps in Bengali for Bengali questions and English for English questions", BOT_SOURCE)
 
     def test_main_menu_and_handlers_route_free_forward_flow(self):
         main_menu = function_source("main_menu")
