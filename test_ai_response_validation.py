@@ -68,7 +68,7 @@ class AIResponseValidationTests(unittest.TestCase):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "AI_PROVIDER_TIMEOUT_SECONDS":
-                        self.assertEqual(ast.literal_eval(node.value), 1.5)
+                        self.assertEqual(ast.literal_eval(node.value), 8)
                         return
         self.fail("AI_PROVIDER_TIMEOUT_SECONDS is not defined")
 
