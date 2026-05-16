@@ -146,9 +146,9 @@ class FreeForwardServiceTests(unittest.TestCase):
         bangla = picker_text("bn", 1, dialogs, ["1"])
 
         self.assertIn("Select target groups/channels", english)
-        self.assertIn("Selected: 2/10", english)
+        self.assertIn("Selected: 2/45", english)
         self.assertIn("Connected account থেকে target group/channel select করুন", bangla)
-        self.assertIn("Selected: 1/10", bangla)
+        self.assertIn("Selected: 1/45", bangla)
 
     def test_solana_refund_text_is_localized(self):
         solana_refund_text = self.namespace["solana_refund_text"]
