@@ -22,6 +22,7 @@ def load_free_forward_namespace():
         "panel",
         "free_service_text",
         "free_service_keyboard",
+        "solana_refund_text",
         "normalize_free_forward_target",
         "parse_free_forward_targets",
         "free_forward_text",
@@ -100,6 +101,8 @@ class FreeForwardServiceTests(unittest.TestCase):
 
         self.assertIn("Telegram Message Forwarder", free_service_text("en"))
         self.assertIn("Telegram Message Forwarder", free_service_text("bn"))
+        self.assertIn("Solana ATA Refund", free_service_text("en"))
+        self.assertIn("Solana ATA Refund", free_service_text("bn"))
 
         english = free_forward_text("en", True, "SenderBot", True)
         bangla = free_forward_text("bn", False, None, False)
@@ -124,6 +127,21 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("Connect করা নেই", bangla)
         self.assertIn("Personal account", bangla)
 
+    def test_solana_refund_text_is_localized(self):
+        solana_refund_text = self.namespace["solana_refund_text"]
+
+        english = solana_refund_text("en")
+        bangla = solana_refund_text("bn")
+
+        self.assertIn("Solana ATA Refund", english)
+        self.assertIn("Associated Token Accounts", english)
+        self.assertIn("rent SOL", english)
+        self.assertIn("ATAs with token balances will not be closed", english)
+        self.assertIn("Solana ATA Refund", bangla)
+        self.assertIn("empty Associated Token Account", bangla)
+        self.assertIn("rent SOL", bangla)
+        self.assertIn("Token balance থাকা ATA close করা হবে না", bangla)
+
     def test_ai_support_knowledge_includes_free_service_guidance(self):
         self.assertIn("Free Service forwarding", BOT_SOURCE)
         self.assertIn("Connect personal account", BOT_SOURCE)
@@ -140,7 +158,12 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn('callback_data="free_service"', main_menu)
         self.assertIn('query.data == "free_service"', button_handler)
         self.assertIn('callback_data="telegram_message_forwarder"', function_source("free_service_keyboard"))
+        self.assertIn('callback_data="solana_ata_refund"', function_source("free_service_keyboard"))
         self.assertIn('query.data == "telegram_message_forwarder"', button_handler)
+        self.assertIn('query.data == "solana_ata_refund"', button_handler)
+        self.assertIn('query.data == "sr_connect"', button_handler)
+        self.assertIn('query.data == "sr_refund_confirm"', button_handler)
+        self.assertIn("handle_solana_refund_text", function_source("waiting_trxid"))
         self.assertIn('query.data in {"ff_one_time", "ff_schedule"}', button_handler)
         self.assertIn('query.data == "pf_connect_account"', button_handler)
         self.assertIn('query.data in {"pf_one_time", "pf_schedule"}', button_handler)
