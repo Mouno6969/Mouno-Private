@@ -119,6 +119,8 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("Forward repeatedly", english)
         self.assertIn("Personal account", english)
         self.assertIn("personal-account maximum", english)
+        self.assertIn("secure web login link", english)
+        self.assertIn("Never send login codes in Telegram chat", english)
         self.assertIn("Where to get API ID/API hash", english)
         self.assertIn("https://my.telegram.org", english)
         self.assertIn("Where to get group/channel ID", english)
@@ -131,6 +133,8 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("নির্দিষ্ট সময় পরপর", bangla)
         self.assertIn("Connect করা নেই", bangla)
         self.assertIn("Personal account", bangla)
+        self.assertIn("secure web login link", bangla)
+        self.assertIn("Telegram chat-এ login code কখনো পাঠাবেন না", bangla)
 
     def test_solana_refund_text_is_localized(self):
         solana_refund_text = self.namespace["solana_refund_text"]
@@ -204,9 +208,11 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("handle_solana_refund_text", function_source("waiting_trxid"))
         self.assertIn('query.data in {"ff_one_time", "ff_schedule"}', button_handler)
         self.assertIn('query.data == "pf_connect_account"', button_handler)
+        self.assertIn("create_personal_auth_session", button_handler)
+        self.assertIn("personal_auth_link", button_handler)
+        self.assertIn("Open secure web login", button_handler)
         self.assertIn('query.data in {"pf_one_time", "pf_schedule"}', button_handler)
         self.assertIn("handle_free_forward_text", waiting_trxid)
-        self.assertIn('step == "personal_phone"', function_source("handle_free_forward_text"))
         self.assertIn("personal_forward_send_to_targets", function_source("handle_free_forward_text"))
         self.assertIn("free_forward_media_handler", main)
         self.assertIn("MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_trxid)", main)

@@ -118,6 +118,7 @@ from config import (
     SELLER_WALLET_MASTER_KEY,
     STAR_RATE,
     SUPPORT_USERNAME,
+    TELEGRAM_AUTH_BASE_URL,
     WEBHOOK_STALE_MINUTES,
 )
 from crypto_manager import (
@@ -247,6 +248,12 @@ from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
 from webhook import parse_bkash_payment_notice, parse_bkash_sms, run_webhook, set_callback
+from personal_auth import (
+    PERSONAL_FORWARD_CONNECTIONS,
+    create_personal_auth_session,
+    personal_auth_available,
+    set_personal_auth_runtime,
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -293,7 +300,6 @@ WELCOME_VIDEO_PATH = os.path.join(os.path.dirname(__file__), "assets", "welcome_
 TELEGRAM_VIDEO_CAPTION_LIMIT = 1024
 FREE_FORWARD_CONNECTIONS = {}
 FREE_FORWARD_TASKS = {}
-PERSONAL_FORWARD_CONNECTIONS = {}
 PERSONAL_FORWARD_PENDING = {}
 
 NETWORKS = {
@@ -494,7 +500,7 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - SCB-Forwarder reliability/status: it forwards trusted bKash SMS senders (bKash/16247) and known official bKash app packages, can parse matching notices on the phone while offline, queues notices if internet/server is unavailable, retries queued uploads automatically, and has a Retry queued notices now button. Status screen shows successful forwards, failed/queued attempts, last forwarded time, last SMS/notification source, queue count, and last error. Forwarding both SMS and notification is safe because the bot deduplicates by TrxID.
 - SCB-Forwarder setup troubleshooting by step: if setup is stuck at token save, ask whether the phone is in Seller mode or main/admin mode and whether the correct Seller token/Admin token was pasted. If Check server fails, ask for the three displayed lines: Internet, Server reachable, Token, plus Details. Internet FAILED means fix phone internet/VPN/DNS first; Server reachable FAILED means check network/server availability and the fixed server shown in the app; Token FAILED usually means wrong mode or wrong/old token, so copy the token again from Seller Center or ask admin for the correct admin token. If SMS permission fails, open Android app settings and allow SMS/notification permissions manually. If Notification Access fails, open Android Notification access settings and enable SCB-Forwarder. If background service will not stay running, start it again, keep the persistent notification visible, disable battery optimization, allow autostart/auto launch/background activity, and lock the app in recent apps if the phone supports it.
 - SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
-- Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: easiest is a public @username or public t.me link; for private groups/channels use a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or the user's own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
+- Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code through the secure web login link, never inside Telegram chat, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, open the secure web login link for personal account login, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: easiest is a public @username or public t.me link; for private groups/channels use a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or your own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
 - Free Service Solana ATA Refund: Free Service also has a Solana ATA Refund button. It lets a user connect their own Solana wallet for this refund flow, checks empty Associated Token Accounts (ATAs), shows how much rent SOL is estimated to be refundable, and after confirmation closes only empty ATA accounts so the rent SOL returns to the same wallet. ATAs with token balances must be skipped and never auto-closed. Explain that Solana network fee applies, signatures may be returned, and the user should only connect their own wallet. AI Support must explain the Solana ATA refund steps in Bengali for Bengali questions and English for English questions.
 - Free Service Telegram ID Finder: Free Service also has a Telegram ID Finder button. It helps users find Telegram user/account, group, supergroup, or channel IDs by sending a public @username, public t.me/telegram.me link, numeric chat ID, or a forwarded message from the target. If used in a group/channel where the bot can read messages, it can show the current chat ID. Public usernames/links are resolved with bot access; private chats/channels usually require bot access or a forwarded message with visible origin. If Telegram hides the forward sender because of privacy settings, AI Support must explain that the hidden ID cannot be revealed by the bot. AI Support must explain Telegram ID Finder steps in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
@@ -1637,7 +1643,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "2. Create or copy a bot token from @BotFather.\n"
         "3. Add that bot to every target group/channel. For channels or restricted groups, make it admin or allow it to post messages.\n"
         "4. Tap Connect Telegram token and send the token. The token message is deleted after checking.\n"
-        "5. Or tap Connect personal account, then enter your Telegram API ID, API hash, phone number, login code, and 2FA password if Telegram asks. Sensitive messages are deleted after checking and the session is kept only in bot memory.\n"
+        "5. Or tap Connect personal account and open the secure web login link. Enter your Telegram API ID, API hash, phone number, login code, and 2FA password there if Telegram asks. Never send login codes in Telegram chat. The session is kept only in bot memory.\n"
         "6. Tap Forward with bot token or Forward with personal account.\n"
         "7. Choose One-time forward to send once, or Forward repeatedly to send after a fixed interval.\n"
         f"8. Send target chat IDs, @usernames, or public t.me links separated by space/comma/new line. Bot-token maximum: {FREE_FORWARD_MAX_TARGETS}; personal-account maximum: {PERSONAL_FORWARD_MAX_TARGETS}.\n"
@@ -1665,7 +1671,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "২. @BotFather থেকে bot token তৈরি/copy করুন।\n"
         "৩. যেসব group/channel-এ পাঠাতে চান, সেসব জায়গায় ওই bot add করুন। Channel বা restricted group হলে bot-কে admin করুন অথবা post করার permission দিন।\n"
         "৪. Connect Telegram token চাপুন এবং token পাঠান। Check করার পর token message delete করা হবে।\n"
-        "৫. অথবা Connect personal account চাপুন, তারপর Telegram API ID, API hash, phone number, login code এবং Telegram চাইলে 2FA password দিন। Sensitive message check করার পর delete করা হবে এবং session শুধু bot memory-তে থাকবে।\n"
+        "৫. অথবা Connect personal account চাপুন এবং secure web login link খুলুন। Telegram API ID, API hash, phone number, login code এবং Telegram চাইলে 2FA password সেখানে দিন। Telegram chat-এ login code কখনো পাঠাবেন না। Session শুধু bot memory-তে থাকবে।\n"
         "৬. Forward with bot token অথবা Forward with personal account চাপুন।\n"
         "৭. একবার পাঠাতে One-time forward, আর নির্দিষ্ট সময় পরপর পাঠাতে Forward repeatedly বেছে নিন।\n"
         f"৮. Target chat ID, @username অথবা public t.me link পাঠান। Space/comma/new line দিয়ে আলাদা করুন। Bot-token maximum {FREE_FORWARD_MAX_TARGETS}, personal-account maximum {PERSONAL_FORWARD_MAX_TARGETS} target।\n"
@@ -1725,6 +1731,11 @@ def safe_free_forward_error(exc):
     return re.sub(r"\b\d{5,}:[A-Za-z0-9_-]+\b", "[REDACTED_TOKEN]", str(exc))[:160]
 
 
+def personal_auth_link(token):
+    base = (TELEGRAM_AUTH_BASE_URL or "").rstrip("/")
+    return f"{base}/telegram-auth/{token}"
+
+
 def free_forward_clear_flow(context):
     for key in [
         "free_forward_step",
@@ -1755,7 +1766,7 @@ async def validate_free_forward_token(token):
 
 
 def personal_forward_available():
-    return bool(TelegramClient and StringSession)
+    return personal_auth_available()
 
 
 def personal_forward_connection(user_id):
@@ -3667,23 +3678,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), free_forward_task_running(user_id), personal_forward_connected(user_id)),
             )
             return ConversationHandler.END
-        context.user_data["free_forward_step"] = "personal_api_id"
         await personal_forward_disconnect_pending(user_id)
+        free_forward_clear_flow(context)
+        token = create_personal_auth_session(user_id, lang)
+        link = personal_auth_link(token)
         await query.edit_message_text(
             ltext(
                 lang,
-                "👤 Personal account login\n\nOnly connect your own Telegram account. Use this only for groups/channels where you have permission to post.\n\nSend your Telegram API ID from my.telegram.org. Send /cancel to stop.",
-                "👤 Personal account login\n\nশুধু নিজের Telegram account connect করুন। শুধু সেই group/channel-এ ব্যবহার করুন যেখানে post করার permission আছে।\n\nmy.telegram.org থেকে পাওয়া Telegram API ID পাঠান। বন্ধ করতে /cancel লিখুন।",
+                "👤 Personal account login\n\nOnly connect your own Telegram account. Use this only for groups/channels where you have permission to post.\n\nOpen the secure web login link below. Enter the Telegram login code only on that web page—never in Telegram chat. The link expires in 10 minutes.",
+                "👤 Personal account login\n\nশুধু নিজের Telegram account connect করুন। শুধু সেই group/channel-এ ব্যবহার করুন যেখানে post করার permission আছে।\n\nনিচের secure web login link খুলুন। Telegram login code শুধু ওই web page-এ দিন—Telegram chat-এ কখনো নয়। Link ১০ মিনিট পর expire হবে।",
             ),
-            reply_markup=free_forward_cancel_keyboard(lang),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton(ltext(lang, "🌐 Open secure web login", "🌐 Secure web login খুলুন"), url=link)],
+                    [InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")],
+                ]
+            ),
         )
 
     elif query.data == "pf_forward":
         if not personal_forward_connected(user_id):
-            context.user_data["free_forward_step"] = "personal_api_id"
+            token = create_personal_auth_session(user_id, lang)
+            link = personal_auth_link(token)
             await query.edit_message_text(
-                ltext(lang, "👤 Connect your personal Telegram account first. Send your Telegram API ID now.", "👤 আগে personal Telegram account connect করুন। এখন Telegram API ID পাঠান।"),
-                reply_markup=free_forward_cancel_keyboard(lang),
+                ltext(lang, "👤 Connect your personal Telegram account first. Open the secure web login link below.", "👤 আগে personal Telegram account connect করুন। নিচের secure web login link খুলুন।"),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton(ltext(lang, "🌐 Open secure web login", "🌐 Secure web login খুলুন"), url=link)],
+                        [InlineKeyboardButton(tr("cancel", lang), callback_data="ff_cancel_flow")],
+                    ]
+                ),
             )
         else:
             context.user_data["free_forward_sender"] = "personal"
@@ -3753,7 +3777,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         free_forward_cancel_schedule(user_id)
         await personal_forward_disconnect_pending(user_id)
         free_forward_clear_flow(context)
-        PERSONAL_FORWARD_CONNECTIONS.pop(user_id, None)
+        PERSONAL_FORWARD_CONNECTIONS.pop(str(user_id), None)
         await query.edit_message_text(ltext(lang, "🔌 Personal account disconnected.", "🔌 Personal account disconnect হয়েছে।"), reply_markup=free_forward_keyboard(lang, free_forward_connected(user_id), False, False))
 
     elif query.data == "order_status":
@@ -7360,6 +7384,7 @@ async def main():
     await app.updater.start_polling(drop_pending_updates=True)
 
     loop = asyncio.get_running_loop()
+    set_personal_auth_runtime(loop, app)
     set_callback(lambda txt, sndr, meta=None: sms_handler(app, loop, txt, sndr, meta))
     threading.Thread(target=run_webhook, daemon=True).start()
     asyncio.create_task(daily_admin_jobs(app))

@@ -9,6 +9,12 @@ from flask import Flask, jsonify, request
 from balance import get_all_balances, get_native_gas_balances
 from config import ADMIN_ID, BOT_TOKEN, DASHBOARD_TOKEN, FORWARDER_SECRET
 from db import dashboard_snapshot, get_seller_by_sms_token, get_webhook_health, touch_webhook_notice
+from personal_auth import (
+    get_personal_auth_session,
+    send_personal_auth_code_sync,
+    verify_personal_auth_code_sync,
+    verify_personal_auth_password_sync,
+)
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -329,6 +335,63 @@ def forwarder_health(token=None):
         "auth_ok": True,
         "message": "forwarder secret accepted" if FORWARDER_SECRET else "forwarder secret is not required on this server",
     })
+
+
+def _telegram_auth_page(token, message=None, error=None):
+    session = get_personal_auth_session(token)
+    if not session:
+        title = "Telegram login link expired"
+        body = "<p>This login link has expired or was already removed. Go back to the bot and tap Connect personal account again.</p>"
+    else:
+        status = session.get("status") or "new"
+        title = "Telegram personal account login"
+        notice = f"<div class='ok'>{escape(message)}</div>" if message else ""
+        err = f"<div class='err'>{escape(error)}</div>" if error else ""
+        if status == "connected":
+            body = f"{notice}<p>✅ Personal account connected: <b>{escape(str(session.get('display_name') or 'Telegram account'))}</b>.</p><p>You can return to the bot and choose Forward with personal account.</p>"
+        elif status == "password_needed":
+            body = f"{notice}{err}<form method='post' action='/telegram-auth/{escape(token)}/password'><label>Telegram 2FA password</label><input name='password' type='password' autocomplete='current-password' required><button type='submit'>Complete login</button></form>"
+        elif status == "code_sent":
+            body = f"{notice}{err}<p>Telegram sent a login code to your Telegram app. Enter it here only. Do not paste it into any Telegram chat.</p><form method='post' action='/telegram-auth/{escape(token)}/code'><label>Login code</label><input name='code' inputmode='numeric' autocomplete='one-time-code' placeholder='12345' required><button type='submit'>Verify code</button></form>"
+        else:
+            body = f"{notice}{err}<p>Enter your own Telegram API details from <a href='https://my.telegram.org' target='_blank' rel='noreferrer'>my.telegram.org</a>. The login code must be entered on this page only, never in Telegram chat.</p><form method='post' action='/telegram-auth/{escape(token)}/send-code'><label>API ID</label><input name='api_id' inputmode='numeric' required><label>API hash</label><input name='api_hash' autocomplete='off' required><label>Telegram phone number</label><input name='phone' inputmode='tel' placeholder='+8801XXXXXXXXX' required><button type='submit'>Send Telegram login code</button></form>"
+    return f"""
+    <!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+    <title>{escape(title)}</title>
+    <style>body{{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}}main{{max-width:520px;margin:0 auto;padding:28px 18px}}.card{{background:#111827;border:1px solid #334155;border-radius:16px;padding:20px;box-shadow:0 12px 32px #02061766}}label{{display:block;margin:14px 0 6px;color:#cbd5e1}}input{{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;border:1px solid #475569;background:#020617;color:#f8fafc;font-size:16px}}button{{width:100%;margin-top:18px;padding:13px;border:0;border-radius:10px;background:#38bdf8;color:#082f49;font-weight:700;font-size:16px}}a{{color:#7dd3fc}}.warn{{color:#fbbf24}}.ok{{background:#064e3b;color:#d1fae5;padding:10px;border-radius:10px;margin-bottom:12px}}.err{{background:#7f1d1d;color:#fee2e2;padding:10px;border-radius:10px;margin-bottom:12px}}</style>
+    </head><body><main><div class='card'><h1>{escape(title)}</h1>{body}<p class='warn'>Security: only connect your own account. Never share Telegram login codes in Telegram chats, groups, or bot DMs.</p></div></main></body></html>
+    """
+
+
+@app.route("/telegram-auth/<token>", methods=["GET"])
+def telegram_auth(token):
+    return _telegram_auth_page(token)
+
+
+@app.route("/telegram-auth/<token>/send-code", methods=["POST"])
+def telegram_auth_send_code(token):
+    ok, result = send_personal_auth_code_sync(token, request.form.get("api_id"), request.form.get("api_hash"), request.form.get("phone"))
+    if not ok:
+        return _telegram_auth_page(token, error=result), 400
+    return _telegram_auth_page(token, message="Login code sent. Check your Telegram app."), 200
+
+
+@app.route("/telegram-auth/<token>/code", methods=["POST"])
+def telegram_auth_code(token):
+    ok, result = verify_personal_auth_code_sync(token, request.form.get("code"))
+    if not ok:
+        return _telegram_auth_page(token, error=result), 400
+    if result.get("status") == "password_needed":
+        return _telegram_auth_page(token, message="Two-step verification is enabled. Enter your Telegram 2FA password."), 200
+    return _telegram_auth_page(token, message="Personal account connected."), 200
+
+
+@app.route("/telegram-auth/<token>/password", methods=["POST"])
+def telegram_auth_password(token):
+    ok, result = verify_personal_auth_password_sync(token, request.form.get("password"))
+    if not ok:
+        return _telegram_auth_page(token, error=result), 400
+    return _telegram_auth_page(token, message="Personal account connected."), 200
 
 
 def _token_ok():
