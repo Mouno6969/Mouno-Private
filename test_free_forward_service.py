@@ -20,6 +20,8 @@ def load_free_forward_namespace():
         "ltext",
         "tr",
         "panel",
+        "free_service_text",
+        "free_service_keyboard",
         "normalize_free_forward_target",
         "parse_free_forward_targets",
         "free_forward_text",
@@ -93,12 +95,16 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertEqual(client.sent_messages, [({"entity": -10012345}, "hello")])
 
     def test_free_service_text_is_localized(self):
+        free_service_text = self.namespace["free_service_text"]
         free_forward_text = self.namespace["free_forward_text"]
+
+        self.assertIn("Telegram Message Forwarder", free_service_text("en"))
+        self.assertIn("Telegram Message Forwarder", free_service_text("bn"))
 
         english = free_forward_text("en", True, "SenderBot", True)
         bangla = free_forward_text("bn", False, None, False)
 
-        self.assertIn("Free Service", english)
+        self.assertIn("Telegram Message Forwarder", english)
         self.assertIn("@SenderBot", english)
         self.assertIn("What is this?", english)
         self.assertIn("How to use", english)
@@ -108,7 +114,7 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn("Where to get API ID/API hash", english)
         self.assertIn("https://my.telegram.org", english)
         self.assertIn("Where to get group/channel ID", english)
-        self.assertIn("ফ্রী সার্ভিস", bangla)
+        self.assertIn("Telegram Message Forwarder", bangla)
         self.assertIn("এটা কী?", bangla)
         self.assertIn("কীভাবে ব্যবহার করবেন", bangla)
         self.assertIn("সুবিধাসমূহ", bangla)
@@ -133,6 +139,8 @@ class FreeForwardServiceTests(unittest.TestCase):
         self.assertIn('tr("free_service", lang)', main_menu)
         self.assertIn('callback_data="free_service"', main_menu)
         self.assertIn('query.data == "free_service"', button_handler)
+        self.assertIn('callback_data="telegram_message_forwarder"', function_source("free_service_keyboard"))
+        self.assertIn('query.data == "telegram_message_forwarder"', button_handler)
         self.assertIn('query.data in {"ff_one_time", "ff_schedule"}', button_handler)
         self.assertIn('query.data == "pf_connect_account"', button_handler)
         self.assertIn('query.data in {"pf_one_time", "pf_schedule"}', button_handler)
