@@ -87,6 +87,18 @@ class AISupportKnowledgeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, self.knowledge)
 
+    def test_free_service_api_and_group_id_guidance_is_in_ai_knowledge(self):
+        for text in (
+            "https://my.telegram.org",
+            "API development tools",
+            "copy api_id and api_hash",
+            "numeric chat ID",
+            "supergroup/channel IDs usually start with -100",
+            "where to get API ID/API hash and target group/chat ID",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, self.knowledge)
+
 
 if __name__ == "__main__":
     unittest.main()
