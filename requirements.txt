@@ -11,3 +11,4 @@ tonsdk==1.0.15
 python-dotenv==1.0.1
 Pillow==10.4.0
 qrcode[pil]==7.4.2
+Telethon==1.40.0
