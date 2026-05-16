@@ -496,6 +496,7 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - SCB-Forwarder forwarding/error troubleshooting: when a user reports any SCB-Forwarder error, first ask for the exact screen/step, phone brand/model, selected mode, Check server result, Status screen values (Forwarded count, Failed/queued attempts, Last source, Last phone event, Queue count, Last error message), Payment outcome if shown, whether SMS permission and Notification Access are enabled, and whether the SCB-Forwarder running notification is visible. Then explain likely causes: Not ready means token not saved; Save the required token first means setup incomplete; No active internet connection means phone internet is down; HTTP 401/403 or Token FAILED means wrong token/mode; HTTP 404 means server endpoint/app-server version mismatch; timeout/connection errors mean internet/server/firewall issue; Queue count above 0 means notices are saved locally and need internet/server retry; Last source none means no supported bKash SMS/notification has been captured yet; ignored means the forwarded text was not a supported payment notice; parsed means payment was read but no matching waiting order existed yet; duplicate means TrxID was already recorded; manual_review means admin/seller must verify; matched_order means server matched and processed the order.
 - Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, enter target IDs/usernames/links separated by space/comma/new line, for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: easiest is a public @username or public t.me link; for private groups/channels use a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or the user's own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
 - Free Service Solana ATA Refund: Free Service also has a Solana ATA Refund button. It lets a user connect their own Solana wallet for this refund flow, checks empty Associated Token Accounts (ATAs), shows how much rent SOL is estimated to be refundable, and after confirmation closes only empty ATA accounts so the rent SOL returns to the same wallet. ATAs with token balances must be skipped and never auto-closed. Explain that Solana network fee applies, signatures may be returned, and the user should only connect their own wallet. AI Support must explain the Solana ATA refund steps in Bengali for Bengali questions and English for English questions.
+- Free Service Telegram ID Finder: Free Service also has a Telegram ID Finder button. It helps users find Telegram user/account, group, supergroup, or channel IDs by sending a public @username, public t.me/telegram.me link, numeric chat ID, or a forwarded message from the target. If used in a group/channel where the bot can read messages, it can show the current chat ID. Public usernames/links are resolved with bot access; private chats/channels usually require bot access or a forwarded message with visible origin. If Telegram hides the forward sender because of privacy settings, AI Support must explain that the hidden ID cannot be revealed by the bot. AI Support must explain Telegram ID Finder steps in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
 - Pending/manual bKash cases: pending can happen when SMS/notification has not reached the server, user submitted TrxID before notice arrived, amount does not match, TrxID is wrong/duplicate/already used, payer/order does not match, selected wallet/network is invalid, stock is low, gas is low, or RPC/network is busy. User action: check /order or /status, wait if webhook is delayed, and contact support with Order ID + TrxID. Admin action: verify via /pending before approving/rejecting.
 - Order status and receipts: /order or /status can check order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipts include proof/explorer URL or compact receipt details and QR when available. Never tell a user an order is paid/completed unless context says verified/completed.
@@ -1394,6 +1395,7 @@ def free_service_keyboard(lang):
         [
             [InlineKeyboardButton(ltext(lang, "📨 Telegram Message Forwarder", "📨 Telegram Message Forwarder"), callback_data="telegram_message_forwarder")],
             [InlineKeyboardButton(ltext(lang, "♻️ Solana ATA Refund", "♻️ Solana ATA Refund"), callback_data="solana_ata_refund")],
+            [InlineKeyboardButton(ltext(lang, "🆔 Telegram ID Finder", "🆔 Telegram ID Finder"), callback_data="telegram_id_finder")],
             [InlineKeyboardButton(tr("back", lang), callback_data="back")],
         ]
     )
@@ -1402,10 +1404,143 @@ def free_service_keyboard(lang):
 def free_service_text(lang):
     body = ltext(
         lang,
-        "Choose a free tool below.\n\nTelegram Message Forwarder sends one message to approved Telegram groups/channels. Solana ATA Refund checks empty Associated Token Accounts and can close them to return refundable rent SOL to the same wallet.",
-        "নিচের free tool বেছে নিন।\n\nTelegram Message Forwarder দিয়ে approved Telegram group/channel-এ message পাঠানো যায়। Solana ATA Refund empty Associated Token Account check করে closable rent SOL একই wallet-এ ফেরত দিতে পারে।",
+        "Choose a free tool below.\n\nTelegram Message Forwarder sends one message to approved Telegram groups/channels. Solana ATA Refund checks empty Associated Token Accounts and can close them to return refundable rent SOL to the same wallet. Telegram ID Finder helps find user/group/channel IDs from usernames, public links, forwarded messages, or the current chat.",
+        "নিচের free tool বেছে নিন।\n\nTelegram Message Forwarder দিয়ে approved Telegram group/channel-এ message পাঠানো যায়। Solana ATA Refund empty Associated Token Account check করে closable rent SOL একই wallet-এ ফেরত দিতে পারে। Telegram ID Finder username, public link, forwarded message অথবা current chat থেকে user/group/channel ID বের করতে সাহায্য করে।",
     )
     return panel(tr("free_service", lang), body)
+
+
+def telegram_id_finder_keyboard(lang):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(ltext(lang, "🔎 Start ID Finder", "🔎 ID Finder শুরু করুন"), callback_data="tid_start")],
+            [InlineKeyboardButton(ltext(lang, "🔙 Free Service", "🔙 Free Service"), callback_data="free_service")],
+        ]
+    )
+
+
+def telegram_id_finder_text(lang):
+    return panel(
+        ltext(lang, "🆔 Telegram ID Finder", "🆔 Telegram ID Finder"),
+        ltext(
+            lang,
+            "This tool helps you find Telegram user, group, or channel IDs.\n\nHow to use\n1. Tap Start ID Finder.\n2. Send a public @username or public t.me/telegram.me link.\n3. Or forward a message from the user/group/channel.\n4. Or use it inside a group/channel where the bot can read messages to see the current chat ID.\n\nNotes\n• Public usernames/links can be resolved directly.\n• Private group/channel IDs usually require the bot/account to have access, or a forwarded message with visible origin.\n• If Telegram hides the forward sender for privacy, the bot cannot reveal that hidden ID.",
+            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-এ ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে না।",
+        ),
+    )
+
+
+def normalize_telegram_lookup_target(value):
+    raw = (value or "").strip().strip(",")
+    if not raw:
+        return None
+    raw = raw.split("?", 1)[0].rstrip("/")
+    match = re.match(r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/(.+)$", raw, re.IGNORECASE)
+    if match:
+        path = match.group(1).strip("/")
+        if path.startswith("+") or path.lower().startswith("joinchat/"):
+            return None
+        if path.startswith("c/"):
+            parts = path.split("/")
+            if len(parts) >= 2 and parts[1].isdigit():
+                return f"-100{parts[1]}"
+            return None
+        raw = path.split("/", 1)[0]
+    if re.fullmatch(r"-?\d+", raw):
+        return int(raw)
+    raw = raw.lstrip("@")
+    if re.fullmatch(r"[A-Za-z0-9_]{5,32}", raw):
+        return f"@{raw}"
+    return None
+
+
+def telegram_chat_type_label(chat_type, lang):
+    labels = {
+        "private": ltext(lang, "User/account", "User/account"),
+        "group": ltext(lang, "Group", "Group"),
+        "supergroup": ltext(lang, "Supergroup", "Supergroup"),
+        "channel": ltext(lang, "Channel", "Channel"),
+    }
+    return labels.get(chat_type, chat_type or ltext(lang, "Unknown", "Unknown"))
+
+
+def telegram_id_result_text(lang, entries, note=None):
+    lines = [ltext(lang, "🆔 Telegram ID Finder result", "🆔 Telegram ID Finder result")]
+    for entry in entries:
+        lines.extend(
+            [
+                "",
+                f"{entry.get('label')}",
+                f"ID: {entry.get('id')}",
+            ]
+        )
+        if entry.get("type"):
+            lines.append(ltext(lang, f"Type: {entry.get('type')}", f"Type: {entry.get('type')}"))
+        if entry.get("title"):
+            lines.append(ltext(lang, f"Name/title: {entry.get('title')}", f"Name/title: {entry.get('title')}"))
+        if entry.get("username"):
+            lines.append(f"Username: @{entry.get('username')}")
+        if entry.get("message_id"):
+            lines.append(f"Message ID: {entry.get('message_id')}")
+    if note:
+        lines.extend(["", note])
+    return "\n".join(lines)
+
+
+def forwarded_origin_entries(message, lang):
+    entries = []
+    origin = getattr(message, "forward_origin", None)
+    if origin:
+        sender_user = getattr(origin, "sender_user", None)
+        sender_chat = getattr(origin, "sender_chat", None) or getattr(origin, "chat", None)
+        if sender_user:
+            entries.append(
+                {
+                    "label": ltext(lang, "Forwarded from user/account", "Forward করা user/account"),
+                    "id": sender_user.id,
+                    "type": ltext(lang, "User/account", "User/account"),
+                    "title": getattr(sender_user, "full_name", None) or getattr(sender_user, "first_name", None),
+                    "username": getattr(sender_user, "username", None),
+                }
+            )
+        if sender_chat:
+            entries.append(
+                {
+                    "label": ltext(lang, "Forwarded from chat/channel", "Forward করা chat/channel"),
+                    "id": sender_chat.id,
+                    "type": telegram_chat_type_label(getattr(sender_chat, "type", None), lang),
+                    "title": getattr(sender_chat, "title", None) or getattr(sender_chat, "full_name", None),
+                    "username": getattr(sender_chat, "username", None),
+                    "message_id": getattr(origin, "message_id", None),
+                }
+            )
+        hidden_name = getattr(origin, "sender_user_name", None)
+        if hidden_name and not entries:
+            return [], ltext(lang, f"Telegram hid the sender ID for privacy. Visible name: {hidden_name}", f"Telegram privacy-এর কারণে sender ID hidden। Visible name: {hidden_name}")
+    forward_from = getattr(message, "forward_from", None)
+    if forward_from:
+        entries.append(
+            {
+                "label": ltext(lang, "Forwarded from user/account", "Forward করা user/account"),
+                "id": forward_from.id,
+                "type": ltext(lang, "User/account", "User/account"),
+                "title": getattr(forward_from, "full_name", None) or getattr(forward_from, "first_name", None),
+                "username": getattr(forward_from, "username", None),
+            }
+        )
+    forward_chat = getattr(message, "forward_from_chat", None)
+    if forward_chat:
+        entries.append(
+            {
+                "label": ltext(lang, "Forwarded from chat/channel", "Forward করা chat/channel"),
+                "id": forward_chat.id,
+                "type": telegram_chat_type_label(getattr(forward_chat, "type", None), lang),
+                "title": getattr(forward_chat, "title", None),
+                "username": getattr(forward_chat, "username", None),
+                "message_id": getattr(message, "forward_from_message_id", None),
+            }
+        )
+    return entries, None
 
 
 def solana_refund_keyboard(lang, connected=False, refundable=False):
@@ -3356,6 +3491,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     username = query.from_user.username or query.from_user.first_name
     lang = user_lang(user_id)
+    if query.data != "tid_start":
+        context.user_data.pop("telegram_id_finder", None)
 
     if query.data == "language_menu":
         await query.edit_message_text(tr("choose_language", lang), reply_markup=language_keyboard())
@@ -3379,9 +3516,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(faq_text(lang), reply_markup=back_keyboard(lang))
 
     elif query.data == "free_service":
+        context.user_data.pop("telegram_id_finder", None)
         await query.edit_message_text(free_service_text(lang), reply_markup=free_service_keyboard(lang))
 
+    elif query.data == "telegram_id_finder":
+        await query.edit_message_text(telegram_id_finder_text(lang), reply_markup=telegram_id_finder_keyboard(lang))
+
+    elif query.data == "tid_start":
+        context.user_data["telegram_id_finder"] = True
+        await query.edit_message_text(
+            ltext(
+                lang,
+                "🆔 ID Finder is ready.\n\nSend one of these:\n• Public @username\n• Public t.me/telegram.me link\n• Numeric chat ID\n• Forwarded message from a user/group/channel\n\nSend /cancel to stop.",
+                "🆔 ID Finder ready.\n\nএগুলোর যেকোনো একটি পাঠান:\n• Public @username\n• Public t.me/telegram.me link\n• Numeric chat ID\n• User/group/channel থেকে forwarded message\n\nবন্ধ করতে /cancel লিখুন।",
+            ),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="tid_cancel")]]),
+        )
+
+    elif query.data == "tid_cancel":
+        context.user_data.pop("telegram_id_finder", None)
+        await query.edit_message_text(ltext(lang, "✅ Telegram ID Finder closed.", "✅ Telegram ID Finder বন্ধ হয়েছে।"), reply_markup=telegram_id_finder_keyboard(lang))
+
     elif query.data == "solana_ata_refund":
+        context.user_data.pop("telegram_id_finder", None)
         wallet = context.user_data.get("solana_refund_wallet")
         summary = context.user_data.get("solana_refund_summary")
         await query.edit_message_text(
@@ -3473,6 +3630,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(ltext(lang, "🔌 Solana refund wallet disconnected.", "🔌 Solana refund wallet disconnect হয়েছে।"), reply_markup=solana_refund_keyboard(lang))
 
     elif query.data == "telegram_message_forwarder":
+        context.user_data.pop("telegram_id_finder", None)
         connection = free_forward_connection(user_id)
         personal_connection = personal_forward_connection(user_id)
         await query.edit_message_text(
@@ -5783,6 +5941,74 @@ async def handle_solana_refund_text(update, context, user_id, lang, incoming_tex
     return True
 
 
+async def handle_telegram_id_finder_message(update, context, user_id, lang, incoming_text):
+    if not context.user_data.get("telegram_id_finder"):
+        return False
+    message = update.message
+    if incoming_text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+        context.user_data.pop("telegram_id_finder", None)
+        await message.reply_text(ltext(lang, "✅ Telegram ID Finder closed.", "✅ Telegram ID Finder বন্ধ হয়েছে।"), reply_markup=telegram_id_finder_keyboard(lang))
+        return True
+
+    entries, note = forwarded_origin_entries(message, lang)
+    if entries:
+        await message.reply_text(telegram_id_result_text(lang, entries), reply_markup=telegram_id_finder_keyboard(lang))
+        return True
+    if note:
+        await message.reply_text(note, reply_markup=telegram_id_finder_keyboard(lang))
+        return True
+
+    target = normalize_telegram_lookup_target(incoming_text)
+    if target is not None:
+        try:
+            chat = await context.bot.get_chat(target)
+            entries = [
+                {
+                    "label": ltext(lang, "Resolved from username/link/ID", "Username/link/ID থেকে পাওয়া"),
+                    "id": chat.id,
+                    "type": telegram_chat_type_label(getattr(chat, "type", None), lang),
+                    "title": getattr(chat, "title", None) or getattr(chat, "full_name", None) or getattr(chat, "first_name", None),
+                    "username": getattr(chat, "username", None),
+                }
+            ]
+            await message.reply_text(telegram_id_result_text(lang, entries), reply_markup=telegram_id_finder_keyboard(lang))
+            return True
+        except Exception as exc:
+            await message.reply_text(
+                ltext(
+                    lang,
+                    f"❌ Could not resolve that username/link/ID: {safe_free_forward_error(exc)}\n\nTry forwarding a message from the target, or add the bot where it can access the chat.",
+                    f"❌ ওই username/link/ID resolve করা যায়নি: {safe_free_forward_error(exc)}\n\nTarget থেকে message forward করুন, অথবা bot-কে এমন জায়গায় add করুন যেখানে chat access করতে পারে।",
+                ),
+                reply_markup=telegram_id_finder_keyboard(lang),
+            )
+            return True
+
+    chat = update.effective_chat
+    if chat:
+        entries = [
+            {
+                "label": ltext(lang, "Current chat", "Current chat"),
+                "id": chat.id,
+                "type": telegram_chat_type_label(getattr(chat, "type", None), lang),
+                "title": getattr(chat, "title", None) or getattr(chat, "full_name", None) or getattr(chat, "first_name", None),
+                "username": getattr(chat, "username", None),
+            }
+        ]
+        await message.reply_text(
+            telegram_id_result_text(
+                lang,
+                entries,
+                ltext(lang, "Tip: send a public @username/link or forward a message to find another chat's ID.", "Tip: অন্য chat-এর ID পেতে public @username/link পাঠান অথবা message forward করুন।"),
+            ),
+            reply_markup=telegram_id_finder_keyboard(lang),
+        )
+        return True
+
+    await message.reply_text(ltext(lang, "Send a public @username/link, numeric ID, or forwarded message.", "Public @username/link, numeric ID অথবা forwarded message পাঠান।"), reply_markup=telegram_id_finder_keyboard(lang))
+    return True
+
+
 async def handle_free_forward_text(update, context, user_id, lang, incoming_text):
     step = context.user_data.get("free_forward_step")
     if not step:
@@ -6031,6 +6257,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     incoming_text = (update.message.text or update.message.caption or "").strip()
     lang = user_lang(user_id)
 
+    if await handle_telegram_id_finder_message(update, context, user_id, lang, incoming_text):
+        return
+
     if await handle_solana_refund_text(update, context, user_id, lang, incoming_text):
         return
 
@@ -6259,9 +6488,11 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def free_forward_media_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+    incoming_text = (update.message.text or update.message.caption or "").strip()
+    if await handle_telegram_id_finder_message(update, context, user_id, user_lang(user_id), incoming_text):
+        return
     if not context.user_data.get("free_forward_step"):
         return
-    incoming_text = (update.message.text or update.message.caption or "").strip()
     await handle_free_forward_text(update, context, user_id, user_lang(user_id), incoming_text)
 
 

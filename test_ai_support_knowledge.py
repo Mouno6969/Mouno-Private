@@ -111,6 +111,19 @@ class AISupportKnowledgeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIn(text, self.knowledge)
 
+    def test_telegram_id_finder_guidance_is_in_ai_knowledge(self):
+        for text in (
+            "Free Service Telegram ID Finder",
+            "public @username",
+            "public t.me/telegram.me link",
+            "forwarded message from the target",
+            "current chat ID",
+            "privacy settings",
+            "Telegram ID Finder steps in Bengali for Bengali questions and English for English questions",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, self.knowledge)
+
 
 if __name__ == "__main__":
     unittest.main()
