@@ -10,6 +10,7 @@ import tempfile
 import threading
 import unicodedata
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
 import requests
@@ -6882,14 +6883,15 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         return True
 
     if step == "amount":
+        amount_text = text.strip()
         try:
-            amount = float(text)
-            if amount <= 0:
+            amount = Decimal(amount_text)
+            if amount <= 0 or not amount.is_finite():
                 raise ValueError
-        except Exception:
+        except (InvalidOperation, ValueError):
             await update.message.reply_text(ltext(lang, "❌ Invalid amount. Send a number greater than 0.", "❌ Amount ভুল। 0-এর বেশি সংখ্যা লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
             return True
-        context.user_data["swap_amount"] = str(amount).rstrip("0").rstrip(".") if "." in str(amount) else str(amount)
+        context.user_data["swap_amount"] = amount_text
         context.user_data["swap_step"] = "wallet"
         await update.message.reply_text(ltext(lang, "Send your EVM wallet address. This address will sign and receive the swap/bridge.", "আপনার EVM wallet address পাঠান। এই address transaction sign করবে এবং receive করবে।"), reply_markup=swap_cancel_keyboard(lang))
         return True
