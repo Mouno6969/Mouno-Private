@@ -94,6 +94,7 @@ from config import (
     HUGGINGFACE_API_KEY,
     HUGGINGFACE_MODEL,
     LOW_BALANCE_THRESHOLD,
+    LIFI_API_KEY,
     MISTRAL_API_KEY,
     MISTRAL_MODEL,
     NVIDIA_DEEPSEEK_API_KEY,
@@ -115,9 +116,11 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
     RATE,
+    RELAY_API_KEY,
     SCB_FORWARDER_APP_URL,
     SCB_FORWARDER_SERVER_URL,
     SELLER_WALLET_MASTER_KEY,
+    SOCKET_API_KEY,
     STAR_RATE,
     SUPPORT_USERNAME,
     TELEGRAM_AUTH_BASE_URL,
@@ -246,6 +249,15 @@ from evm_sender import send_evm_token
 from polygon_sender import send_polygon_usdc
 from sender import send_usdc
 from solana_refund import close_refundable_atas, find_refundable_atas
+from swap_service import (
+    chain_label,
+    fallback_chains,
+    find_chain,
+    get_lifi_chains,
+    quote_lifi,
+    short_tx_data,
+    summarize_quote,
+)
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
@@ -305,6 +317,7 @@ TELEGRAM_VIDEO_CAPTION_LIMIT = 1024
 FREE_FORWARD_CONNECTIONS = {}
 FREE_FORWARD_TASKS = {}
 PERSONAL_FORWARD_PENDING = {}
+SWAP_CHAIN_PAGE_SIZE = 8
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
@@ -330,6 +343,7 @@ TEXT = {
     },
     "language_saved": {"bn": "✅ ভাষা সেট করা হয়েছে।", "en": "✅ Language saved."},
     "buy": {"bn": "💱 কিনুন", "en": "💱 Buy"},
+    "swap": {"bn": "🔁 Swap/Bridge", "en": "🔁 Swap/Bridge"},
     "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
     "giveaway": {"bn": "🎉 Giveaway", "en": "🎉 Giveaway"},
     "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
@@ -353,6 +367,7 @@ TEXT = {
     "gen_code": {"bn": "🎟️ কোড তৈরি", "en": "🎟️ Generate Code"},
     "disable_code": {"bn": "🚫 কোড বাতিল", "en": "🚫 Disable Code"},
     "admin_send": {"bn": "🚀 Admin Send", "en": "🚀 Admin Send"},
+    "swap_setup": {"bn": "🔁 Swap API Setup", "en": "🔁 Swap API Setup"},
     "back": {"bn": "🔙 ফিরে যান", "en": "🔙 Back"},
     "cancel": {"bn": "❌ বাতিল", "en": "❌ Cancel"},
     "home_title": {"bn": "Smart Crypto Buy", "en": "Smart Crypto Buy"},
@@ -1291,6 +1306,203 @@ def ai_setup_provider_prompt(provider, lang="bn"):
     return panel("🔑 AI API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।"))
 
 
+SWAP_PROVIDER_LABELS = {"lifi": "LI.FI", "relay": "Relay", "socket": "Socket"}
+SWAP_PROVIDER_SETTING_KEYS = {"lifi": "swap_lifi_api_key", "relay": "swap_relay_api_key", "socket": "swap_socket_api_key"}
+
+
+def _clean_swap_key(value):
+    value = str(value or "").strip()
+    return value or None
+
+
+def swap_provider_env_keys():
+    return {"lifi": LIFI_API_KEY, "relay": RELAY_API_KEY, "socket": SOCKET_API_KEY}
+
+
+def swap_provider_key_sources():
+    env_keys = swap_provider_env_keys()
+    sources = {}
+    for provider, setting_key in SWAP_PROVIDER_SETTING_KEYS.items():
+        db_key = _clean_swap_key(get_setting(setting_key))
+        env_key = _clean_swap_key(env_keys.get(provider))
+        if db_key:
+            sources[provider] = (db_key, "bot")
+        elif env_key:
+            sources[provider] = (env_key, "env")
+        else:
+            sources[provider] = (None, None)
+    return sources
+
+
+def swap_provider_key(provider):
+    return swap_provider_key_sources().get(provider, (None, None))[0]
+
+
+def swap_status_lines():
+    lines = []
+    for provider, label in SWAP_PROVIDER_LABELS.items():
+        _key, source = swap_provider_key_sources()[provider]
+        status = "✅ Bot setup" if source == "bot" else "✅ .env" if source == "env" else "⚪ Optional/missing"
+        note = "quotes enabled" if provider == "lifi" else "key saved for future provider integration"
+        lines.append(f"{label}: {status} | {note}")
+    return lines
+
+
+def swap_setup_text(lang="bn"):
+    lines = [
+        ltext(lang, "Tap a provider, then send only the API key.", "Provider button চাপুন, তারপর শুধু API key পাঠান।"),
+        ltext(lang, "Keys are saved in SQLite immediately; no restart required.", "Key SQLite-এ সাথে সাথে save হবে; restart লাগবে না।"),
+        ltext(lang, "LI.FI is used for live quotes now. Relay/Socket keys are stored so they can be enabled later without changing .env.", "Live quote এখন LI.FI দিয়ে চলে। Relay/Socket key save থাকবে, পরে .env ছাড়া enable করা যাবে।"),
+        ltext(lang, "Full keys are never shown in status.", "Full key status-এ কখনো দেখানো হবে না।"),
+        "",
+        *swap_status_lines(),
+    ]
+    return panel("🔁 Swap API Setup", "\n".join(lines))
+
+
+def swap_setup_keyboard(lang="bn"):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("LI.FI", callback_data="swap_setup_lifi"), InlineKeyboardButton("Relay", callback_data="swap_setup_relay")],
+            [InlineKeyboardButton("Socket", callback_data="swap_setup_socket")],
+            [InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="swap_setup_cancel"), InlineKeyboardButton(tr("back", lang), callback_data="back")],
+        ]
+    )
+
+
+def swap_setup_provider_prompt(provider, lang="bn"):
+    label = SWAP_PROVIDER_LABELS[provider]
+    return panel("🔑 Swap API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।"))
+
+
+def swap_chains(context):
+    chains = context.application.bot_data.get("swap_lifi_chains") if getattr(context, "application", None) else None
+    if not chains:
+        chains = fallback_chains()
+    return chains
+
+
+async def refresh_swap_chains(context):
+    loop = asyncio.get_running_loop()
+    try:
+        chains = await loop.run_in_executor(None, lambda: get_lifi_chains(swap_provider_key("lifi")))
+    except Exception as exc:
+        logger.warning("LI.FI chains load failed: %s", exc)
+        chains = fallback_chains()
+    chains = sorted(chains, key=lambda c: (str(c.get("name") or "")))
+    context.application.bot_data["swap_lifi_chains"] = chains
+    return chains
+
+
+def swap_chain_keyboard(chains, target="from", page=0, lang="bn"):
+    total_pages = max(1, math.ceil(len(chains) / SWAP_CHAIN_PAGE_SIZE))
+    page = max(0, min(int(page or 0), total_pages - 1))
+    start = page * SWAP_CHAIN_PAGE_SIZE
+    rows = []
+    for chain in chains[start:start + SWAP_CHAIN_PAGE_SIZE]:
+        rows.append([InlineKeyboardButton(chain_label(chain)[:45], callback_data=f"swap_{target}_{chain['id']}")])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"swap_{target}_page_{page - 1}"))
+    nav.append(InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="swap_noop"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"swap_{target}_page_{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton("🔎 Search" if lang == "en" else "🔎 সার্চ", callback_data=f"swap_{target}_search")])
+    rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def swap_intro_text(lang="bn"):
+    return panel(
+        "🔁 Swap/Bridge",
+        ltext(
+            lang,
+            "Choose the source chain. You can use the buttons or Search and type a chain name/id. The bot only prepares quotes and transaction data; your wallet signs the final transaction.",
+            "যে chain থেকে token পাঠাবেন সেটি বেছে নিন। Button ব্যবহার করতে পারেন, অথবা Search দিয়ে chain name/id লিখতে পারেন। Bot শুধু quote ও transaction data তৈরি করবে; final transaction আপনার wallet sign করবে।",
+        ),
+    )
+
+
+def swap_cancel_keyboard(lang="bn"):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")]])
+
+
+def swap_quote_keyboard(lang="bn"):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("⚡ Fastest" if lang == "en" else "⚡ Fastest", callback_data="swap_pref_fastest"), InlineKeyboardButton("💸 Cheapest" if lang == "en" else "💸 Cheapest", callback_data="swap_pref_cheapest")],
+            [InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
+        ]
+    )
+
+
+def swap_confirm_keyboard(lang="bn"):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Confirm" if lang == "en" else "✅ Confirm", callback_data="swap_confirm")],
+            [InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start"), InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
+        ]
+    )
+
+
+def swap_quote_text(intent, quote, lang="bn"):
+    summary = summarize_quote(quote)
+    duration = f"{summary['duration']} sec" if summary.get("duration") else "N/A"
+    approval = ltext(lang, "Yes", "হ্যাঁ") if summary["approval_needed"] else ltext(lang, "No", "না")
+    body = [
+        f"From: {intent['from_chain_name']} {summary['from_symbol']}",
+        f"To: {intent['to_chain_name']} {summary['to_symbol']}",
+        f"Amount: {intent['amount']} {summary['from_symbol']}",
+        f"Estimated receive: {summary['to_amount']} {summary['to_symbol']}",
+        f"Minimum receive: {summary['to_min']} {summary['to_symbol']}",
+        f"Gas: ${summary['gas_usd']} | Bridge/DEX fee: ${summary['fee_usd']}",
+        f"Estimated time: {duration}",
+        f"Route: {summary['tool']}",
+        f"Approval needed: {approval}",
+        "",
+        ltext(lang, "Confirm only if chain, token, amount, and wallet address are correct.", "Chain, token, amount এবং wallet address ঠিক থাকলেই Confirm চাপুন।"),
+    ]
+    return panel("🔁 Swap Quote", "\n".join(body))
+
+
+def swap_launcher_text(quote, lang="bn"):
+    summary = summarize_quote(quote)
+    lines = [
+        ltext(lang, "Wallet signing data is ready. Open your wallet/dApp connector and submit this transaction on the source chain.", "Wallet signing data ready। Source chain-এ wallet/dApp connector দিয়ে এই transaction submit করুন।"),
+        "",
+    ]
+    if summary["approval_needed"]:
+        lines.extend([
+            ltext(lang, "1) Approval may be required before swap/bridge.", "১) Swap/bridge-এর আগে approval লাগতে পারে।"),
+            f"Spender: `{summary['approval_address']}`",
+            "",
+        ])
+    lines.extend([
+        ltext(lang, "Swap/bridge transaction:", "Swap/bridge transaction:"),
+        f"Chain ID: `{summary['chain_id']}`",
+        f"To: `{summary['tx_to']}`",
+        f"Value: `{summary['tx_value']}`",
+        f"Data: `{short_tx_data(summary['tx_data'])}`",
+        "",
+        ltext(lang, "After sending, paste the transaction hash here if you want to track it.", "Send করার পর track করতে চাইলে transaction hash এখানে পাঠান।"),
+    ])
+    return panel("🚀 Transaction Launcher", "\n".join(lines))
+
+
+async def start_swap_flow(update_or_query, context, lang="bn"):
+    context.user_data.clear()
+    context.user_data["swap_step"] = "from_chain"
+    chains = await refresh_swap_chains(context)
+    text = swap_intro_text(lang)
+    markup = swap_chain_keyboard(chains, "from", 0, lang)
+    if hasattr(update_or_query, "edit_message_text"):
+        await update_or_query.edit_message_text(text, reply_markup=markup)
+    else:
+        await update_or_query.message.reply_text(text, reply_markup=markup)
+
+
 def user_lang(user_id) -> str:
     return get_user_language(user_id) or "bn"
 
@@ -1311,6 +1523,7 @@ def command_help_text(user_id=None):
         ("/guide", "পুরো user guide পড়ুন"),
         ("/terms", "terms ও risk warning"),
         ("/ai", "AI support chat শুরু"),
+        ("/swap", "LI.FI quote দিয়ে swap/bridge launcher"),
         ("/order ORD-XXXXXX", "order ID দিয়ে status দেখুন"),
         ("/status TRXID_OR_ORDERID", "transaction/order status দেখুন"),
         ("/receipt ORD_OR_TRX", "completed order receipt দেখুন"),
@@ -2933,7 +3146,8 @@ def faq_text(lang="bn"):
 def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
-        [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
+        [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("swap", lang), callback_data="swap_start")],
+        [InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu")],
         [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
@@ -2954,6 +3168,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
         keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
+        keyboard.append([InlineKeyboardButton("🔁 Swap Status", callback_data="swap_status"), InlineKeyboardButton("🔁 Swap API Setup", callback_data="swap_setup")])
         keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
         keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("👥 Referral Admin", callback_data="referral_admin")])
@@ -4373,6 +4588,105 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
 
+    elif query.data == "swap_start":
+        await start_swap_flow(query, context, lang)
+
+    elif query.data == "swap_cancel":
+        context.user_data.clear()
+        await query.edit_message_text(ltext(lang, "✅ Swap flow cancelled.", "✅ Swap flow বাতিল হয়েছে।"), reply_markup=main_menu(user_id, lang))
+
+    elif query.data == "swap_noop":
+        return ConversationHandler.END
+
+    elif query.data.startswith("swap_from_page_") or query.data.startswith("swap_to_page_"):
+        target = "from" if query.data.startswith("swap_from_page_") else "to"
+        page = int(query.data.rsplit("_", 1)[1])
+        context.user_data["swap_step"] = f"{target}_chain"
+        await query.edit_message_reply_markup(reply_markup=swap_chain_keyboard(swap_chains(context), target, page, lang))
+
+    elif query.data in {"swap_from_search", "swap_to_search"}:
+        target = "from" if query.data == "swap_from_search" else "to"
+        context.user_data["swap_step"] = f"{target}_chain_search"
+        await query.edit_message_text(ltext(lang, "Type the chain name, key, or chain ID.", "Chain name, key, অথবা chain ID লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+
+    elif query.data.startswith("swap_from_") or query.data.startswith("swap_to_"):
+        target = "from" if query.data.startswith("swap_from_") else "to"
+        chain_id = query.data.rsplit("_", 1)[1]
+        chain = find_chain(swap_chains(context), chain_id)
+        if not chain:
+            await query.edit_message_text(ltext(lang, "❌ Chain not found. Start again.", "❌ Chain পাওয়া যায়নি। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
+        context.user_data[f"swap_{target}_chain_id"] = int(chain["id"])
+        context.user_data[f"swap_{target}_chain_name"] = chain_label(chain)
+        if target == "from":
+            context.user_data["swap_step"] = "from_token"
+            await query.edit_message_text(ltext(lang, f"Source chain: {chain_label(chain)}\n\nSend source token contract address or symbol (example: USDC). For native coin, send native.", f"Source chain: {chain_label(chain)}\n\nSource token contract address অথবা symbol পাঠান (যেমন: USDC)। Native coin হলে native লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        else:
+            context.user_data["swap_step"] = "to_token"
+            await query.edit_message_text(ltext(lang, f"Destination chain: {chain_label(chain)}\n\nSend receive token contract address or symbol (example: USDC). For native coin, send native.", f"Destination chain: {chain_label(chain)}\n\nReceive token contract address অথবা symbol পাঠান (যেমন: USDC)। Native coin হলে native লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+
+    elif query.data.startswith("swap_pref_"):
+        preference = query.data.replace("swap_pref_", "", 1)
+        intent = {
+            "from_chain_id": context.user_data.get("swap_from_chain_id"),
+            "from_chain_name": context.user_data.get("swap_from_chain_name"),
+            "to_chain_id": context.user_data.get("swap_to_chain_id"),
+            "to_chain_name": context.user_data.get("swap_to_chain_name"),
+            "from_token": context.user_data.get("swap_from_token"),
+            "to_token": context.user_data.get("swap_to_token"),
+            "amount": context.user_data.get("swap_amount"),
+            "wallet": context.user_data.get("swap_wallet"),
+            "preference": preference,
+        }
+        if not all(intent.values()):
+            context.user_data.clear()
+            await query.edit_message_text(ltext(lang, "❌ Swap session expired. Start again.", "❌ Swap session expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
+        await query.edit_message_text(ltext(lang, "⏳ Fetching live route quote...", "⏳ Live route quote আনা হচ্ছে..."))
+        try:
+            loop = asyncio.get_running_loop()
+            quote = await loop.run_in_executor(None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi")))
+        except Exception as exc:
+            logger.warning("Swap quote failed: %s", exc)
+            await query.edit_message_text(ltext(lang, f"❌ Quote failed: {exc}", f"❌ Quote আনা যায়নি: {exc}"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
+        context.user_data["swap_intent"] = intent
+        context.user_data["swap_quote"] = quote
+        context.user_data["swap_step"] = "quoted"
+        await query.edit_message_text(swap_quote_text(intent, quote, lang), reply_markup=swap_confirm_keyboard(lang))
+
+    elif query.data == "swap_confirm":
+        quote = context.user_data.get("swap_quote")
+        if not quote:
+            await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
+        context.user_data["swap_step"] = "track_hash"
+        await query.edit_message_text(swap_launcher_text(quote, lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+
+    elif query.data == "swap_status":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        await query.edit_message_text(panel("🔁 Swap Status", "\n".join(swap_status_lines())), reply_markup=back_keyboard(lang))
+
+    elif query.data == "swap_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.pop("swap_setup_provider", None)
+        await query.edit_message_text(swap_setup_text(lang), reply_markup=swap_setup_keyboard(lang))
+
+    elif query.data.startswith("swap_setup_"):
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        provider = query.data.replace("swap_setup_", "", 1)
+        if provider == "cancel":
+            context.user_data.pop("swap_setup_provider", None)
+            await query.edit_message_text(swap_setup_text(lang), reply_markup=swap_setup_keyboard(lang))
+            return ConversationHandler.END
+        if provider not in SWAP_PROVIDER_LABELS:
+            return ConversationHandler.END
+        context.user_data["swap_setup_provider"] = provider
+        await query.edit_message_text(swap_setup_provider_prompt(provider, lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="swap_setup_cancel")]]))
+
     elif query.data.startswith(ORDER_AI_CALLBACK_PREFIX):
         identifier = normalize_order_context_identifier(query.data.replace(ORDER_AI_CALLBACK_PREFIX, "", 1))
         if not identifier:
@@ -4766,8 +5080,21 @@ async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tr("ai_support_intro", lang))
 
 
+async def swap_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = user_lang(update.effective_user.id)
+    await start_swap_flow(update, context, lang)
+
+
 async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
+    if context.user_data.get("swap_setup_provider"):
+        context.user_data.pop("swap_setup_provider", None)
+        await update.message.reply_text("✅ Swap API Setup cancelled." if lang == "en" else "✅ Swap API Setup বাতিল হয়েছে।", reply_markup=swap_setup_keyboard(lang))
+        return ConversationHandler.END
+    if context.user_data.get("swap_step"):
+        context.user_data.clear()
+        await update.message.reply_text("✅ Swap flow cancelled." if lang == "en" else "✅ Swap flow বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
+        return ConversationHandler.END
     if context.user_data.get("ai_setup_provider"):
         context.user_data.pop("ai_setup_provider", None)
         await update.message.reply_text("✅ AI Setup cancelled." if lang == "en" else "✅ AI Setup বাতিল হয়েছে।", reply_markup=ai_setup_keyboard(lang))
@@ -6487,6 +6814,117 @@ async def handle_free_forward_text(update, context, user_id, lang, incoming_text
     return False
 
 
+async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id, lang, incoming_text):
+    setup_provider = context.user_data.get("swap_setup_provider")
+    if setup_provider:
+        if not is_admin(user_id):
+            context.user_data.pop("swap_setup_provider", None)
+            return True
+        text = incoming_text.strip()
+        if text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+            context.user_data.pop("swap_setup_provider", None)
+            await update.message.reply_text("✅ Swap API Setup cancelled." if lang == "en" else "✅ Swap API Setup বাতিল হয়েছে।", reply_markup=swap_setup_keyboard(lang))
+            return True
+        if setup_provider not in SWAP_PROVIDER_SETTING_KEYS:
+            context.user_data.pop("swap_setup_provider", None)
+            await update.message.reply_text("❌ Invalid swap provider.", reply_markup=swap_setup_keyboard(lang))
+            return True
+        api_key = _clean_swap_key(text)
+        if not api_key or len(api_key) < 8:
+            await update.message.reply_text(ltext(lang, "❌ API key is too short or empty. Send the correct key, or send /cancel.", "❌ API key খুব ছোট/খালি। সঠিক key পাঠান, অথবা /cancel লিখুন।"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="swap_setup_cancel")]]))
+            return True
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        set_setting(SWAP_PROVIDER_SETTING_KEYS[setup_provider], api_key)
+        context.user_data.pop("swap_setup_provider", None)
+        add_audit(user_id, "swap_api_key_updated", "swap_provider", setup_provider, "configured via bot setup")
+        await update.message.reply_text(f"✅ {SWAP_PROVIDER_LABELS[setup_provider]} API key saved. {'No restart required.' if lang == 'en' else 'Restart লাগবে না।'}\n\n{swap_setup_text(lang)}", reply_markup=swap_setup_keyboard(lang))
+        return True
+
+    step = context.user_data.get("swap_step")
+    if not step:
+        return False
+    text = incoming_text.strip()
+    if text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+        context.user_data.clear()
+        await update.message.reply_text(ltext(lang, "✅ Swap flow cancelled.", "✅ Swap flow বাতিল হয়েছে।"), reply_markup=main_menu(user_id, lang))
+        return True
+
+    if step in {"from_chain_search", "to_chain_search"}:
+        chains = swap_chains(context)
+        chain = find_chain(chains, text)
+        if not chain:
+            await update.message.reply_text(ltext(lang, "❌ Chain not found. Try a chain name, key, or chain ID.", "❌ Chain পাওয়া যায়নি। Chain name, key, অথবা chain ID লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+            return True
+        target = "from" if step.startswith("from") else "to"
+        context.user_data[f"swap_{target}_chain_id"] = int(chain["id"])
+        context.user_data[f"swap_{target}_chain_name"] = chain_label(chain)
+        if target == "from":
+            context.user_data["swap_step"] = "from_token"
+            await update.message.reply_text(ltext(lang, f"Source chain: {chain_label(chain)}\n\nSend source token contract address or symbol (example: USDC). For native coin, send native.", f"Source chain: {chain_label(chain)}\n\nSource token contract address অথবা symbol পাঠান (যেমন: USDC)। Native coin হলে native লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        else:
+            context.user_data["swap_step"] = "to_token"
+            await update.message.reply_text(ltext(lang, f"Destination chain: {chain_label(chain)}\n\nSend receive token contract address or symbol (example: USDC). For native coin, send native.", f"Destination chain: {chain_label(chain)}\n\nReceive token contract address অথবা symbol পাঠান (যেমন: USDC)। Native coin হলে native লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        return True
+
+    if step == "from_token":
+        context.user_data["swap_from_token"] = text
+        context.user_data["swap_step"] = "to_chain"
+        await update.message.reply_text(ltext(lang, "Now choose destination chain.", "এবার destination chain বেছে নিন।"), reply_markup=swap_chain_keyboard(swap_chains(context), "to", 0, lang))
+        return True
+
+    if step == "to_token":
+        context.user_data["swap_to_token"] = text
+        context.user_data["swap_step"] = "amount"
+        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        return True
+
+    if step == "amount":
+        try:
+            amount = float(text)
+            if amount <= 0:
+                raise ValueError
+        except Exception:
+            await update.message.reply_text(ltext(lang, "❌ Invalid amount. Send a number greater than 0.", "❌ Amount ভুল। 0-এর বেশি সংখ্যা লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+            return True
+        context.user_data["swap_amount"] = str(amount).rstrip("0").rstrip(".") if "." in str(amount) else str(amount)
+        context.user_data["swap_step"] = "wallet"
+        await update.message.reply_text(ltext(lang, "Send your EVM wallet address. This address will sign and receive the swap/bridge.", "আপনার EVM wallet address পাঠান। এই address transaction sign করবে এবং receive করবে।"), reply_markup=swap_cancel_keyboard(lang))
+        return True
+
+    if step == "wallet":
+        if not valid_wallet("base", text):
+            await update.message.reply_text(ltext(lang, "❌ Invalid EVM wallet address. It must start with 0x and be 42 characters.", "❌ EVM wallet address ভুল। 0x দিয়ে শুরু এবং 42 character হতে হবে।"), reply_markup=swap_cancel_keyboard(lang))
+            return True
+        context.user_data["swap_wallet"] = text
+        context.user_data["swap_step"] = "preference"
+        await update.message.reply_text(ltext(lang, "Choose routing preference.", "Route preference বেছে নিন।"), reply_markup=swap_quote_keyboard(lang))
+        return True
+
+    if step == "track_hash":
+        if not text.startswith("0x") or len(text) < 30:
+            await update.message.reply_text(ltext(lang, "Paste a transaction hash, or use /start to close.", "Transaction hash পাঠান, অথবা বন্ধ করতে /start দিন।"))
+            return True
+        intent = context.user_data.get("swap_intent") or {}
+        await update.message.reply_text(
+            panel(
+                "🔎 Swap Tracking",
+                ltext(
+                    lang,
+                    f"Hash received: `{text}`\n\nTrack it in the source-chain explorer for now. LI.FI route: {intent.get('from_chain_name', 'source')} → {intent.get('to_chain_name', 'destination')}.",
+                    f"Hash received: `{text}`\n\nএখন source-chain explorer-এ track করুন। LI.FI route: {intent.get('from_chain_name', 'source')} → {intent.get('to_chain_name', 'destination')}।",
+                ),
+            ),
+            reply_markup=main_menu(user_id, lang),
+        )
+        context.user_data.clear()
+        return True
+
+    return True
+
+
 async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     username = update.effective_user.username or update.effective_user.first_name
@@ -6500,6 +6938,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if await handle_free_forward_text(update, context, user_id, lang, incoming_text):
+        return
+
+    if await handle_swap_text(update, context, user_id, lang, incoming_text):
         return
 
     lang = maybe_update_language(user_id, incoming_text)
@@ -7572,6 +8013,7 @@ async def main():
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(CommandHandler("ai", ai_cmd))
+    app.add_handler(CommandHandler("swap", swap_cmd))
     app.add_handler(buy_conv)
     app.add_handler(star_conv)
     app.add_handler(admin_send_conv)
