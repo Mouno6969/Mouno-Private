@@ -8,6 +8,10 @@ class SwapServiceTest(unittest.TestCase):
         self.assertEqual(decimal_amount_to_raw("100.25", 6), "100250000")
         self.assertEqual(raw_amount_to_decimal("99630000", 6), "99.63")
 
+    def test_decimal_amount_rejects_precision_above_token_decimals(self):
+        with self.assertRaises(ValueError):
+            decimal_amount_to_raw("1.0000001", 6)
+
     def test_find_chain_matches_id_key_name_and_partial_name(self):
         chains = [
             {"id": 1, "key": "eth", "name": "Ethereum", "coin": "ETH"},

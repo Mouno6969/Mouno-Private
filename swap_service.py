@@ -87,7 +87,10 @@ def decimal_amount_to_raw(amount, decimals):
         raise ValueError("Invalid amount") from exc
     if value <= 0:
         raise ValueError("Invalid amount")
-    return str(int(value * (Decimal(10) ** int(decimals))))
+    raw = value * (Decimal(10) ** int(decimals))
+    if raw != raw.to_integral_value():
+        raise ValueError(f"Amount has more than {decimals} decimal places")
+    return str(int(raw))
 
 
 def raw_amount_to_decimal(amount, decimals):
