@@ -1,7 +1,10 @@
 import unittest
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-from swap_service import build_lifi_widget_url, decimal_amount_to_raw, find_chain, raw_amount_to_decimal, summarize_quote
+import requests
+
+from swap_service import TokenLookupError, build_lifi_widget_url, decimal_amount_to_raw, find_chain, raw_amount_to_decimal, resolve_token, summarize_quote
 
 
 class SwapServiceTest(unittest.TestCase):
@@ -67,6 +70,25 @@ class SwapServiceTest(unittest.TestCase):
         self.assertEqual(params["toToken"], ["0xto"])
         self.assertEqual(params["fromAmount"], ["10.5"])
         self.assertEqual(params["toAddress"], ["0x1111111111111111111111111111111111111111"])
+
+    def test_resolve_token_uses_arbitrum_usdt0_alias_after_usdt_404(self):
+        response = requests.Response()
+        response.status_code = 404
+        not_found = requests.HTTPError(response=response)
+        token = {"symbol": "USDT0", "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", "decimals": 6}
+        with patch("swap_service.fetch_token", side_effect=[not_found, token]) as fetch:
+            resolved = resolve_token(42161, "USDT")
+        self.assertEqual(resolved["symbol"], "USDT0")
+        self.assertEqual(resolved["_requestedSymbol"], "USDT")
+        self.assertEqual(fetch.call_args_list[0].args[:2], (42161, "USDT"))
+        self.assertEqual(fetch.call_args_list[1].args[:2], (42161, "USDT0"))
+
+    def test_resolve_token_raises_clear_error_when_symbol_is_unknown(self):
+        response = requests.Response()
+        response.status_code = 404
+        with patch("swap_service.fetch_token", side_effect=requests.HTTPError(response=response)):
+            with self.assertRaisesRegex(TokenLookupError, "contract address"):
+                resolve_token(42161, "NOPE")
 
 
 if __name__ == "__main__":
