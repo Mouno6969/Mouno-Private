@@ -251,6 +251,7 @@ from polygon_sender import send_polygon_usdc
 from sender import send_usdc
 from solana_refund import close_refundable_atas, find_refundable_atas
 from swap_service import (
+    build_lifi_widget_url,
     chain_label,
     fallback_chains,
     find_chain,
@@ -1420,8 +1421,8 @@ def swap_intro_text(lang="bn"):
         "🔁 Swap/Bridge",
         ltext(
             lang,
-            "Choose the source chain. You can use the buttons or Search and type a chain name/id. The bot only prepares quotes and transaction data; your wallet signs the final transaction.",
-            "যে chain থেকে token পাঠাবেন সেটি বেছে নিন। Button ব্যবহার করতে পারেন, অথবা Search দিয়ে chain name/id লিখতে পারেন। Bot শুধু quote ও transaction data তৈরি করবে; final transaction আপনার wallet sign করবে।",
+            "Choose the source chain. You can use the buttons or Search and type a chain name/id. After the quote, the bot opens a wallet-connect swap page; your wallet signs the final transaction.",
+            "যে chain থেকে token পাঠাবেন সেটি বেছে নিন। Button ব্যবহার করতে পারেন, অথবা Search দিয়ে chain name/id লিখতে পারেন। Quote-এর পর bot wallet-connect swap page খুলবে; final transaction আপনার wallet sign করবে।",
         ),
     )
 
@@ -1471,17 +1472,17 @@ def swap_quote_text(intent, quote, lang="bn"):
 def swap_launcher_text(quote, lang="bn"):
     summary = summarize_quote(quote)
     lines = [
-        ltext(lang, "Wallet signing data is ready. Open your wallet/dApp connector and submit this transaction on the source chain.", "Wallet signing data ready। Source chain-এ wallet/dApp connector দিয়ে এই transaction submit করুন।"),
+        ltext(lang, "Connect your wallet with the button below to complete the swap/bridge automatically. The bot never asks for seed phrase or private key; your wallet signs the transaction.", "নিচের button দিয়ে wallet connect করে swap/bridge automatically complete করুন। Bot কখনো seed phrase বা private key চাইবে না; transaction আপনার wallet sign করবে।"),
         "",
     ]
     if summary["approval_needed"]:
         lines.extend([
-            ltext(lang, "1) Approval may be required before swap/bridge.", "১) Swap/bridge-এর আগে approval লাগতে পারে।"),
+            ltext(lang, "Approval may be required before swap/bridge.", "Swap/bridge-এর আগে approval লাগতে পারে।"),
             f"Spender: `{summary['approval_address']}`",
             "",
         ])
     lines.extend([
-        ltext(lang, "Swap/bridge transaction:", "Swap/bridge transaction:"),
+        ltext(lang, "Manual fallback transaction data:", "Manual fallback transaction data:"),
         f"Chain ID: `{summary['chain_id']}`",
         f"To: `{summary['tx_to']}`",
         f"Value: `{summary['tx_value']}`",
@@ -1490,6 +1491,17 @@ def swap_launcher_text(quote, lang="bn"):
         ltext(lang, "After sending, paste the transaction hash here if you want to track it.", "Send করার পর track করতে চাইলে transaction hash এখানে পাঠান।"),
     ])
     return panel("🚀 Transaction Launcher", "\n".join(lines))
+
+
+def swap_launcher_keyboard(intent, quote, lang="bn"):
+    widget_url = build_lifi_widget_url(intent, quote)
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔗 Connect Wallet & Swap" if lang == "en" else "🔗 Wallet Connect করে Swap", url=widget_url)],
+            [InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start")],
+            [InlineKeyboardButton(tr("back", lang), callback_data="back")],
+        ]
+    )
 
 
 async def start_swap_flow(update_or_query, context, lang="bn"):
@@ -4658,11 +4670,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "swap_confirm":
         quote = context.user_data.get("swap_quote")
+        intent = context.user_data.get("swap_intent")
         if not quote:
             await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
             return ConversationHandler.END
+        if not intent:
+            await query.edit_message_text(ltext(lang, "❌ Swap session expired. Start again.", "❌ Swap session expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
         context.user_data["swap_step"] = "track_hash"
-        await query.edit_message_text(swap_launcher_text(quote, lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]))
+        await query.edit_message_text(swap_launcher_text(quote, lang), reply_markup=swap_launcher_keyboard(intent, quote, lang))
 
     elif query.data == "swap_status":
         if not is_admin(user_id):
