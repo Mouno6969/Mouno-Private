@@ -10,6 +10,13 @@ NATIVE_TOKEN_ADDRESSES = {
     "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 }
 DEFAULT_WALLET = "0x0000000000000000000000000000000000000001"
+TOKEN_SYMBOL_ALIASES = {
+    42161: {"USDT": "USDT0"},
+}
+
+
+class TokenLookupError(ValueError):
+    pass
 
 
 def _headers(api_key=None):
@@ -81,6 +88,27 @@ def fetch_token(chain_id, token, api_key=None, timeout=20):
     return response.json()
 
 
+def resolve_token(chain_id, token, api_key=None, timeout=20):
+    token = normalize_token_input(token)
+    try:
+        return fetch_token(chain_id, token, api_key=api_key, timeout=timeout)
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code != 404:
+            raise
+    alias = TOKEN_SYMBOL_ALIASES.get(int(chain_id), {}).get(str(token).upper())
+    if alias:
+        try:
+            resolved = fetch_token(chain_id, alias, api_key=api_key, timeout=timeout)
+            resolved["_requestedSymbol"] = token
+            return resolved
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code != 404:
+                raise
+    raise TokenLookupError(f"Token '{token}' was not found on chain {chain_id}. Send the token contract address instead of the symbol.")
+
+
 def decimal_amount_to_raw(amount, decimals):
     try:
         value = Decimal(str(amount).strip())
@@ -106,8 +134,8 @@ def raw_amount_to_decimal(amount, decimals):
 
 
 def quote_lifi(intent, api_key=None, timeout=35):
-    from_token = fetch_token(intent["from_chain_id"], intent["from_token"], api_key=api_key)
-    to_token = fetch_token(intent["to_chain_id"], intent["to_token"], api_key=api_key)
+    from_token = resolve_token(intent["from_chain_id"], intent["from_token"], api_key=api_key)
+    to_token = resolve_token(intent["to_chain_id"], intent["to_token"], api_key=api_key)
     from_amount_raw = decimal_amount_to_raw(intent["amount"], from_token["decimals"])
     order = "FASTEST" if intent.get("preference") == "fastest" else "CHEAPEST"
     wallet = intent.get("wallet") or DEFAULT_WALLET

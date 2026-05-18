@@ -259,6 +259,7 @@ from swap_service import (
     quote_lifi,
     short_tx_data,
     summarize_quote,
+    TokenLookupError,
 )
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
@@ -1467,6 +1468,16 @@ def swap_quote_text(intent, quote, lang="bn"):
         ltext(lang, "Confirm only if chain, token, amount, and wallet address are correct.", "Chain, token, amount এবং wallet address ঠিক থাকলেই Confirm চাপুন।"),
     ]
     return panel("🔁 Swap Quote", "\n".join(body))
+
+
+def swap_quote_error_text(exc, lang="bn"):
+    if isinstance(exc, TokenLookupError):
+        return ltext(
+            lang,
+            f"❌ {exc}\n\nTip: some chains use different symbols on LI.FI, for example Arbitrum USDT is USDT0. You can also paste the token contract address.",
+            f"❌ {exc}\n\nTip: কিছু chain-এ LI.FI ভিন্ন symbol ব্যবহার করে, যেমন Arbitrum USDT হলো USDT0। Token contract address paste করলেও হবে।",
+        )
+    return ltext(lang, f"❌ Quote failed: {exc}", f"❌ Quote আনা যায়নি: {exc}")
 
 
 def swap_launcher_text(quote, lang="bn"):
@@ -4661,7 +4672,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             quote = await loop.run_in_executor(None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi")))
         except Exception as exc:
             logger.warning("Swap quote failed: %s", exc)
-            await query.edit_message_text(ltext(lang, f"❌ Quote failed: {exc}", f"❌ Quote আনা যায়নি: {exc}"), reply_markup=main_menu(user_id, lang))
+            await query.edit_message_text(swap_quote_error_text(exc, lang), reply_markup=main_menu(user_id, lang))
             return ConversationHandler.END
         context.user_data["swap_intent"] = intent
         context.user_data["swap_quote"] = quote
