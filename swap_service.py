@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 import requests
 
@@ -159,6 +160,28 @@ def summarize_quote(quote):
         "tx_data": tx.get("data"),
         "chain_id": tx.get("chainId"),
     }
+
+
+def build_lifi_widget_url(intent, quote=None, base_url="https://playground.li.fi/"):
+    quote = quote or {}
+    action = quote.get("action") or {}
+    from_token = quote.get("_fromTokenInfo") or action.get("fromToken") or {}
+    to_token = quote.get("_toTokenInfo") or action.get("toToken") or {}
+    from_token_address = from_token.get("address") or intent.get("from_token")
+    to_token_address = to_token.get("address") or intent.get("to_token")
+    wallet = intent.get("wallet")
+    params = {
+        "fromAmount": intent.get("amount"),
+        "fromChain": intent.get("from_chain_id"),
+        "fromToken": normalize_token_input(from_token_address),
+        "toChain": intent.get("to_chain_id"),
+        "toToken": normalize_token_input(to_token_address),
+        "toAddress": wallet,
+        "slippage": intent.get("slippage") or 0.005,
+    }
+    clean_params = {key: value for key, value in params.items() if value not in (None, "")}
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}{urlencode(clean_params)}"
 
 
 def short_tx_data(data, limit=180):

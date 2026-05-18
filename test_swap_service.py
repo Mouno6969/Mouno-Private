@@ -1,6 +1,7 @@
 import unittest
+from urllib.parse import parse_qs, urlparse
 
-from swap_service import decimal_amount_to_raw, find_chain, raw_amount_to_decimal, summarize_quote
+from swap_service import build_lifi_widget_url, decimal_amount_to_raw, find_chain, raw_amount_to_decimal, summarize_quote
 
 
 class SwapServiceTest(unittest.TestCase):
@@ -42,6 +43,30 @@ class SwapServiceTest(unittest.TestCase):
         self.assertEqual(summary["fee_usd"], "0.27")
         self.assertEqual(summary["gas_usd"], "0.10")
         self.assertTrue(summary["approval_needed"])
+
+    def test_build_lifi_widget_url_prefills_wallet_connect_swap(self):
+        intent = {
+            "from_chain_id": 8453,
+            "to_chain_id": 137,
+            "from_token": "USDC",
+            "to_token": "USDC",
+            "amount": "10.5",
+            "wallet": "0x1111111111111111111111111111111111111111",
+        }
+        quote = {
+            "_fromTokenInfo": {"address": "0xfrom"},
+            "_toTokenInfo": {"address": "0xto"},
+        }
+        url = build_lifi_widget_url(intent, quote, base_url="https://playground.li.fi/")
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        self.assertEqual(parsed.netloc, "playground.li.fi")
+        self.assertEqual(params["fromChain"], ["8453"])
+        self.assertEqual(params["toChain"], ["137"])
+        self.assertEqual(params["fromToken"], ["0xfrom"])
+        self.assertEqual(params["toToken"], ["0xto"])
+        self.assertEqual(params["fromAmount"], ["10.5"])
+        self.assertEqual(params["toAddress"], ["0x1111111111111111111111111111111111111111"])
 
 
 if __name__ == "__main__":
