@@ -261,6 +261,15 @@ from swap_service import (
     short_tx_data,
     summarize_quote,
 )
+
+
+def lifi_chain_to_network(chain):
+    if not chain:
+        return "base"
+    chain_type = str(chain.get("chainType") or "").upper()
+    if chain_type == "SVM" or str(chain.get("id")) == "1151111081099710" or str(chain.get("key")) == "sol":
+        return "solana"
+    return "base"
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
@@ -4703,6 +4712,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             loop = asyncio.get_running_loop()
             quote = await loop.run_in_executor(None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi")))
+        except requests.exceptions.RequestException as exc:
+            logger.warning("Swap quote API error: %s", exc)
+            error_msg = str(exc)
+            if exc.response is not None:
+                try:
+                    data = exc.response.json()
+                    error_msg = data.get("message") or data.get("errors", [{}])[0].get("message") or error_msg
+                except Exception:
+                    pass
+            await query.edit_message_text(ltext(lang, f"❌ Quote failed: {error_msg}", f"❌ Quote আনা যায়নি: {error_msg}"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
         except Exception as exc:
             logger.warning("Swap quote failed: %s", exc)
             await query.edit_message_text(ltext(lang, f"❌ Quote failed: {exc}", f"❌ Quote আনা যায়নি: {exc}"), reply_markup=main_menu(user_id, lang))
@@ -6953,12 +6973,31 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             return True
         context.user_data["swap_amount"] = amount_text
         context.user_data["swap_step"] = "wallet"
-        await update.message.reply_text(ltext(lang, "Send your EVM wallet address. This address will sign and receive the swap/bridge.", "আপনার EVM wallet address পাঠান। এই address transaction sign করবে এবং receive করবে।"), reply_markup=swap_cancel_keyboard(lang))
+        target_chain_id = context.user_data.get("swap_to_chain_id")
+        target_chain = find_chain(swap_chains(context), target_chain_id)
+        network = lifi_chain_to_network(target_chain)
+        await update.message.reply_text(
+            ltext(
+                lang,
+                f"Send your wallet address. This address will sign and receive the swap/bridge.\n\nExample: {wallet_hint(network)}",
+                f"আপনার wallet address পাঠান। এই address transaction sign করবে এবং receive করবে।\n\nউদাহরণ: {wallet_hint(network)}"
+            ),
+            reply_markup=swap_cancel_keyboard(lang)
+        )
         return True
 
     if step == "wallet":
-        if not valid_wallet("base", text):
-            await update.message.reply_text(ltext(lang, "❌ Invalid EVM wallet address. It must start with 0x and be 42 characters.", "❌ EVM wallet address ভুল। 0x দিয়ে শুরু এবং 42 character হতে হবে।"), reply_markup=swap_cancel_keyboard(lang))
+        target_chain_id = context.user_data.get("swap_to_chain_id")
+        target_chain = find_chain(swap_chains(context), target_chain_id)
+        network = lifi_chain_to_network(target_chain)
+        if not valid_wallet(network, text):
+            chain_name = (target_chain or {}).get("name") or "destination"
+            msg = ltext(
+                lang,
+                f"❌ Invalid wallet address for {chain_name}. Example: {wallet_hint(network)}",
+                f"❌ {chain_name}-এর জন্য wallet address ভুল। উদাহরণ: {wallet_hint(network)}"
+            )
+            await update.message.reply_text(msg, reply_markup=swap_cancel_keyboard(lang))
             return True
         context.user_data["swap_wallet"] = text
         context.user_data["swap_step"] = "preference"
@@ -6966,8 +7005,14 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         return True
 
     if step == "track_hash":
-        if not text.startswith("0x") or len(text) < 30:
+        from_chain_id = context.user_data.get("swap_from_chain_id")
+        from_chain = find_chain(swap_chains(context), from_chain_id)
+        from_network = lifi_chain_to_network(from_chain)
+        if from_network != "solana" and (not text.startswith("0x") or len(text) < 30):
             await update.message.reply_text(ltext(lang, "Paste a transaction hash, or use /start to close.", "Transaction hash পাঠান, অথবা বন্ধ করতে /start দিন।"))
+            return True
+        if from_network == "solana" and len(text) < 32:
+            await update.message.reply_text(ltext(lang, "Paste a valid Solana transaction hash, or use /start to close.", "সঠিক Solana transaction hash পাঠান, অথবা বন্ধ করতে /start দিন।"))
             return True
         intent = context.user_data.get("swap_intent") or {}
         await update.message.reply_text(
