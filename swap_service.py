@@ -8,6 +8,7 @@ LIFI_BASE_URL = "https://li.quest/v1"
 NATIVE_TOKEN_ADDRESSES = {
     "0x0000000000000000000000000000000000000000",
     "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "11111111111111111111111111111111",
 }
 DEFAULT_WALLET = "0x0000000000000000000000000000000000000001"
 
@@ -20,7 +21,8 @@ def _headers(api_key=None):
 
 
 def get_lifi_chains(api_key=None, timeout=20):
-    response = requests.get(f"{LIFI_BASE_URL}/chains", headers=_headers(api_key), timeout=timeout)
+    params = {"chainTypes": "EVM,SVM"}
+    response = requests.get(f"{LIFI_BASE_URL}/chains", params=params, headers=_headers(api_key), timeout=timeout)
     response.raise_for_status()
     chains = response.json().get("chains", [])
     return [chain for chain in chains if chain.get("mainnet") and chain.get("id")]
@@ -67,15 +69,19 @@ def find_chain(chains, query):
     return None
 
 
-def normalize_token_input(token):
+def normalize_token_input(token, chain_id=None):
     token = str(token or "").strip()
-    if token.lower() in {"native", "eth", "bnb", "matic", "avax"}:
+    is_native = token.lower() in {"native", "eth", "bnb", "matic", "avax", "sol"}
+    if is_native:
+        sol_identifiers = {"1151111081099710", "sol"}
+        if chain_id and str(chain_id).lower() in sol_identifiers:
+            return "11111111111111111111111111111111"
         return "0x0000000000000000000000000000000000000000"
     return token
 
 
 def fetch_token(chain_id, token, api_key=None, timeout=20):
-    params = {"chain": str(chain_id), "token": normalize_token_input(token)}
+    params = {"chain": str(chain_id), "token": normalize_token_input(token, chain_id)}
     response = requests.get(f"{LIFI_BASE_URL}/token", params=params, headers=_headers(api_key), timeout=timeout)
     response.raise_for_status()
     return response.json()
@@ -162,7 +168,7 @@ def summarize_quote(quote):
     }
 
 
-def build_lifi_widget_url(intent, quote=None, base_url="https://playground.li.fi/"):
+def build_lifi_widget_url(intent, quote=None, base_url="https://jumper.exchange/"):
     quote = quote or {}
     action = quote.get("action") or {}
     from_token = quote.get("_fromTokenInfo") or action.get("fromToken") or {}
@@ -173,9 +179,9 @@ def build_lifi_widget_url(intent, quote=None, base_url="https://playground.li.fi
     params = {
         "fromAmount": intent.get("amount"),
         "fromChain": intent.get("from_chain_id"),
-        "fromToken": normalize_token_input(from_token_address),
+        "fromToken": normalize_token_input(from_token_address, intent.get("from_chain_id")),
         "toChain": intent.get("to_chain_id"),
-        "toToken": normalize_token_input(to_token_address),
+        "toToken": normalize_token_input(to_token_address, intent.get("to_chain_id")),
         "toAddress": wallet,
         "slippage": intent.get("slippage") or 0.005,
     }

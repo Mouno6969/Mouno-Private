@@ -13,6 +13,12 @@ class SwapServiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             decimal_amount_to_raw("1.0000001", 6)
 
+    def test_normalize_token_input_solana_native(self):
+        from swap_service import normalize_token_input
+        self.assertEqual(normalize_token_input("native", "1151111081099710"), "11111111111111111111111111111111")
+        self.assertEqual(normalize_token_input("sol", "sol"), "11111111111111111111111111111111")
+        self.assertEqual(normalize_token_input("native", "1"), "0x0000000000000000000000000000000000000000")
+
     def test_find_chain_matches_id_key_name_and_partial_name(self):
         chains = [
             {"id": 1, "key": "eth", "name": "Ethereum", "coin": "ETH"},
