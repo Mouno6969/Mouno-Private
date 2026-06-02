@@ -9,7 +9,7 @@ import string
 import tempfile
 import threading
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
@@ -2347,8 +2347,8 @@ def gen_code(length=8):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 
-def gen_order_id(prefix="STAR"):
-    return f"{prefix}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{gen_code(6)}"
+def gen_timestamp_id(prefix="STAR"):
+    return f"{prefix}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{gen_code(6)}"
 
 
 def wallet_hint(network):
@@ -2387,6 +2387,11 @@ def detect_language(text, current=None):
 
 def maybe_update_language(user_id, text):
     current = user_lang(user_id)
+    if text and len(text.strip()) >= 6:
+        ident_pattern = r"^(ORD|STAR|SO|PAY|TEST|REFWD|GIFT|SL|RES|AUD|ST|RWD)[-_][A-Z0-9_]{4,48}$"
+        clean_text = text.strip().upper()
+        if re.match(ident_pattern, clean_text):
+            return current
     detected = detect_language(text, current)
     if detected != current:
         set_user_language(user_id, detected)
@@ -3669,7 +3674,7 @@ async def complete_seller_order(app_or_bot, order_id, actor_id=None, notice_amou
         record_referral_reward_for_transaction(buyer_id, "seller_buy", f"{order_id}:buyer", network, amount_crypto, amount_bdt or 0, f"seller={seller_id} method={method}")
         record_referral_reward_for_transaction(seller_id, "seller_sale", f"{order_id}:seller", network, amount_crypto, amount_bdt or 0, f"buyer={buyer_id} method={method}")
         if method == "stars" and stars_amount:
-            create_seller_star_ledger(gen_order_id("SL"), seller_id, order_id, stars_amount)
+            create_seller_star_ledger(gen_timestamp_id("SL"), seller_id, order_id, stars_amount)
         receipt_data = await make_receipt_data(
             bot,
             order_id,
@@ -6105,7 +6110,7 @@ async def waiting_star_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
             else f"❌ পর্যাপ্ত {net_info['symbol']} নেই।\n\nদরকার: {amount_crypto}\n{stock_detail(network, amount_crypto, current_bal)}"
         )
         return ConversationHandler.END
-    order_id = gen_order_id("STAR")
+    order_id = gen_timestamp_id("STAR")
     create_stock_reservation(order_id, user.id, network, amount_crypto, ttl_minutes=30, reason="stars_invoice")
     username = user.username or user.first_name or ""
     save_star_order(order_id, user.id, username, network, wallet, amount_crypto, stars_amount)
@@ -6359,7 +6364,7 @@ async def seller_buy_amount_received(update: Update, context: ContextTypes.DEFAU
     rate = seller_rate_or_global(seller_id, network)
     amount_crypto = round(amount_bdt / rate, 6)
     ni = NETWORKS[network]
-    order_id = gen_order_id("SO")
+    order_id = gen_timestamp_id("SO")
     username = user.username or user.first_name or ""
     if method == "stars":
         stars_amount = max(1, math.ceil(amount_crypto * get_star_rate(network)))
