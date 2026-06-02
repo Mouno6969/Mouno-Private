@@ -6991,10 +6991,11 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         target_chain = find_chain(swap_chains(context), target_chain_id)
         network = lifi_chain_to_network(target_chain)
         if not valid_wallet(network, text):
+            chain_name = (target_chain or {}).get("name") or "destination"
             msg = ltext(
                 lang,
-                f"❌ Invalid wallet address for {target_chain.get('name') or 'destination'}. Example: {wallet_hint(network)}",
-                f"❌ {target_chain.get('name') or 'destination'}-এর জন্য wallet address ভুল। উদাহরণ: {wallet_hint(network)}"
+                f"❌ Invalid wallet address for {chain_name}. Example: {wallet_hint(network)}",
+                f"❌ {chain_name}-এর জন্য wallet address ভুল। উদাহরণ: {wallet_hint(network)}"
             )
             await update.message.reply_text(msg, reply_markup=swap_cancel_keyboard(lang))
             return True
