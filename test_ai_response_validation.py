@@ -68,16 +68,18 @@ class AIResponseValidationTests(unittest.TestCase):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "AI_PROVIDER_TIMEOUT_SECONDS":
-                        self.assertEqual(ast.literal_eval(node.value), 8)
+                        self.assertEqual(ast.literal_eval(node.value), 6)
                         return
         self.fail("AI_PROVIDER_TIMEOUT_SECONDS is not defined")
 
-    def test_ai_provider_requests_use_shared_timeout(self):
+    def test_ai_provider_requests_use_timeout_parameter(self):
         for function_name in ("_ask_gemini", "_ask_openai_compatible", "_ask_cohere"):
             source = function_source(function_name)
             with self.subTest(function_name=function_name):
+                # Signature should have the default timeout
                 self.assertIn("timeout=AI_PROVIDER_TIMEOUT_SECONDS", source)
-                self.assertNotIn("timeout=30", source)
+                # Body should use the timeout variable
+                self.assertIn("timeout=timeout", source)
 
 
 if __name__ == "__main__":

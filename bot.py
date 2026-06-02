@@ -15,6 +15,7 @@ from io import BytesIO
 
 import requests
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
+from telegram.constants import ChatAction
 from telegram.ext import (
     Application,
     BaseUpdateProcessor,
@@ -723,7 +724,7 @@ AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
 AI_SUPPORT_HISTORY_TURNS = 8
 AI_SUPPORT_HISTORY_LIMIT = 2500
-AI_PROVIDER_TIMEOUT_SECONDS = 8
+AI_PROVIDER_TIMEOUT_SECONDS = 6
 ORDER_AI_CALLBACK_PREFIX = "aiorder_"
 TRACK_ORDER_CALLBACK_PREFIX = "trackorder_"
 
@@ -972,14 +973,14 @@ def compose_ai_user_message(question, context=None, lang="bn"):
     return (language_instruction + question_block)[:AI_USER_MESSAGE_LIMIT]
 
 
-def _ask_gemini(question, lang="bn"):
+def _ask_gemini(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
     payload = {
         "systemInstruction": {"parts": [{"text": ai_support_prompt(lang)}]},
         "contents": [{"role": "user", "parts": [{"text": question[:AI_USER_MESSAGE_LIMIT]}]}],
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 850},
     }
-    response = requests.post(url, params={"key": ai_provider_key("gemini")}, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
+    response = requests.post(url, params={"key": ai_provider_key("gemini")}, json=payload, timeout=timeout)
     response.raise_for_status()
     data = response.json()
     candidates = data.get("candidates", [])
@@ -990,7 +991,7 @@ def _ask_gemini(question, lang="bn"):
     return _validate_ai_response_text(text)
 
 
-def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None, extra_payload=None):
+def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_headers=None, extra_payload=None, timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     if extra_headers:
         headers.update(extra_headers)
@@ -1005,82 +1006,89 @@ def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_
     }
     if extra_payload:
         payload.update(extra_payload)
-    response = requests.post(endpoint, headers=headers, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
+    response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
     response.raise_for_status()
     return _extract_openai_chat_text(response.json())
 
 
-def _ask_groq(question, lang="bn"):
+def _ask_groq(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://api.groq.com/openai/v1/chat/completions",
         ai_provider_key("groq"),
         GROQ_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_llama_8b(question, lang="bn"):
+def _ask_nvidia_llama_8b(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_llama_8b"),
         NVIDIA_LLAMA_8B_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_qwen_7b(question, lang="bn"):
+def _ask_nvidia_qwen_7b(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_qwen_7b"),
         NVIDIA_QWEN_7B_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_mistral_small(question, lang="bn"):
+def _ask_nvidia_mistral_small(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_mistral_small"),
         NVIDIA_MISTRAL_SMALL_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_nemotron_nano(question, lang="bn"):
+def _ask_nvidia_nemotron_nano(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_nemotron_nano"),
         NVIDIA_NEMOTRON_NANO_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_llama4_scout(question, lang="bn"):
+def _ask_nvidia_llama4_scout(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_llama4_scout"),
         NVIDIA_LLAMA4_SCOUT_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_deepseek(question, lang="bn"):
+def _ask_nvidia_deepseek(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_deepseek"),
         NVIDIA_DEEPSEEK_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_kimi(question, lang="bn"):
+def _ask_nvidia_kimi(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_kimi"),
@@ -1088,20 +1096,22 @@ def _ask_nvidia_kimi(question, lang="bn"):
         question,
         lang,
         extra_payload={"chat_template_kwargs": {"thinking": True}},
+        timeout=timeout,
     )
 
 
-def _ask_nvidia_gemma(question, lang="bn"):
+def _ask_nvidia_gemma(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         ai_provider_key("nvidia_gemma"),
         NVIDIA_GEMMA_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_openrouter(question, lang="bn"):
+def _ask_openrouter(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://openrouter.ai/api/v1/chat/completions",
         ai_provider_key("openrouter"),
@@ -1109,20 +1119,22 @@ def _ask_openrouter(question, lang="bn"):
         question,
         lang,
         {"HTTP-Referer": "https://t.me/", "X-Title": "Mouno Private Telegram Bot"},
+        timeout=timeout,
     )
 
 
-def _ask_huggingface(question, lang="bn"):
+def _ask_huggingface(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://router.huggingface.co/v1/chat/completions",
         ai_provider_key("huggingface"),
         HUGGINGFACE_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
-def _ask_cohere(question, lang="bn"):
+def _ask_cohere(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     headers = {"Authorization": f"Bearer {ai_provider_key('cohere')}", "Content-Type": "application/json"}
     payload = {
         "model": COHERE_MODEL,
@@ -1133,7 +1145,7 @@ def _ask_cohere(question, lang="bn"):
         "temperature": 0.2,
         "max_tokens": 850,
     }
-    response = requests.post("https://api.cohere.com/v2/chat", headers=headers, json=payload, timeout=AI_PROVIDER_TIMEOUT_SECONDS)
+    response = requests.post("https://api.cohere.com/v2/chat", headers=headers, json=payload, timeout=timeout)
     response.raise_for_status()
     data = response.json()
     content = data.get("message", {}).get("content", [])
@@ -1141,13 +1153,14 @@ def _ask_cohere(question, lang="bn"):
     return _validate_ai_response_text(text)
 
 
-def _ask_mistral(question, lang="bn"):
+def _ask_mistral(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://api.mistral.ai/v1/chat/completions",
         ai_provider_key("mistral"),
         MISTRAL_MODEL,
         question,
         lang,
+        timeout=timeout,
     )
 
 
@@ -1178,7 +1191,8 @@ def ask_ai_support(question, lang="bn", context=None):
     for provider in providers:
         tried.append(AI_PROVIDER_LABELS[provider])
         try:
-            answer = askers[provider](question, lang)
+            timeout = 4 if provider in FAST_NVIDIA_PROVIDER_ORDER else AI_PROVIDER_TIMEOUT_SECONDS
+            answer = askers[provider](question, lang, timeout=timeout)
             record_ai_provider_result_safe(provider, True)
             return answer
         except Exception as exc:
@@ -1189,7 +1203,20 @@ def ask_ai_support(question, lang="bn", context=None):
 
 
 async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending_token, user_data):
+    typing_task = None
+
+    async def _keep_typing():
+        try:
+            while True:
+                await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                await asyncio.sleep(4)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
     try:
+        typing_task = asyncio.create_task(_keep_typing())
         order_identifier = user_data.get("ai_order_context_identifier")
         memory_context = format_ai_support_history(user_data.get("ai_support_history"))
         diagnostic_context = build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None)
@@ -1205,6 +1232,9 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
     except Exception as exc:
         logger.error("AI support failed: %s", exc)
         answer = tr("ai_unavailable", lang)
+    finally:
+        if typing_task:
+            typing_task.cancel()
     try:
         if user_data.get("ai_support") and user_data.get("ai_support_pending") == pending_token:
             await bot.send_message(chat_id=chat_id, text=answer)
