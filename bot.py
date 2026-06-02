@@ -2044,6 +2044,15 @@ def safe_free_forward_error(exc):
     return re.sub(r"\b\d{5,}:[A-Za-z0-9_-]+\b", "[REDACTED_TOKEN]", str(exc))[:160]
 
 
+def friendly_solana_error(exc, lang="bn"):
+    text = str(exc).lower()
+    if "attempt to debit an account" in text:
+        if lang == "en":
+            return "Insufficient balance for gas fees. Please add some SOL to your wallet and try again."
+        return "ট্রানজ্যাকশন ফি (Gas Fee) এর জন্য পর্যাপ্ত ব্যালেন্স নেই। অনুগ্রহ করে আপনার ওয়ালেটে কিছু SOL জমা করুন এবং আবার চেষ্টা করুন।"
+    return safe_free_forward_error(exc)
+
+
 def personal_auth_link(token):
     base = (TELEGRAM_AUTH_BASE_URL or "").rstrip("/")
     return f"{base}/telegram-auth/{token}"
@@ -3944,7 +3953,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=solana_refund_keyboard(lang, True, bool(summary.get("refundable_count"))),
             )
         except Exception as exc:
-            await query.edit_message_text(ltext(lang, f"❌ ATA check failed: {safe_free_forward_error(exc)}", f"❌ ATA check ব্যর্থ: {safe_free_forward_error(exc)}"), reply_markup=solana_refund_keyboard(lang, bool(wallet), False))
+            await query.edit_message_text(ltext(lang, f"❌ ATA check failed: {friendly_solana_error(exc, lang)}", f"❌ ATA check ব্যর্থ: {friendly_solana_error(exc, lang)}"), reply_markup=solana_refund_keyboard(lang, bool(wallet), False))
 
     elif query.data == "sr_refund":
         summary = context.user_data.get("solana_refund_summary")
@@ -3990,7 +3999,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=solana_refund_keyboard(lang, True, False),
             )
         except Exception as exc:
-            await query.edit_message_text(ltext(lang, f"❌ Refund failed: {safe_free_forward_error(exc)}", f"❌ Refund ব্যর্থ: {safe_free_forward_error(exc)}"), reply_markup=solana_refund_keyboard(lang, True, False))
+            await query.edit_message_text(ltext(lang, f"❌ Refund failed: {friendly_solana_error(exc, lang)}", f"❌ Refund ব্যর্থ: {friendly_solana_error(exc, lang)}"), reply_markup=solana_refund_keyboard(lang, True, False))
 
     elif query.data == "sr_disconnect":
         for key in ["solana_refund_step", "solana_refund_private_key", "solana_refund_wallet", "solana_refund_summary"]:
@@ -6536,7 +6545,7 @@ async def handle_solana_refund_text(update, context, user_id, lang, incoming_tex
     try:
         wallet = get_wallet_address("solana", private_key)
     except Exception as exc:
-        await update.message.reply_text(ltext(lang, f"❌ Invalid Solana private key: {safe_free_forward_error(exc)}\n\nSend the correct private key, or /cancel.", f"❌ Solana private key invalid: {safe_free_forward_error(exc)}\n\nসঠিক private key পাঠান, অথবা /cancel লিখুন।"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="sr_disconnect")]]))
+        await update.message.reply_text(ltext(lang, f"❌ Invalid Solana private key: {friendly_solana_error(exc, lang)}\n\nSend the correct private key, or /cancel.", f"❌ Solana private key invalid: {friendly_solana_error(exc, lang)}\n\nসঠিক private key পাঠান, অথবা /cancel লিখুন।"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="sr_disconnect")]]))
         return True
     context.user_data["solana_refund_private_key"] = private_key
     context.user_data["solana_refund_wallet"] = wallet
@@ -6552,7 +6561,7 @@ async def handle_solana_refund_text(update, context, user_id, lang, incoming_tex
             reply_markup=solana_refund_keyboard(lang, True, bool(summary.get("refundable_count"))),
         )
     except Exception as exc:
-        await update.message.reply_text(ltext(lang, f"❌ ATA check failed: {safe_free_forward_error(exc)}", f"❌ ATA check ব্যর্থ: {safe_free_forward_error(exc)}"), reply_markup=solana_refund_keyboard(lang, True, False))
+        await update.message.reply_text(ltext(lang, f"❌ ATA check failed: {friendly_solana_error(exc, lang)}", f"❌ ATA check ব্যর্থ: {friendly_solana_error(exc, lang)}"), reply_markup=solana_refund_keyboard(lang, True, False))
     return True
 
 
