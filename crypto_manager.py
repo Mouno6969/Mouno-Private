@@ -338,7 +338,7 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
         "to": Web3.to_checksum_address(to_address),
         "value": _to_int(value),
         "data": data,
-        "nonce": w3.eth.get_transaction_count(account.address),
+        "nonce": w3.eth.get_transaction_count(account.address, "pending"),
         "chainId": w3.eth.chain_id,
     }
     try:

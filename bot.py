@@ -7097,6 +7097,11 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Please try again.", "❌ ভুল পাসওয়ার্ড। আবার চেষ্টা করুন।"), reply_markup=swap_cancel_keyboard(lang))
             return True
 
+        signer_address = get_wallet_address(network, private_key)
+        intent["wallet"] = signer_address  # fromAddress must match the signer
+        quote = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi"))
+        )
         summary = summarize_quote(quote)
         await context.bot.send_message(chat_id, ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
 
