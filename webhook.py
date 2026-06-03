@@ -88,11 +88,11 @@ def _short_notice_text(text):
 def notify_admin_parsed_notice(parsed, source, text, scope="main", seller_id=None):
     if not BOT_TOKEN or not ADMIN_ID:
         return False
-    seller_line = f"\n🏪 Seller: {seller_id}" if seller_id else ""
+    seller_line = f"\n🏛️ Seller: {seller_id}" if seller_id else ""
     message = (
         "📲 bKash notice parsed by app/webhook\n\n"
         f"📩 Source: {source}\n"
-        f"🔎 Scope: {scope}{seller_line}\n"
+        f"📡 Scope: {scope}{seller_line}\n"
         f"💵 Amount: {parsed['amount_bdt']} BDT\n"
         f"🔑 TrxID: {parsed['trx_id']}\n"
         f"📝 Message: {_short_notice_text(text)}"
@@ -348,7 +348,7 @@ def _telegram_auth_page(token, message=None, error=None):
         notice = f"<div class='ok'>{escape(message)}</div>" if message else ""
         err = f"<div class='err'>{escape(error)}</div>" if error else ""
         if status == "connected":
-            body = f"{notice}<p>✅ Personal account connected: <b>{escape(str(session.get('display_name') or 'Telegram account'))}</b>.</p><p>You can return to the bot and choose Forward with personal account.</p>"
+            body = f"{notice}<p>🛡️ Personal account connected: <b>{escape(str(session.get('display_name') or 'Telegram account'))}</b>.</p><p>You can return to the bot and choose Forward with personal account.</p>"
         elif status == "password_needed":
             body = f"{notice}{err}<form method='post' action='/telegram-auth/{escape(token)}/password'><label>Telegram 2FA password</label><input name='password' type='password' autocomplete='current-password' required><button type='submit'>Complete login</button></form>"
         elif status == "code_sent":

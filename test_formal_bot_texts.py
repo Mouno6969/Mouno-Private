@@ -44,24 +44,22 @@ class FormalBotTextTests(unittest.TestCase):
         self.namespace = load_text_namespace()
 
     def test_panel_uses_plain_title_divider_body_layout(self):
-        self.assertEqual(self.namespace["panel"]("Title", "Body"), "Title\n────────────────\nBody")
+        self.assertEqual(self.namespace["panel"]("Title", "Body"), "Title\n━━━━━━━━━━━━━━━━━━━━━\nBody")
 
     def test_home_text_is_formal_and_compact(self):
         text = self.namespace["home_text"]("Mandy", "en")
 
-        self.assertTrue(text.startswith("Smart Crypto Buy\n────────────────\nWelcome, Mandy."))
-        self.assertIn("• BSC USDT: 1 USDT = 130 BDT", text)
-        self.assertIn("Payment\n────────────────\n• bKash: `01346478492`", text)
+        self.assertTrue(text.startswith("Smart Crypto Buy\n━━━━━━━━━━━━━━━━━━━━━\n⚡ Welcome, Mandy."))
+        self.assertIn("🔹 BSC USDT: 1 USDT = 130 BDT", text)
+        self.assertIn("📡 Payment\n━━━━━━━━━━━━━━━━━━━━━\n🔹 bKash: `01346478492`", text)
         self.assertIn("Select an option from the menu.", text)
-        for decorative in ("╭", "╰", "✦", "💱", "💸", "👇", "🛡️", "📲"):
-            self.assertNotIn(decorative, text)
 
     def test_bangla_home_text_keeps_same_formal_structure(self):
         text = self.namespace["home_text"]("Mandy", "bn")
 
-        self.assertIn("Smart Crypto Buy\n────────────────", text)
-        self.assertIn("বর্তমান রেট\n────────────────", text)
-        self.assertIn("Payment\n────────────────", text)
+        self.assertIn("Smart Crypto Buy\n━━━━━━━━━━━━━━━━━━━━━", text)
+        self.assertIn("বর্তমান রেট\n━━━━━━━━━━━━━━━━━━━━━", text)
+        self.assertIn("Payment\n━━━━━━━━━━━━━━━━━━━━━", text)
         self.assertIn("নিচের মেনু থেকে একটি অপশন বেছে নিন।", text)
 
 
