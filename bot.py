@@ -7153,7 +7153,9 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             # Start tracking task
             asyncio.create_task(track_swap_status(context.bot, chat_id, from_chain_id, swap_hash, lang))
 
-            context.user_data.clear()
+            for k in ("swap_intent", "swap_quote", "swap_step", "swap_wallet",
+                      "swap_from_chain_id", "swap_to_chain_id", "swap_amount"):
+                context.user_data.pop(k, None)
         except Exception as exc:
             logger.error("In-bot swap failed: %s", exc)
             await context.bot.send_message(chat_id, ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
