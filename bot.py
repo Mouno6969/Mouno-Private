@@ -7158,7 +7158,7 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                 context.user_data.pop(k, None)
         except Exception as exc:
             logger.error("In-bot swap failed: %s", exc)
-            await context.bot.send_message(chat_id, ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
+            await context.bot.send_message(chat_id, ltext(lang, "❌ In-bot swap failed. Please try again later.", "❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে।"), reply_markup=main_menu(user_id, lang))
             context.user_data.clear()
         return True
 
