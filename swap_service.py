@@ -111,6 +111,24 @@ def raw_amount_to_decimal(amount, decimals):
     return text or "0"
 
 
+def fetch_lifi_approval(chain_id, token_address, amount, api_key=None):
+    params = {
+        "chain": str(chain_id),
+        "token": token_address,
+        "amount": str(amount),
+    }
+    response = requests.get(f"{LIFI_BASE_URL}/contractCalls/approve/transaction", params=params, headers=_headers(api_key))
+    response.raise_for_status()
+    return response.json()
+
+
+def get_lifi_status(chain_id, tx_hash, api_key=None):
+    params = {"chain": str(chain_id), "txHash": tx_hash}
+    response = requests.get(f"{LIFI_BASE_URL}/status", params=params, headers=_headers(api_key))
+    response.raise_for_status()
+    return response.json()
+
+
 def quote_lifi(intent, api_key=None, timeout=35):
     from_token = fetch_token(intent["from_chain_id"], intent["from_token"], api_key=api_key)
     to_token = fetch_token(intent["to_chain_id"], intent["to_token"], api_key=api_key)
