@@ -90,7 +90,7 @@ def delete_user_wallet(user_id):
 
 def get_wallet_address(network, private_key):
     try:
-        if network == "solana":
+        if network in {"solana", "solana_usdt"}:
             import base58
             from solders.keypair import Keypair
 
@@ -125,6 +125,8 @@ def get_user_balance(user_id, password):
 
         if network == "solana":
             return get_solana_balance(private_key), network, None
+        if network == "solana_usdt":
+            return get_solana_balance(private_key, mint_address="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"), network, None
         if network == "trc20":
             return get_tron_balance(private_key), network, None
         return get_evm_balance(network, private_key), network, None
@@ -144,7 +146,9 @@ def send_from_user_wallet(user_id, password, dest_wallet, amount):
         raise RuntimeError("ভুল password!") from exc
 
     if network == "solana":
-        return _send_solana_usdc(private_key, dest_wallet, amount)
+        return _send_solana_token(private_key, dest_wallet, amount)
+    if network == "solana_usdt":
+        return _send_solana_token(private_key, dest_wallet, amount, mint="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
     if network == "trc20":
         return _send_trc20_usdt(private_key, dest_wallet, amount)
     return _send_evm_token(private_key, network, dest_wallet, amount)
@@ -152,7 +156,9 @@ def send_from_user_wallet(user_id, password, dest_wallet, amount):
 
 def send_with_private_key(network, private_key, dest_wallet, amount):
     if network == "solana":
-        return _send_solana_usdc(private_key, dest_wallet, amount)
+        return _send_solana_token(private_key, dest_wallet, amount)
+    if network == "solana_usdt":
+        return _send_solana_token(private_key, dest_wallet, amount, mint="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
     if network == "trc20":
         return _send_trc20_usdt(private_key, dest_wallet, amount)
     if network == "ton":
@@ -171,7 +177,7 @@ def send_from_seller_wallet(seller_id, network, dest_wallet, amount):
     return send_with_private_key(network, private_key, dest_wallet, amount)
 
 
-def _send_solana_usdc(private_key, dest_wallet, amount):
+def _send_solana_token(private_key, dest_wallet, amount, mint="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals=6):
     import base64
 
     import base58
@@ -189,13 +195,13 @@ def _send_solana_usdc(private_key, dest_wallet, amount):
         transfer_checked,
     )
 
-    usdc_mint = Pubkey.from_string("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+    token_mint = Pubkey.from_string(mint)
     solana_rpc = "https://api.mainnet-beta.solana.com"
     keypair = Keypair.from_bytes(base58.b58decode(private_key))
     admin_pub = keypair.pubkey()
     dest_pub = Pubkey.from_string(dest_wallet)
-    admin_ata = get_associated_token_address(admin_pub, usdc_mint)
-    dest_ata = get_associated_token_address(dest_pub, usdc_mint)
+    admin_ata = get_associated_token_address(admin_pub, token_mint)
+    dest_ata = get_associated_token_address(dest_pub, token_mint)
 
     blockhash_resp = requests.post(
         solana_rpc,
@@ -211,18 +217,18 @@ def _send_solana_usdc(private_key, dest_wallet, amount):
         timeout=10,
     ).json()
     if not dest_info["result"]["value"]:
-        instructions.append(create_associated_token_account(payer=admin_pub, owner=dest_pub, mint=usdc_mint))
+        instructions.append(create_associated_token_account(payer=admin_pub, owner=dest_pub, mint=token_mint))
 
     instructions.append(
         transfer_checked(
             TransferCheckedParams(
                 program_id=TOKEN_PROGRAM_ID,
                 source=admin_ata,
-                mint=usdc_mint,
+                mint=token_mint,
                 dest=dest_ata,
                 owner=admin_pub,
-                amount=int(amount * 10**6),
-                decimals=6,
+                amount=int(amount * 10**decimals),
+                decimals=decimals,
                 signers=[],
             )
         )
@@ -296,6 +302,93 @@ def _send_evm_token(private_key, network, dest_wallet, amount):
     if receipt.status != 1:
         raise RuntimeError("Transaction failed!")
     return tx_hash.hex()
+
+
+def send_raw_evm_transaction(network, private_key, to_address, data, value=0, gas_limit=None):
+    from web3 import Web3
+
+    from balance import RPCS
+
+    rpc = RPCS.get(network)
+    if not rpc:
+        raise RuntimeError(f"Unsupported network: {network}")
+    w3 = Web3(Web3.HTTPProvider(rpc))
+    account = w3.eth.account.from_key(private_key)
+    tx = {
+        "from": account.address,
+        "to": Web3.to_checksum_address(to_address),
+        "value": int(value or 0),
+        "data": data,
+        "nonce": w3.eth.get_transaction_count(account.address),
+        "chainId": w3.eth.chain_id,
+    }
+    try:
+        tx["gasPrice"] = w3.eth.gas_price
+    except Exception:
+        pass
+
+    if gas_limit:
+        tx["gas"] = int(gas_limit)
+    else:
+        try:
+            tx["gas"] = int(w3.eth.estimate_gas(tx) * 1.2)
+        except Exception:
+            tx["gas"] = 400000
+
+    signed = w3.eth.account.sign_transaction(tx, private_key)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    return tx_hash.hex()
+
+
+def send_raw_solana_transaction(private_key, base64_tx):
+    import base64
+
+    import base58
+    import requests
+    from solders.keypair import Keypair
+    from solders.transaction import VersionedTransaction
+
+    keypair = Keypair.from_bytes(base58.b58decode(private_key))
+    user_pubkey = keypair.pubkey()
+
+    raw_tx = base64.b64decode(base64_tx)
+    vtx = VersionedTransaction.from_bytes(raw_tx)
+
+    # Find the user's index in static_account_keys
+    # LI.FI Solana transactions often require multiple signers (e.g. for bridges)
+    # We must only sign our part and preserve other existing signatures.
+    try:
+        user_index = vtx.message.static_account_keys.index(user_pubkey)
+    except ValueError:
+        raise RuntimeError(f"User pubkey {user_pubkey} not found in transaction required signers.") from None
+
+    if user_index >= vtx.message.header.num_required_signatures:
+        raise RuntimeError(f"User pubkey {user_pubkey} is not a required signer for this transaction.")
+
+    # Sign the message with the user's keypair
+    signature = keypair.sign_message(bytes(vtx.message))
+
+    # Update only the user's signature in the signatures list
+    new_signatures = list(vtx.signatures)
+    new_signatures[user_index] = signature
+
+    # Reconstruct the VersionedTransaction with updated signatures
+    vtx = VersionedTransaction(vtx.message, new_signatures)
+
+    solana_rpc = "https://api.mainnet-beta.solana.com"
+    result = requests.post(
+        solana_rpc,
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendTransaction",
+            "params": [base64.b64encode(bytes(vtx)).decode(), {"encoding": "base64", "preflightCommitment": "confirmed"}],
+        },
+        timeout=30,
+    ).json()
+    if "error" in result:
+        raise RuntimeError(result["error"])
+    return result["result"]
 
 
 init_user_wallets()
