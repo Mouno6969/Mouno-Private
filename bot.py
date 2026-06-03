@@ -141,8 +141,6 @@ from crypto_manager import (
     send_from_seller_wallet,
     send_from_user_wallet,
     send_with_private_key,
-    send_raw_evm_transaction,
-    send_raw_solana_transaction,
 )
 from db import (
     claim_giveaway_code,
@@ -262,28 +260,16 @@ from swap_service import (
     quote_lifi,
     short_tx_data,
     summarize_quote,
-    fetch_lifi_approval,
 )
 
 
 def lifi_chain_to_network(chain):
     if not chain:
         return "base"
-    chain_id = str(chain.get("id"))
     chain_type = str(chain.get("chainType") or "").upper()
-
-    if chain_type == "SVM" or chain_id == "1151111081099710" or str(chain.get("key")) == "sol":
+    if chain_type == "SVM" or str(chain.get("id")) == "1151111081099710" or str(chain.get("key")) == "sol":
         return "solana"
-
-    # Mapping LI.FI chain IDs to internal bot network keys
-    mapping = {
-        "137": "polygon",
-        "56": "bsc",
-        "43114": "avalanche",
-        "1": "ethereum",
-        "8453": "base",
-    }
-    return mapping.get(chain_id, "base")
+    return "base"
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
@@ -347,7 +333,6 @@ SWAP_CHAIN_PAGE_SIZE = 8
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
-    "solana_usdt": {"name": "Solana USDT", "symbol": "USDT", "explorer": "https://solscan.io/tx/"},
     "polygon": {"name": "Polygon USDC", "symbol": "USDC", "explorer": "https://polygonscan.com/tx/"},
     "bsc": {"name": "BSC USDT (BEP20)", "symbol": "USDT", "explorer": "https://bscscan.com/tx/"},
     "avalanche": {"name": "Avalanche USDT", "symbol": "USDT", "explorer": "https://snowtrace.io/tx/"},
@@ -1494,22 +1479,13 @@ def swap_quote_keyboard(lang="bn"):
     )
 
 
-def swap_confirm_keyboard(context, user_id, lang="bn"):
-    intent = context.user_data.get("swap_intent", {})
-    from_chain_id = intent.get("from_chain_id")
-    chains = swap_chains(context)
-    from_chain = find_chain(chains, from_chain_id)
-    network = lifi_chain_to_network(from_chain)
-
-    wallet_row = get_user_wallet(user_id)
-    has_wallet = bool(wallet_row and wallet_row[2] == network)
-
-    rows = []
-    rows.append([InlineKeyboardButton("🔗 Connect Wallet & Swap (External)" if lang == "en" else "🔗 Wallet Connect ও Swap (External)", callback_data="swap_confirm_external")])
-    if has_wallet:
-        rows.append([InlineKeyboardButton("🚀 Execute In-Bot (Sign with Personal Wallet)" if lang == "en" else "🚀 বটের মাধ্যমে Swap করুন (Personal Wallet)", callback_data="swap_confirm_in_bot")])
-    rows.append([InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start"), InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")])
-    return InlineKeyboardMarkup(rows)
+def swap_confirm_keyboard(lang="bn"):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("✅ Confirm" if lang == "en" else "✅ Confirm", callback_data="swap_confirm")],
+            [InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start"), InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
+        ]
+    )
 
 
 def swap_quote_text(intent, quote, lang="bn"):
@@ -4754,9 +4730,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["swap_intent"] = intent
         context.user_data["swap_quote"] = quote
         context.user_data["swap_step"] = "quoted"
-        await query.edit_message_text(swap_quote_text(intent, quote, lang), reply_markup=swap_confirm_keyboard(context, user_id, lang))
+        await query.edit_message_text(swap_quote_text(intent, quote, lang), reply_markup=swap_confirm_keyboard(lang))
 
-    elif query.data == "swap_confirm_external":
+    elif query.data == "swap_confirm":
         quote = context.user_data.get("swap_quote")
         intent = context.user_data.get("swap_intent")
         if not quote:
@@ -4767,13 +4743,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data["swap_step"] = "track_hash"
         await query.edit_message_text(swap_launcher_text(quote, lang), reply_markup=swap_launcher_keyboard(intent, quote, lang))
-
-    elif query.data == "swap_confirm_in_bot":
-        if not context.user_data.get("swap_quote"):
-            await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
-            return ConversationHandler.END
-        context.user_data["swap_step"] = "in_bot_password"
-        await query.edit_message_text(ltext(lang, "🔐 Enter your Personal Wallet password to confirm and sign the swap/bridge transaction.", "🔐 Personal Wallet password দিন। এটি swap/bridge transaction sign করতে ব্যবহার হবে।"), reply_markup=swap_cancel_keyboard(lang))
 
     elif query.data == "swap_status":
         if not is_admin(user_id):
@@ -7033,78 +7002,6 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         context.user_data["swap_wallet"] = text
         context.user_data["swap_step"] = "preference"
         await update.message.reply_text(ltext(lang, "Choose routing preference.", "Route preference বেছে নিন।"), reply_markup=swap_quote_keyboard(lang))
-        return True
-
-    if step == "in_bot_password":
-        password = text
-        chat_id = update.effective_chat.id
-        try:
-            await update.message.delete()
-        except Exception:
-            pass
-        wallet_row = get_user_wallet(user_id)
-        if not wallet_row:
-            await context.bot.send_message(chat_id, "❌ No personal wallet found.")
-            return True
-        try:
-            private_key = decrypt_key(wallet_row[0], wallet_row[1], password)
-        except Exception:
-            await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Please try again.", "❌ ভুল পাসওয়ার্ড। আবার চেষ্টা করুন।"), reply_markup=swap_cancel_keyboard(lang))
-            return True
-
-        quote = context.user_data.get("swap_quote")
-        intent = context.user_data.get("swap_intent")
-        if not quote or not intent:
-            await context.bot.send_message(chat_id, "❌ Quote expired.")
-            return True
-
-        summary = summarize_quote(quote)
-        await context.bot.send_message(chat_id, ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
-
-        try:
-            from_chain_id = intent.get("from_chain_id")
-            chains = swap_chains(context)
-            from_chain = find_chain(chains, from_chain_id)
-            network = lifi_chain_to_network(from_chain)
-
-            # 1. Handle Approval if needed
-            if summary["approval_needed"]:
-                await context.bot.send_message(chat_id, ltext(lang, f"🔓 Approving {summary['from_symbol']}...", f"🔓 {summary['from_symbol']} অ্যাপ্রুভ করা হচ্ছে..."))
-                approval_data = await asyncio.get_running_loop().run_in_executor(None, lambda: fetch_lifi_approval(from_chain_id, quote["action"]["fromToken"]["address"], quote["action"]["fromAmount"], api_key=swap_provider_key("lifi")))
-                if network == "solana":
-                    # Solana usually doesn't need explicit approval in this way, LI.FI handles it in the swap TX
-                    pass
-                else:
-                    approve_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, approval_data["to"], approval_data["data"]))
-                    await context.bot.send_message(chat_id, ltext(lang, f"✅ Approval sent: `{approve_hash}`\nWaiting 15s for confirmation...", f"✅ Approval সম্পন্ন: `{approve_hash}`\n১৫ সেকেন্ড অপেক্ষা করুন..."))
-                    await asyncio.sleep(15)
-
-            # 2. Execute Swap
-            await context.bot.send_message(chat_id, ltext(lang, "🔁 Executing swap/bridge transaction...", "🔁 Swap/bridge ট্রানজ্যাকশন করা হচ্ছে..."))
-            tx = quote.get("transactionRequest")
-            if network == "solana":
-                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_solana_transaction(private_key, tx["data"]))
-            else:
-                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0)))
-
-            from_net_info = NETWORKS.get(network, {"explorer": ""})
-            await context.bot.send_message(
-                chat_id,
-                panel(
-                    "🎉 In-Bot Swap Successful",
-                    ltext(
-                        lang,
-                        f"Your swap/bridge transaction has been broadcasted.\n\nHash: `{swap_hash}`\n\nTrack it here: {from_net_info.get('explorer', '')}{swap_hash}",
-                        f"আপনার swap/bridge ট্রানজ্যাকশন সম্পন্ন হয়েছে।\n\nHash: `{swap_hash}`\n\nলিংক: {from_net_info.get('explorer', '')}{swap_hash}"
-                    )
-                ),
-                reply_markup=main_menu(user_id, lang)
-            )
-            context.user_data.clear()
-        except Exception as exc:
-            logger.error("In-bot swap failed: %s", exc)
-            await context.bot.send_message(chat_id, ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
-            context.user_data.clear()
         return True
 
     if step == "track_hash":
