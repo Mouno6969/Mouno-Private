@@ -7109,8 +7109,8 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             rpc_url = None
             explorer_url = ""
             if from_chain:
-                rpc_url = (from_chain.get("rpcUrls") or [None])[0]
                 metamask = from_chain.get("metamask", {})
+                rpc_url = (metamask.get("rpcUrls") or [None])[0]
                 explorer_url = (metamask.get("blockExplorerUrls") or [""])[0]
 
             # 1. Handle Approval if needed
@@ -7121,7 +7121,9 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                     # Solana usually doesn't need explicit approval in this way, LI.FI handles it in the swap TX
                     pass
                 else:
-                    approve_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network or "base", private_key, approval_data["to"], approval_data["data"], rpc_url=rpc_url))
+                    if not network and not rpc_url:
+                        raise ValueError(f"Unknown network and no RPC URL available for chain {from_chain_id}. Cannot send approval transaction.")
+                    approve_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, approval_data["to"], approval_data["data"], rpc_url=rpc_url))
                     await context.bot.send_message(chat_id, ltext(lang, f"✅ Approval sent: `{approve_hash}`\nWaiting 15s for confirmation...", f"✅ Approval সম্পন্ন: `{approve_hash}`\n১৫ সেকেন্ড অপেক্ষা করুন..."))
                     await asyncio.sleep(15)
 
@@ -7131,7 +7133,9 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             if chain_type == "SVM" or str(from_chain_id) == "1151111081099710":
                 swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_solana_transaction(private_key, tx["data"], rpc_url=rpc_url))
             else:
-                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network or "base", private_key, tx["to"], tx["data"], value=tx.get("value", 0), rpc_url=rpc_url))
+                if not network and not rpc_url:
+                    raise ValueError(f"Unknown network and no RPC URL available for chain {from_chain_id}. Cannot send swap transaction.")
+                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0), rpc_url=rpc_url))
 
             await context.bot.send_message(
                 chat_id,
