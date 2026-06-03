@@ -96,21 +96,20 @@ def get_evm_native_balance(network, private_key=None):
         return None
 
 
-def get_solana_balance(private_key=None):
+def get_solana_balance(private_key=None, mint_address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"):
     try:
         key = private_key or SOLANA_KEY
         if not key:
             return None
         keypair = Keypair.from_bytes(base58.b58decode(key))
         wallet = str(keypair.pubkey())
-        usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         response = requests.post(
             "https://api.mainnet-beta.solana.com",
             json={
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "getTokenAccountsByOwner",
-                "params": [wallet, {"mint": usdc_mint}, {"encoding": "jsonParsed"}],
+                "params": [wallet, {"mint": mint_address}, {"encoding": "jsonParsed"}],
             },
             timeout=10,
         ).json()
@@ -172,6 +171,7 @@ def get_all_balances():
     evm_addr = get_evm_address()
     tasks = {
         "solana": get_solana_balance,
+        "solana_usdt": lambda: get_solana_balance(mint_address="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
         "polygon": lambda: get_evm_balance("polygon"),
         "bsc": lambda: get_evm_balance("bsc"),
         "avalanche": lambda: get_evm_balance("avalanche"),
@@ -195,6 +195,7 @@ def get_all_balances():
 
 GAS_META = {
     "solana": ("SOL", LOW_GAS_THRESHOLD_SOLANA),
+    "solana_usdt": ("SOL", LOW_GAS_THRESHOLD_SOLANA),
     "polygon": ("MATIC/POL", LOW_GAS_THRESHOLD_POLYGON),
     "bsc": ("BNB", LOW_GAS_THRESHOLD_BSC),
     "avalanche": ("AVAX", LOW_GAS_THRESHOLD_AVALANCHE),
@@ -209,6 +210,7 @@ GAS_META = {
 def get_native_gas_balances():
     tasks = {
         "solana": get_solana_native_balance,
+        "solana_usdt": get_solana_native_balance,
         "polygon": lambda: get_evm_native_balance("polygon"),
         "bsc": lambda: get_evm_native_balance("bsc"),
         "avalanche": lambda: get_evm_native_balance("avalanche"),
