@@ -72,20 +72,11 @@ def find_chain(chains, query):
 def normalize_token_input(token, chain_id=None):
     token = str(token or "").strip()
     is_native = token.lower() in {"native", "eth", "bnb", "matic", "avax", "sol"}
-    sol_identifiers = {"1151111081099710", "sol"}
-    is_solana = chain_id and str(chain_id).lower() in sol_identifiers
-
     if is_native:
-        if is_solana:
+        sol_identifiers = {"1151111081099710", "sol"}
+        if chain_id and str(chain_id).lower() in sol_identifiers:
             return "11111111111111111111111111111111"
         return "0x0000000000000000000000000000000000000000"
-
-    if is_solana:
-        if token.upper() == "USDC":
-            return "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        if token.upper() == "USDT":
-            return "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
-
     return token
 
 
@@ -143,17 +134,6 @@ def quote_lifi(intent, api_key=None, timeout=35):
     quote["_fromTokenInfo"] = from_token
     quote["_toTokenInfo"] = to_token
     return quote
-
-
-def fetch_lifi_approval(chain_id, token_address, amount, api_key=None):
-    params = {
-        "chain": str(chain_id),
-        "token": token_address,
-        "amount": str(amount),
-    }
-    response = requests.get(f"{LIFI_BASE_URL}/contractCalls/approve/transaction", params=params, headers=_headers(api_key))
-    response.raise_for_status()
-    return response.json()
 
 
 def summarize_quote(quote):
