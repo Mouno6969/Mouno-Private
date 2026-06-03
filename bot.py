@@ -124,6 +124,7 @@ from config import (
     SELLER_WALLET_MASTER_KEY,
     SOCKET_API_KEY,
     STAR_RATE,
+    SOLANA_KEY,
     SUPPORT_USERNAME,
     TELEGRAM_AUTH_BASE_URL,
     WEBHOOK_STALE_MINUTES,
@@ -141,6 +142,8 @@ from crypto_manager import (
     send_from_seller_wallet,
     send_from_user_wallet,
     send_with_private_key,
+    send_raw_evm_transaction,
+    send_raw_solana_transaction,
 )
 from db import (
     claim_giveaway_code,
@@ -260,16 +263,28 @@ from swap_service import (
     quote_lifi,
     short_tx_data,
     summarize_quote,
+    fetch_lifi_approval,
 )
 
 
 def lifi_chain_to_network(chain):
     if not chain:
         return "base"
+    chain_id = str(chain.get("id"))
     chain_type = str(chain.get("chainType") or "").upper()
-    if chain_type == "SVM" or str(chain.get("id")) == "1151111081099710" or str(chain.get("key")) == "sol":
+
+    if chain_type == "SVM" or chain_id == "1151111081099710" or str(chain.get("key")) == "sol":
         return "solana"
-    return "base"
+
+    # Mapping LI.FI chain IDs to internal bot network keys
+    mapping = {
+        "137": "polygon",
+        "56": "bsc",
+        "43114": "avalanche",
+        "1": "ethereum",
+        "8453": "base",
+    }
+    return mapping.get(chain_id, "base")
 from ton_sender import send_ton
 from tron_sender import send_trc20_usdt
 from user_guide import GUIDE, NETWORK_GUIDE
@@ -333,6 +348,7 @@ SWAP_CHAIN_PAGE_SIZE = 8
 
 NETWORKS = {
     "solana": {"name": "Solana (SOL)", "symbol": "USDC", "explorer": "https://solscan.io/tx/"},
+    "solana_usdt": {"name": "Solana USDT", "symbol": "USDT", "explorer": "https://solscan.io/tx/"},
     "polygon": {"name": "Polygon USDC", "symbol": "USDC", "explorer": "https://polygonscan.com/tx/"},
     "bsc": {"name": "BSC USDT (BEP20)", "symbol": "USDT", "explorer": "https://bscscan.com/tx/"},
     "avalanche": {"name": "Avalanche USDT", "symbol": "USDT", "explorer": "https://snowtrace.io/tx/"},
@@ -444,6 +460,7 @@ def maintenance_message(lang="bn"):
 def gas_warning(network, lang="bn"):
     native = {
         "solana": "SOL",
+        "solana_usdt": "SOL",
         "polygon": "MATIC/POL",
         "bsc": "BNB",
         "avalanche": "AVAX",
@@ -465,7 +482,7 @@ def failure_reason_text(error, network=None, lang="bn"):
     if any(word in text for word in ["not configured", "missing", "env", "api key", "private key", "mnemonic", "rpc not set"]):
         en = "Likely sender/API/RPC configuration is missing. Admin should check environment keys, RPC URL, and sender wallet setup before retrying."
         bn = "সম্ভবত sender/API/RPC configuration missing. Retry করার আগে admin-এর env key, RPC URL এবং sender wallet setup চেক করা উচিত।"
-    elif any(word in text for word in gas_words) or network_text in {"bsc", "solana", "trc20", "ethereum", "ethereum_usdc", "polygon", "avalanche", "base", "ton"} and any(word in text for word in ["fund", "funds", "pay", "transaction underpriced"]):
+    elif any(word in text for word in gas_words) or network_text in {"bsc", "solana", "solana_usdt", "trc20", "ethereum", "ethereum_usdc", "polygon", "avalanche", "base", "ton"} and any(word in text for word in ["fund", "funds", "pay", "transaction underpriced"]):
         en = "Likely insufficient native gas/chain fee at send time. Check the sender wallet's native gas token and retry only after topping up."
         bn = "সম্ভবত send করার সময় native gas/chain fee কম ছিল। Sender wallet-এর native gas token top up করে তারপর retry করুন।"
     elif any(word in text for word in ["insufficient", "অপর্যাপ্ত", "stock", "balance", "not enough"]):
@@ -1479,13 +1496,22 @@ def swap_quote_keyboard(lang="bn"):
     )
 
 
-def swap_confirm_keyboard(lang="bn"):
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("✅ Confirm" if lang == "en" else "✅ Confirm", callback_data="swap_confirm")],
-            [InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start"), InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
-        ]
-    )
+def swap_confirm_keyboard(context, user_id, lang="bn"):
+    intent = context.user_data.get("swap_intent", {})
+    from_chain_id = intent.get("from_chain_id")
+    chains = swap_chains(context)
+    from_chain = find_chain(chains, from_chain_id)
+    network = lifi_chain_to_network(from_chain)
+
+    wallet_row = get_user_wallet(user_id)
+    has_wallet = bool(wallet_row and wallet_row[2] == network)
+
+    rows = []
+    rows.append([InlineKeyboardButton("🔗 Connect Wallet & Swap (External)" if lang == "en" else "🔗 Wallet Connect ও Swap (External)", callback_data="swap_confirm_external")])
+    if has_wallet:
+        rows.append([InlineKeyboardButton("🚀 Execute In-Bot (Sign with Personal Wallet)" if lang == "en" else "🚀 বটের মাধ্যমে Swap করুন (Personal Wallet)", callback_data="swap_confirm_in_bot")])
+    rows.append([InlineKeyboardButton("🔄 New Quote" if lang == "en" else "🔄 নতুন Quote", callback_data="swap_start"), InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")])
+    return InlineKeyboardMarkup(rows)
 
 
 def swap_quote_text(intent, quote, lang="bn"):
@@ -2400,7 +2426,7 @@ def gen_timestamp_id(prefix="STAR"):
 
 
 def wallet_hint(network):
-    if network == "solana":
+    if network in {"solana", "solana_usdt"}:
         return "8Qvz2XBZ821N7fkT6DxPGs..."
     if network == "trc20":
         return "TXyz1234..."
@@ -2410,7 +2436,7 @@ def wallet_hint(network):
 
 
 def valid_wallet(network, wallet):
-    if network == "solana":
+    if network in {"solana", "solana_usdt"}:
         return 32 <= len(wallet) <= 44
     if network == "trc20":
         return wallet.startswith("T") and len(wallet) == 34
@@ -3255,11 +3281,11 @@ def network_menu(prefix, lang="bn"):
     }.get(prefix, "back")
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("⬡ Solana USDC", callback_data=f"{prefix}_solana"), InlineKeyboardButton("⬡ Polygon USDC", callback_data=f"{prefix}_polygon")],
-            [InlineKeyboardButton("⬡ BSC USDT", callback_data=f"{prefix}_bsc"), InlineKeyboardButton("⬡ Avax USDT", callback_data=f"{prefix}_avalanche")],
-            [InlineKeyboardButton("⬡ ETH USDT", callback_data=f"{prefix}_ethereum"), InlineKeyboardButton("⬡ ETH USDC", callback_data=f"{prefix}_ethereum_usdc")],
-            [InlineKeyboardButton("⬡ Base USDC", callback_data=f"{prefix}_base"), InlineKeyboardButton("⬡ TRC20 USDT", callback_data=f"{prefix}_trc20")],
-            [InlineKeyboardButton("⬡ TON", callback_data=f"{prefix}_ton")],
+            [InlineKeyboardButton("⬡ Solana USDC", callback_data=f"{prefix}_solana"), InlineKeyboardButton("⬡ Solana USDT", callback_data=f"{prefix}_solana_usdt")],
+            [InlineKeyboardButton("⬡ Polygon USDC", callback_data=f"{prefix}_polygon"), InlineKeyboardButton("⬡ BSC USDT", callback_data=f"{prefix}_bsc")],
+            [InlineKeyboardButton("⬡ Avax USDT", callback_data=f"{prefix}_avalanche"), InlineKeyboardButton("⬡ ETH USDT", callback_data=f"{prefix}_ethereum")],
+            [InlineKeyboardButton("⬡ ETH USDC", callback_data=f"{prefix}_ethereum_usdc"), InlineKeyboardButton("⬡ Base USDC", callback_data=f"{prefix}_base")],
+            [InlineKeyboardButton("⬡ TRC20 USDT", callback_data=f"{prefix}_trc20"), InlineKeyboardButton("⬡ TON", callback_data=f"{prefix}_ton")],
             [InlineKeyboardButton(tr("cancel", lang), callback_data=cancel_callback)],
         ]
     )
@@ -3347,6 +3373,9 @@ async def send_crypto(network, wallet, amount):
     loop = asyncio.get_running_loop()
     if network == "solana":
         return await loop.run_in_executor(None, lambda: send_usdc(wallet, amount))
+    if network == "solana_usdt":
+        from crypto_manager import _send_solana_token
+        return await loop.run_in_executor(None, lambda: _send_solana_token(SOLANA_KEY, wallet, amount, mint="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"))
     if network == "polygon":
         return await loop.run_in_executor(None, lambda: send_polygon_usdc(wallet, amount))
     if network == "bsc":
@@ -4730,9 +4759,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["swap_intent"] = intent
         context.user_data["swap_quote"] = quote
         context.user_data["swap_step"] = "quoted"
-        await query.edit_message_text(swap_quote_text(intent, quote, lang), reply_markup=swap_confirm_keyboard(lang))
+        await query.edit_message_text(swap_quote_text(intent, quote, lang), reply_markup=swap_confirm_keyboard(context, user_id, lang))
 
-    elif query.data == "swap_confirm":
+    elif query.data == "swap_confirm_external":
         quote = context.user_data.get("swap_quote")
         intent = context.user_data.get("swap_intent")
         if not quote:
@@ -4743,6 +4772,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data["swap_step"] = "track_hash"
         await query.edit_message_text(swap_launcher_text(quote, lang), reply_markup=swap_launcher_keyboard(intent, quote, lang))
+
+    elif query.data == "swap_confirm_in_bot":
+        if not context.user_data.get("swap_quote"):
+            await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            return ConversationHandler.END
+        context.user_data["swap_step"] = "in_bot_password"
+        await query.edit_message_text(ltext(lang, "🔐 Enter your Personal Wallet password to confirm and sign the swap/bridge transaction.", "🔐 Personal Wallet password দিন। এটি swap/bridge transaction sign করতে ব্যবহার হবে।"), reply_markup=swap_cancel_keyboard(lang))
 
     elif query.data == "swap_status":
         if not is_admin(user_id):
@@ -7004,6 +7040,76 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         await update.message.reply_text(ltext(lang, "Choose routing preference.", "Route preference বেছে নিন।"), reply_markup=swap_quote_keyboard(lang))
         return True
 
+    if step == "in_bot_password":
+        password = text
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        wallet_row = get_user_wallet(user_id)
+        if not wallet_row:
+            await update.message.reply_text("❌ No personal wallet found.")
+            return True
+        try:
+            private_key = decrypt_key(wallet_row[0], wallet_row[1], password)
+        except Exception:
+            await update.message.reply_text(ltext(lang, "❌ Invalid password. Please try again.", "❌ ভুল পাসওয়ার্ড। আবার চেষ্টা করুন।"), reply_markup=swap_cancel_keyboard(lang))
+            return True
+
+        quote = context.user_data.get("swap_quote")
+        intent = context.user_data.get("swap_intent")
+        if not quote or not intent:
+            await update.message.reply_text("❌ Quote expired.")
+            return True
+
+        summary = summarize_quote(quote)
+        await update.message.reply_text(ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
+
+        try:
+            from_chain_id = intent.get("from_chain_id")
+            chains = swap_chains(context)
+            from_chain = find_chain(chains, from_chain_id)
+            network = lifi_chain_to_network(from_chain)
+
+            # 1. Handle Approval if needed
+            if summary["approval_needed"]:
+                await update.message.reply_text(ltext(lang, f"🔓 Approving {summary['from_symbol']}...", f"🔓 {summary['from_symbol']} অ্যাপ্রুভ করা হচ্ছে..."))
+                approval_data = await asyncio.get_running_loop().run_in_executor(None, lambda: fetch_lifi_approval(from_chain_id, quote["action"]["fromToken"]["address"], quote["action"]["fromAmount"], api_key=swap_provider_key("lifi")))
+                if network == "solana":
+                    # Solana usually doesn't need explicit approval in this way, LI.FI handles it in the swap TX
+                    pass
+                else:
+                    approve_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, approval_data["to"], approval_data["data"]))
+                    await update.message.reply_text(ltext(lang, f"✅ Approval sent: `{approve_hash}`\nWaiting 15s for confirmation...", f"✅ Approval সম্পন্ন: `{approve_hash}`\n১৫ সেকেন্ড অপেক্ষা করুন..."))
+                    await asyncio.sleep(15)
+
+            # 2. Execute Swap
+            await update.message.reply_text(ltext(lang, "🔁 Executing swap/bridge transaction...", "🔁 Swap/bridge ট্রানজ্যাকশন করা হচ্ছে..."))
+            tx = quote.get("transactionRequest")
+            if network == "solana":
+                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_solana_transaction(private_key, tx["data"]))
+            else:
+                swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0)))
+
+            from_net_info = NETWORKS.get(network, {"explorer": ""})
+            await update.message.reply_text(
+                panel(
+                    "🎉 In-Bot Swap Successful",
+                    ltext(
+                        lang,
+                        f"Your swap/bridge transaction has been broadcasted.\n\nHash: `{swap_hash}`\n\nTrack it here: {from_net_info.get('explorer', '')}{swap_hash}",
+                        f"আপনার swap/bridge ট্রানজ্যাকশন সম্পন্ন হয়েছে।\n\nHash: `{swap_hash}`\n\nলিংক: {from_net_info.get('explorer', '')}{swap_hash}"
+                    )
+                ),
+                reply_markup=main_menu(user_id, lang)
+            )
+            context.user_data.clear()
+        except Exception as exc:
+            logger.error("In-bot swap failed: %s", exc)
+            await update.message.reply_text(ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
+            context.user_data.clear()
+        return True
+
     if step == "track_hash":
         from_chain_id = context.user_data.get("swap_from_chain_id")
         from_chain = find_chain(swap_chains(context), from_chain_id)
@@ -8015,12 +8121,12 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
 
     buy_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={WAITING_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_wallet)], WAITING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_amount)]},
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
     star_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^star_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^star_network_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={
             WAITING_STAR_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_wallet)],
             WAITING_STAR_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_star_amount)],
@@ -8028,7 +8134,7 @@ async def main():
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^cancel$")],
     )
     admin_send_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^admin_send_network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^admin_send_network_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={
             ADMIN_SEND_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_wallet_received)],
             ADMIN_SEND_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_amount_received)],
@@ -8036,7 +8142,7 @@ async def main():
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^admin_send_cancel$")],
     )
     rate_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^setrate_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
         states={WAITING_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_rate)]},
         fallbacks=[CommandHandler("start", start), CallbackQueryHandler(button_handler, pattern="^back$")],
     )
@@ -8065,17 +8171,17 @@ async def main():
         fallbacks=[CallbackQueryHandler(button_handler, pattern="^cancel$"), CommandHandler("start", start)],
     )
     seller_wallet_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerwallet_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerwallet_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
         states={SELLER_SETUP_KEY: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_wallet_key_received)], SELLER_SET_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_rate_received)]},
         fallbacks=[CallbackQueryHandler(button_handler, pattern="^cancel$"), CommandHandler("start", start)],
     )
     seller_rate_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerrate_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerrate_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
         states={SELLER_SET_RATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_rate_received)]},
         fallbacks=[CallbackQueryHandler(button_handler, pattern="^cancel$"), CommandHandler("start", start)],
     )
     seller_buy_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerbuy_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
+        entry_points=[CallbackQueryHandler(button_handler, pattern="^sellerbuy_(solana|solana_usdt|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20)$")],
         states={SELLER_BUY_WALLET: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_buy_wallet_received)], SELLER_BUY_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, seller_buy_amount_received)]},
         fallbacks=[CallbackQueryHandler(button_handler, pattern="^cancel$"), CommandHandler("start", start)],
     )
