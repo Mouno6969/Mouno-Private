@@ -82,6 +82,22 @@ def get_user_wallet(user_id):
         ).fetchone()
 
 
+def get_user_evm_wallet(user_id):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        return con.execute(
+            "SELECT encrypted_key, salt, network, wallet_address FROM user_wallets WHERE user_id=? AND network NOT LIKE 'solana%' AND network != 'trc20' AND network != 'ton'",
+            (user_id,),
+        ).fetchone()
+
+
+def get_user_solana_wallet(user_id):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        return con.execute(
+            "SELECT encrypted_key, salt, network, wallet_address FROM user_wallets WHERE user_id=? AND network LIKE 'solana%'",
+            (user_id,),
+        ).fetchone()
+
+
 def delete_user_wallet(user_id):
     with closing(sqlite3.connect(DB_PATH)) as con:
         con.execute("DELETE FROM user_wallets WHERE user_id=?", (user_id,))
@@ -304,7 +320,7 @@ def _send_evm_token(private_key, network, dest_wallet, amount):
     return tx_hash.hex()
 
 
-def send_raw_evm_transaction(network, private_key, to_address, data, value=0, gas_limit=None):
+def send_raw_evm_transaction(network, private_key, to_address, data, value=0, gas_limit=None, rpc_url=None):
     from web3 import Web3
 
     from balance import RPCS
@@ -314,7 +330,7 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
             return int(v, 16) if v.startswith("0x") else int(v or 0)
         return int(v or 0)
 
-    rpc = RPCS.get(network)
+    rpc = rpc_url or RPCS.get(network)
     if not rpc:
         raise RuntimeError(f"Unsupported network: {network}")
     w3 = Web3(Web3.HTTPProvider(rpc))
@@ -345,7 +361,7 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
     return tx_hash.hex()
 
 
-def send_raw_solana_transaction(private_key, base64_tx):
+def send_raw_solana_transaction(private_key, base64_tx, rpc_url=None):
     import base64
 
     import base58
@@ -380,7 +396,7 @@ def send_raw_solana_transaction(private_key, base64_tx):
     # Reconstruct from message + signatures (constructor expects signers, not signatures)
     vtx = VersionedTransaction.populate(vtx.message, new_signatures)
 
-    solana_rpc = "https://api.mainnet-beta.solana.com"
+    solana_rpc = rpc_url or "https://api.mainnet-beta.solana.com"
     result = requests.post(
         solana_rpc,
         json={
