@@ -309,6 +309,11 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
 
     from balance import RPCS
 
+    def _to_int(v):
+        if isinstance(v, str):
+            return int(v, 16) if v.startswith("0x") else int(v or 0)
+        return int(v or 0)
+
     rpc = RPCS.get(network)
     if not rpc:
         raise RuntimeError(f"Unsupported network: {network}")
@@ -317,7 +322,7 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
     tx = {
         "from": account.address,
         "to": Web3.to_checksum_address(to_address),
-        "value": int(value or 0),
+        "value": _to_int(value),
         "data": data,
         "nonce": w3.eth.get_transaction_count(account.address),
         "chainId": w3.eth.chain_id,
@@ -372,8 +377,8 @@ def send_raw_solana_transaction(private_key, base64_tx):
     new_signatures = list(vtx.signatures)
     new_signatures[user_index] = signature
 
-    # Reconstruct the VersionedTransaction with updated signatures
-    vtx = VersionedTransaction(vtx.message, new_signatures)
+    # Reconstruct from message + signatures (constructor expects signers, not signatures)
+    vtx = VersionedTransaction.populate(vtx.message, new_signatures)
 
     solana_rpc = "https://api.mainnet-beta.solana.com"
     result = requests.post(

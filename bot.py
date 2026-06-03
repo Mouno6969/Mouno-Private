@@ -7037,28 +7037,29 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 
     if step == "in_bot_password":
         password = text
+        chat_id = update.effective_chat.id
         try:
             await update.message.delete()
         except Exception:
             pass
         wallet_row = get_user_wallet(user_id)
         if not wallet_row:
-            await update.message.reply_text("❌ No personal wallet found.")
+            await context.bot.send_message(chat_id, "❌ No personal wallet found.")
             return True
         try:
             private_key = decrypt_key(wallet_row[0], wallet_row[1], password)
         except Exception:
-            await update.message.reply_text(ltext(lang, "❌ Invalid password. Please try again.", "❌ ভুল পাসওয়ার্ড। আবার চেষ্টা করুন।"), reply_markup=swap_cancel_keyboard(lang))
+            await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Please try again.", "❌ ভুল পাসওয়ার্ড। আবার চেষ্টা করুন।"), reply_markup=swap_cancel_keyboard(lang))
             return True
 
         quote = context.user_data.get("swap_quote")
         intent = context.user_data.get("swap_intent")
         if not quote or not intent:
-            await update.message.reply_text("❌ Quote expired.")
+            await context.bot.send_message(chat_id, "❌ Quote expired.")
             return True
 
         summary = summarize_quote(quote)
-        await update.message.reply_text(ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
+        await context.bot.send_message(chat_id, ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
 
         try:
             from_chain_id = intent.get("from_chain_id")
@@ -7068,18 +7069,18 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 
             # 1. Handle Approval if needed
             if summary["approval_needed"]:
-                await update.message.reply_text(ltext(lang, f"🔓 Approving {summary['from_symbol']}...", f"🔓 {summary['from_symbol']} অ্যাপ্রুভ করা হচ্ছে..."))
+                await context.bot.send_message(chat_id, ltext(lang, f"🔓 Approving {summary['from_symbol']}...", f"🔓 {summary['from_symbol']} অ্যাপ্রুভ করা হচ্ছে..."))
                 approval_data = await asyncio.get_running_loop().run_in_executor(None, lambda: fetch_lifi_approval(from_chain_id, quote["action"]["fromToken"]["address"], quote["action"]["fromAmount"], api_key=swap_provider_key("lifi")))
                 if network == "solana":
                     # Solana usually doesn't need explicit approval in this way, LI.FI handles it in the swap TX
                     pass
                 else:
                     approve_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, approval_data["to"], approval_data["data"]))
-                    await update.message.reply_text(ltext(lang, f"✅ Approval sent: `{approve_hash}`\nWaiting 15s for confirmation...", f"✅ Approval সম্পন্ন: `{approve_hash}`\n১৫ সেকেন্ড অপেক্ষা করুন..."))
+                    await context.bot.send_message(chat_id, ltext(lang, f"✅ Approval sent: `{approve_hash}`\nWaiting 15s for confirmation...", f"✅ Approval সম্পন্ন: `{approve_hash}`\n১৫ সেকেন্ড অপেক্ষা করুন..."))
                     await asyncio.sleep(15)
 
             # 2. Execute Swap
-            await update.message.reply_text(ltext(lang, "🔁 Executing swap/bridge transaction...", "🔁 Swap/bridge ট্রানজ্যাকশন করা হচ্ছে..."))
+            await context.bot.send_message(chat_id, ltext(lang, "🔁 Executing swap/bridge transaction...", "🔁 Swap/bridge ট্রানজ্যাকশন করা হচ্ছে..."))
             tx = quote.get("transactionRequest")
             if network == "solana":
                 swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_solana_transaction(private_key, tx["data"]))
@@ -7087,7 +7088,8 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                 swap_hash = await asyncio.get_running_loop().run_in_executor(None, lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0)))
 
             from_net_info = NETWORKS.get(network, {"explorer": ""})
-            await update.message.reply_text(
+            await context.bot.send_message(
+                chat_id,
                 panel(
                     "🎉 In-Bot Swap Successful",
                     ltext(
@@ -7101,7 +7103,7 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             context.user_data.clear()
         except Exception as exc:
             logger.error("In-bot swap failed: %s", exc)
-            await update.message.reply_text(ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
+            await context.bot.send_message(chat_id, ltext(lang, f"❌ In-bot swap failed: {exc}", f"❌ বটের মাধ্যমে Swap ব্যর্থ হয়েছে: {exc}"), reply_markup=main_menu(user_id, lang))
             context.user_data.clear()
         return True
 
