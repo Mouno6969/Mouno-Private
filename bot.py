@@ -85,6 +85,8 @@ from config import (
     ADMIN_ID,
     AI_PROVIDER_ORDER,
     BACKUP_UPLOAD_URL,
+    CEREBRAS_API_KEY,
+    CEREBRAS_MODEL,
     BKASH_NUMBER,
     BOT_TOKEN,
     COHERE_API_KEY,
@@ -592,6 +594,7 @@ def ai_support_prompt(lang="bn"):
 
 
 AI_PROVIDER_LABELS = {
+    "cerebras": "Cerebras AI",
     "nvidia_llama_8b": "NVIDIA Llama 3.1 8B",
     "nvidia_qwen_7b": "NVIDIA Qwen2 7B",
     "nvidia_mistral_small": "NVIDIA Mistral Small 24B",
@@ -609,6 +612,7 @@ AI_PROVIDER_LABELS = {
 }
 
 AI_PROVIDER_SETTING_KEYS = {
+    "cerebras": "ai_cerebras_api_key",
     "nvidia_llama_8b": "ai_nvidia_llama_8b_api_key",
     "nvidia_qwen_7b": "ai_nvidia_qwen_7b_api_key",
     "nvidia_mistral_small": "ai_nvidia_mistral_small_api_key",
@@ -625,7 +629,7 @@ AI_PROVIDER_SETTING_KEYS = {
     "nvidia_gemma": "ai_nvidia_gemma_api_key",
 }
 
-FAST_NVIDIA_PROVIDER_ORDER = ["nvidia_llama_8b", "nvidia_qwen_7b", "nvidia_mistral_small", "nvidia_nemotron_nano", "nvidia_llama4_scout"]
+FAST_NVIDIA_PROVIDER_ORDER = ["cerebras", "nvidia_llama_8b", "nvidia_qwen_7b", "nvidia_mistral_small", "nvidia_nemotron_nano", "nvidia_llama4_scout"]
 STANDARD_PROVIDER_ORDER = ["groq", "openrouter", "gemini", "huggingface", "cohere", "mistral"]
 SLOW_NVIDIA_PROVIDER_ORDER = ["nvidia_kimi", "nvidia_deepseek", "nvidia_gemma"]
 
@@ -637,7 +641,7 @@ def _clean_ai_key(value):
 
 def ai_provider_order():
     known_order = SLOW_NVIDIA_PROVIDER_ORDER + STANDARD_PROVIDER_ORDER + FAST_NVIDIA_PROVIDER_ORDER
-    order = ["groq"]
+    order = ["cerebras", "groq", "gemini"]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
         if provider in AI_PROVIDER_LABELS and provider not in order:
@@ -650,6 +654,7 @@ def ai_provider_order():
 
 def ai_provider_env_keys():
     return {
+        "cerebras": CEREBRAS_API_KEY,
         "nvidia_llama_8b": NVIDIA_LLAMA_8B_API_KEY,
         "nvidia_qwen_7b": NVIDIA_QWEN_7B_API_KEY,
         "nvidia_mistral_small": NVIDIA_MISTRAL_SMALL_API_KEY,
@@ -692,6 +697,7 @@ def ai_provider_key(provider):
 
 def ai_provider_models():
     return {
+        "cerebras": CEREBRAS_MODEL,
         "nvidia_llama_8b": NVIDIA_LLAMA_8B_MODEL,
         "nvidia_qwen_7b": NVIDIA_QWEN_7B_MODEL,
         "nvidia_mistral_small": NVIDIA_MISTRAL_SMALL_MODEL,
@@ -1039,6 +1045,17 @@ def _ask_openai_compatible(endpoint, api_key, model, question, lang="bn", extra_
     return _extract_openai_chat_text(response.json())
 
 
+def _ask_cerebras(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
+    return _ask_openai_compatible(
+        "https://api.cerebras.ai/v1/chat/completions",
+        ai_provider_key("cerebras"),
+        CEREBRAS_MODEL,
+        question,
+        lang,
+        timeout=timeout,
+    )
+
+
 def _ask_groq(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     return _ask_openai_compatible(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -1200,6 +1217,7 @@ def ask_ai_support(question, lang="bn", context=None):
             raise RuntimeError("No AI provider API key is configured")
         raise RuntimeError("No configured AI provider is enabled in AI_PROVIDER_ORDER")
     askers = {
+        "cerebras": _ask_cerebras,
         "nvidia_llama_8b": _ask_nvidia_llama_8b,
         "nvidia_qwen_7b": _ask_nvidia_qwen_7b,
         "nvidia_mistral_small": _ask_nvidia_mistral_small,
