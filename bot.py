@@ -4697,13 +4697,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"✅ Fake SMS injected.\nTrxID: {trx_id}\nAmount: {amount} BDT", reply_markup=back_keyboard(lang))
 
     elif query.data == "ai_support":
+        history = context.user_data.get("ai_support_history", [])
+        order_context = context.user_data.get("ai_order_context_identifier")
         context.user_data.clear()
         context.user_data["ai_support"] = True
-        context.user_data["ai_support_history"] = []
+        context.user_data["ai_support_history"] = history
+        if order_context:
+            context.user_data["ai_order_context_identifier"] = order_context
         await query.edit_message_text(tr("ai_support_intro", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]))
 
     elif query.data == "ai_support_cancel":
+        history = context.user_data.get("ai_support_history", [])
+        order_context = context.user_data.get("ai_order_context_identifier")
         context.user_data.clear()
+        context.user_data["ai_support_history"] = history
+        if order_context:
+            context.user_data["ai_order_context_identifier"] = order_context
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
 
     elif query.data == "swap_start":
