@@ -119,7 +119,7 @@ const Swap: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-3xl font-black w-full text-primary/60 font-mono">
-                    {quote ? quote.estimate?.toAmount.substring(0, 8) : '0.0'}
+                    {quote ? quote.summary?.to_amount : '0.0'}
                   </div>
                   <Select value={toChain} onValueChange={setToChain}>
                     <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
@@ -144,11 +144,11 @@ const Swap: React.FC = () => {
                    </div>
                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Exchange Rate</span>
-                      <span className="font-mono font-bold">1 {chains.find(c => c.id === fromChain)?.symbol} ≈ {parseFloat(quote.estimate?.executionPrice).toFixed(4)} USDC</span>
+                      <span className="font-mono font-bold">1 {chains.find(c => c.id === fromChain)?.symbol} ≈ <span>{quote.summary?.to_amount} {quote.summary?.to_symbol}</span></span>
                    </div>
                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Gas Fees</span>
-                      <span className="font-mono text-amber-500 font-bold">${parseFloat(quote.estimate?.feeCosts?.[0]?.amountUsd || '0.00').toFixed(2)}</span>
+                      <span className="font-mono text-amber-500 font-bold">${quote.summary?.gas_usd}</span>
                    </div>
                 </div>
               )}

@@ -14,7 +14,10 @@ from swap_service import quote_lifi, summarize_quote
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
-app.config['SECRET_KEY'] = os.getenv("WEB_SECRET_KEY", "mouno_web_secret_123")
+_SECRET = os.getenv("WEB_SECRET_KEY")
+if not _SECRET:
+    raise RuntimeError("WEB_SECRET_KEY must be set in the environment")
+app.config['SECRET_KEY'] = _SECRET
 
 def token_required(f):
     @wraps(f)
@@ -121,13 +124,17 @@ def get_user_orders(current_user):
 @app.route('/api/buy', methods=['POST'])
 @token_required
 def buy_crypto(current_user):
-    data = request.get_json()
     user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
 
-    amount_bdt = float(data.get('amount_bdt'))
-    network = data.get('network')
-    wallet = data.get('wallet')
-    trx_id = data.get('trx_id').strip().upper()
+    data = request.get_json() or {}
+    try:
+        amount_bdt = float(data.get('amount_bdt'))
+    except (TypeError, ValueError):
+        return jsonify({'message': 'Valid amount_bdt required'}), 400
+    trx_id = (data.get('trx_id') or '').strip().upper()
+    network = data.get('network'); wallet = data.get('wallet')
+    if not (trx_id and network and wallet):
+        return jsonify({'message': 'network, wallet and trx_id required'}), 400
 
     rate = db.get_network_rate(network) or config.RATE
     amount_usdc = round(amount_bdt / rate, 2)

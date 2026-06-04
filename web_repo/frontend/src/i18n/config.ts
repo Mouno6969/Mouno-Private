@@ -5,7 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
   en: {
     translation: {
-      "welcome": "Welcome to BGC Crypto",
+      "welcome": "Welcome to MounoWeb",
       "buy": "Buy Crypto",
       "swap": "Swap & Bridge",
       "wallet": "Personal Wallet",
@@ -35,7 +35,7 @@ const resources = {
       "total_spent": "Total Spent",
       "order_count": "Total Orders",
       "copy_success": "Copied to clipboard!",
-      "footer_text": "© 2024 BGC Private. All rights reserved.",
+      "footer_text": "© 2026 Mouno. All rights reserved.",
       "send_bdt": "Send BDT to:",
       "after_payment": "After payment, submit the TrxID below.",
     }
