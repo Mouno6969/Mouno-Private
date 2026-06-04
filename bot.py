@@ -3197,7 +3197,8 @@ def report_text(period="daily"):
     payout_count, payout_amount = data["payouts_pending"]
     ref_credited, ref_withdrawn, ref_liability = data.get("referrals", (0, 0, 0))
     ref_failed = data.get("referral_failed_withdrawals", 0)
-    return panel("📈 Admin Report", f"Period: {period}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n👥 Referral liability: {round(ref_liability or 0, 6)} USD | credited {round(ref_credited or 0, 6)} | withdrawn {round(ref_withdrawn or 0, 6)} | failed wd {ref_failed}\n\nTop networks:\n{top}")
+    new_users = data.get("new_users", 0)
+    return panel("📈 Admin Report", f"Period: {period}\n👥 New users: {new_users}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n👥 Referral liability: {round(ref_liability or 0, 6)} USD | credited {round(ref_credited or 0, 6)} | withdrawn {round(ref_withdrawn or 0, 6)} | failed wd {ref_failed}\n\nTop networks:\n{top}")
 
 
 def seller_dashboard_text():
@@ -5247,12 +5248,15 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    total, completed, failed, total_bdt, total_crypto, total_profit = get_transaction_stats()
+    total, completed, failed, total_bdt, total_crypto, total_profit, total_users, new_users_today = get_transaction_stats()
     pending_count = len(get_pending_orders(100))
     failed_count = len(get_failed_transactions(100))
     maintenance = "ON" if is_maintenance_enabled() else "OFF"
     await update.message.reply_text(
         "📊 Admin Dashboard\n\n"
+        f"👥 Total Users: {total_users or 0}\n"
+        f"🆕 New Users (Today): {new_users_today or 0}\n"
+        "━━━━━━━━━━━━━━━\n"
         f"🧾 Total TX: {total or 0}\n"
         f"✅ Completed: {completed or 0}\n"
         f"❌ Failed: {failed or 0}\n"
