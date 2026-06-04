@@ -24,6 +24,33 @@ def ensure_column(con, table, column, definition):
         con.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def create_web_user(username, password_hash, telegram_id=None):
+    with closing(connect()) as con:
+        try:
+            con.execute(
+                "INSERT INTO web_users (username, password_hash, telegram_id) VALUES (?, ?, ?)",
+                (username, password_hash, telegram_id),
+            )
+            con.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+def get_web_user(username):
+    with closing(connect()) as con:
+        return con.execute(
+            "SELECT id, username, password_hash, telegram_id, created_at FROM web_users WHERE username=?",
+            (username,),
+        ).fetchone()
+
+
+def link_web_user_telegram(web_user_id, telegram_id):
+    with closing(connect()) as con:
+        con.execute("UPDATE web_users SET telegram_id=? WHERE id=?", (str(telegram_id), web_user_id))
+        con.commit()
+
+
 def init_db():
     with closing(connect()) as con:
         cur = con.cursor()
@@ -32,6 +59,15 @@ def init_db():
                 user_id TEXT PRIMARY KEY,
                 wallet TEXT NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS web_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                telegram_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("""
