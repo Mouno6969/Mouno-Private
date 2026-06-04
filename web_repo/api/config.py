@@ -1,0 +1,80 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).with_name(".env"))
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = os.getenv("ADMIN_ID")
+BKASH_NUMBER = os.getenv("BKASH_NUMBER")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "MdBGC")
+AI_PROVIDER_ORDER = os.getenv("AI_PROVIDER_ORDER", "cerebras,groq,gemini,nvidia_deepseek,nvidia_kimi,nvidia_gemma,openrouter,mistral,cohere,nvidia_mistral_small,nvidia_llama4_scout,nvidia_nemotron_nano,nvidia_qwen_7b,nvidia_llama_8b,huggingface")
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "llama-3.3-70b")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+NVIDIA_LLAMA_8B_API_KEY = os.getenv("NVIDIA_LLAMA_8B_API_KEY") or NVIDIA_API_KEY
+NVIDIA_LLAMA_8B_MODEL = os.getenv("NVIDIA_LLAMA_8B_MODEL", "meta/llama-3.1-8b-instruct")
+NVIDIA_QWEN_7B_API_KEY = os.getenv("NVIDIA_QWEN_7B_API_KEY") or NVIDIA_API_KEY
+NVIDIA_QWEN_7B_MODEL = os.getenv("NVIDIA_QWEN_7B_MODEL", "qwen/qwen2-7b-instruct")
+NVIDIA_MISTRAL_SMALL_API_KEY = os.getenv("NVIDIA_MISTRAL_SMALL_API_KEY") or NVIDIA_API_KEY
+NVIDIA_MISTRAL_SMALL_MODEL = os.getenv("NVIDIA_MISTRAL_SMALL_MODEL", "mistralai/mistral-small-24b-instruct")
+NVIDIA_NEMOTRON_NANO_API_KEY = os.getenv("NVIDIA_NEMOTRON_NANO_API_KEY") or NVIDIA_API_KEY
+NVIDIA_NEMOTRON_NANO_MODEL = os.getenv("NVIDIA_NEMOTRON_NANO_MODEL", "nvidia/llama-3.1-nemotron-nano-8b-v1")
+NVIDIA_LLAMA4_SCOUT_API_KEY = os.getenv("NVIDIA_LLAMA4_SCOUT_API_KEY") or NVIDIA_API_KEY
+NVIDIA_LLAMA4_SCOUT_MODEL = os.getenv("NVIDIA_LLAMA4_SCOUT_MODEL", "meta/llama-4-scout-17b-16e-instruct")
+NVIDIA_KIMI_API_KEY = os.getenv("NVIDIA_KIMI_API_KEY") or NVIDIA_API_KEY
+NVIDIA_KIMI_MODEL = os.getenv("NVIDIA_KIMI_MODEL", "moonshotai/kimi-k2.6")
+NVIDIA_DEEPSEEK_API_KEY = os.getenv("NVIDIA_DEEPSEEK_API_KEY") or NVIDIA_API_KEY
+NVIDIA_DEEPSEEK_MODEL = os.getenv("NVIDIA_DEEPSEEK_MODEL", "deepseek-ai/deepseek-v4-pro")
+NVIDIA_GEMMA_API_KEY = os.getenv("NVIDIA_GEMMA_API_KEY") or NVIDIA_API_KEY
+NVIDIA_GEMMA_MODEL = os.getenv("NVIDIA_GEMMA_MODEL", "google/gemma-4-31b-it")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_TOKEN")
+HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "HuggingFaceH4/zephyr-7b-beta")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+COHERE_MODEL = os.getenv("COHERE_MODEL", "command-r")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+LIFI_API_KEY = os.getenv("LIFI_API_KEY")
+RELAY_API_KEY = os.getenv("RELAY_API_KEY")
+SOCKET_API_KEY = os.getenv("SOCKET_API_KEY")
+SOLANA_KEY = os.getenv("SOLANA_KEY")
+RATE = float(os.getenv("RATE", "137"))
+STAR_RATE = float(os.getenv("STAR_RATE", "100"))
+
+POLYGON_RPC = os.getenv("POLYGON_RPC")
+POLYGON_PRIVATE_KEY = os.getenv("POLYGON_PRIVATE_KEY")
+BSC_RPC = os.getenv("BSC_RPC", "https://bsc-dataseed.binance.org/")
+BSC_PRIVATE_KEY = os.getenv("BSC_PRIVATE_KEY")
+AVALANCHE_RPC = os.getenv("AVALANCHE_RPC", "https://api.avax.network/ext/bc/C/rpc")
+ETHEREUM_RPC = os.getenv("ETHEREUM_RPC")
+BASE_RPC = os.getenv("BASE_RPC", "https://mainnet.base.org")
+TRON_PRIVATE_KEY = os.getenv("TRON_PRIVATE_KEY")
+TON_MNEMONIC = os.getenv("TON_MNEMONIC")
+TON_API_KEY = os.getenv("TON_API_KEY")
+TON_RPC = os.getenv("TON_RPC", "https://toncenter.com")
+LOW_BALANCE_THRESHOLD = float(os.getenv("LOW_BALANCE_THRESHOLD", "1.0"))
+DEFAULT_COST_RATE_BDT = float(os.getenv("DEFAULT_COST_RATE_BDT", "0") or 0)
+LOW_GAS_THRESHOLD_SOLANA = float(os.getenv("LOW_GAS_THRESHOLD_SOLANA", "0.01"))
+LOW_GAS_THRESHOLD_BSC = float(os.getenv("LOW_GAS_THRESHOLD_BSC", "0.003"))
+LOW_GAS_THRESHOLD_POLYGON = float(os.getenv("LOW_GAS_THRESHOLD_POLYGON", "0.1"))
+LOW_GAS_THRESHOLD_ETHEREUM = float(os.getenv("LOW_GAS_THRESHOLD_ETHEREUM", "0.001"))
+LOW_GAS_THRESHOLD_ETHEREUM_USDC = float(os.getenv("LOW_GAS_THRESHOLD_ETHEREUM_USDC", os.getenv("LOW_GAS_THRESHOLD_ETHEREUM", "0.001")))
+LOW_GAS_THRESHOLD_BASE = float(os.getenv("LOW_GAS_THRESHOLD_BASE", "0.001"))
+LOW_GAS_THRESHOLD_AVALANCHE = float(os.getenv("LOW_GAS_THRESHOLD_AVALANCHE", "0.02"))
+LOW_GAS_THRESHOLD_TRC20 = float(os.getenv("LOW_GAS_THRESHOLD_TRC20", "15"))
+LOW_GAS_THRESHOLD_TON = float(os.getenv("LOW_GAS_THRESHOLD_TON", "0.05"))
+WEBHOOK_STALE_MINUTES = int(os.getenv("WEBHOOK_STALE_MINUTES", "30"))
+DASHBOARD_TOKEN = os.getenv("DASHBOARD_TOKEN") or os.getenv("ADMIN_WEB_TOKEN")
+FORWARDER_SECRET = os.getenv("FORWARDER_SECRET")
+SCB_FORWARDER_APP_URL = os.getenv("SCB_FORWARDER_APP_URL", "https://github.com/BGC6969/BGC-Private/releases/latest/download/scb-forwarder.apk")
+SCB_FORWARDER_SERVER_URL = os.getenv("SCB_FORWARDER_SERVER_URL", "https://cryptobuybot6969.duckdns.org")
+TELEGRAM_AUTH_BASE_URL = os.getenv("TELEGRAM_AUTH_BASE_URL", SCB_FORWARDER_SERVER_URL)
+BACKUP_UPLOAD_URL = os.getenv("BACKUP_UPLOAD_URL")
+SELLER_WALLET_MASTER_KEY = os.getenv("SELLER_WALLET_MASTER_KEY")
