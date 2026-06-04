@@ -1722,7 +1722,7 @@ def get_user_analytics(user_id):
         ).fetchone()
 
         total_orders = tx_stats[0] or 0
-        total_bdt = tx_stats[1] or 0
+        total_bdt = round(tx_stats[1] or 0, 2)
         avg_bdt = round(tx_stats[2] or 0, 2)
         last_order_at = tx_stats[3]
 
