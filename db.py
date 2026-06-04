@@ -346,6 +346,8 @@ def init_db():
         ensure_column(con, "star_orders", "seller_id", "TEXT")
         ensure_column(con, "stock_reservations", "seller_id", "TEXT")
         ensure_column(con, "user_preferences", "created_at", "TIMESTAMP")
+        ensure_column(con, "user_preferences", "username", "TEXT")
+        ensure_column(con, "user_preferences", "first_name", "TEXT")
         cur.execute("UPDATE user_preferences SET created_at=COALESCE(created_at, updated_at, CURRENT_TIMESTAMP)")
         cur.execute("UPDATE transactions SET updated_at=COALESCE(updated_at, created_at)")
         cur.execute("UPDATE transactions SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
@@ -1046,6 +1048,85 @@ def set_user_language(user_id, language):
             (str(user_id), language),
         )
         con.commit()
+
+
+def save_user_info(user_id, username, first_name):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO user_preferences (user_id, username, first_name, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username=excluded.username,
+                first_name=excluded.first_name,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (str(user_id), username, first_name),
+        )
+        con.commit()
+
+
+def get_users_paged(filter_type="all", page=0, search_query=None, limit=10):
+    offset = int(page) * int(limit)
+    where_clause = "1=1"
+    params = []
+
+    if filter_type == "new":
+        where_clause = "datetime(u.created_at) >= datetime('now', '-7 days')"
+    elif filter_type == "top":
+        # Handled by ORDER BY
+        pass
+    elif filter_type == "inactive":
+        where_clause = "u.user_id NOT IN (SELECT user_id FROM transactions WHERE status='completed' AND datetime(created_at) >= datetime('now', '-30 days'))"
+    elif filter_type == "search" and search_query:
+        where_clause = "(u.user_id LIKE ? OR u.username LIKE ? OR u.first_name LIKE ?)"
+        q = f"%{search_query}%"
+        params = [q, q, q]
+
+    sql = f"""
+        SELECT
+            u.user_id,
+            u.username,
+            u.first_name,
+            u.created_at,
+            COUNT(t.trx_id) as order_count,
+            COALESCE(SUM(t.amount_bdt), 0) as total_spent
+        FROM user_preferences u
+        LEFT JOIN transactions t ON u.user_id = t.user_id AND t.status = 'completed'
+        WHERE {where_clause}
+        GROUP BY u.user_id
+    """
+
+    if filter_type == "top":
+        sql += " ORDER BY total_spent DESC, order_count DESC"
+    else:
+        sql += " ORDER BY u.created_at DESC"
+
+    sql += " LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with closing(connect()) as con:
+        rows = con.execute(sql, params).fetchall()
+        total = con.execute(f"SELECT COUNT(*) FROM user_preferences u WHERE {where_clause}", params[:-2]).fetchone()[0]
+        return rows, total
+
+
+def get_all_users_for_export():
+    sql = """
+        SELECT
+            u.user_id,
+            u.username,
+            u.first_name,
+            u.created_at,
+            COUNT(t.trx_id) as order_count,
+            COALESCE(SUM(t.amount_bdt), 0) as total_spent
+        FROM user_preferences u
+        LEFT JOIN transactions t ON u.user_id = t.user_id AND t.status = 'completed'
+        GROUP BY u.user_id
+        ORDER BY u.created_at DESC
+    """
+    with closing(connect()) as con:
+        return con.execute(sql).fetchall()
 
 
 def get_setting(key, default=None):

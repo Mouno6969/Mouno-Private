@@ -175,6 +175,8 @@ from db import (
     get_report_stats,
     get_seller_status,
     get_seller_public_stats,
+    get_users_paged,
+    get_all_users_for_export,
     get_user_analytics,
     get_profit_summary,
     get_webhook_health,
@@ -194,6 +196,7 @@ from db import (
     save_pending_order,
     save_sms,
     save_transaction,
+    save_user_info,
     save_wallet,
     set_user_language,
     set_network_rate,
@@ -3420,6 +3423,8 @@ async def send_first_time_language_selection(update):
 
 
 async def complete_language_selection_message(query, user_id, lang):
+    user = query.from_user
+    save_user_info(user.id, user.username, user.first_name)
     text = language_saved_home_text(query.from_user.first_name, lang)
     reply_markup = main_menu(user_id, lang)
     if is_video_message(getattr(query, "message", None)):
@@ -3434,6 +3439,7 @@ async def complete_language_selection_message(query, user_id, lang):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    save_user_info(user.id, user.username, user.first_name)
     args = getattr(context, "args", None) or []
     if args:
         raw_code = str(args[0]).strip()
@@ -4007,6 +4013,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "faq":
         await query.edit_message_text(faq_text(lang), reply_markup=back_keyboard(lang))
+
+    elif query.data.startswith("us_"):
+        if not is_admin(user_id):
+            return
+
+        if query.data == "us_export":
+            return await export_users(update, context)
+
+        if query.data.startswith("us_f_"):
+            filter_type = query.data.replace("us_f_", "")
+            if filter_type == "search":
+                context.user_data["admin_user_analytics_lookup"] = True # reusing this flag for searching
+                context.user_data["user_search_active"] = True
+                await query.edit_message_text("🔍 Send User ID, Name, or Username to search:", reply_markup=back_keyboard(lang))
+                return
+
+            rows, total = get_users_paged(filter_type, 0)
+            total_pages = math.ceil(total / 10) if total > 0 else 1
+            await query.edit_message_text(users_list_text(rows, total, filter_type, 0), reply_markup=users_keyboard(filter_type, 0, total_pages))
+
+        elif query.data.startswith("us_p_"):
+            parts = query.data.split("_", 5)
+            filter_type = parts[2]
+            page = int(parts[3])
+            search_query = parts[4] if parts[4] else None
+            show_filters = len(parts) > 5 and parts[5] == "show"
+
+            rows, total = get_users_paged(filter_type, page, search_query)
+            total_pages = math.ceil(total / 10) if total > 0 else 1
+            await query.edit_message_text(users_list_text(rows, total, filter_type, page), reply_markup=users_keyboard(filter_type, page, total_pages, search_query, show_filters))
 
     elif query.data == "free_service":
         context.user_data.pop("telegram_id_finder", None)
@@ -5326,6 +5362,114 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Cancelled." if lang == "en" else "✅ বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
     return ConversationHandler.END
 
+
+def users_keyboard(filter_type, page, total_pages, search_query=None, show_filters=False):
+    # Use | as separator for search_query to avoid issues with _
+    sq = str(search_query or "").replace("_", " ")
+    rows = []
+    # Pagination
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ আগের পাতা", callback_data=f"us_p_{filter_type}_{page-1}_{sq}"))
+    nav.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="us_noop"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton("পরের পাতা ➡️", callback_data=f"us_p_{filter_type}_{page+1}_{sq}"))
+    if nav:
+        rows.append(nav)
+
+    if show_filters:
+        rows.append([
+            InlineKeyboardButton("🆕 New", callback_data="us_f_new"),
+            InlineKeyboardButton("🏆 Top", callback_data="us_f_top"),
+            InlineKeyboardButton("💤 Inactive", callback_data="us_f_inactive")
+        ])
+        rows.append([
+            InlineKeyboardButton("🔎 Search", callback_data="us_f_search"),
+            InlineKeyboardButton("📋 All", callback_data="us_f_all"),
+            InlineKeyboardButton("🔙 Hide Filters", callback_data=f"us_p_{filter_type}_{page}_{sq}_hide")
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton("📂 Filters 🔍", callback_data=f"us_p_{filter_type}_{page}_{sq}_show"),
+            InlineKeyboardButton("📤 Export CSV", callback_data="us_export")
+        ])
+
+    return InlineKeyboardMarkup(rows)
+
+def users_list_text(rows, total, filter_type, page, limit=10):
+    lines = [f"👥 Total Users: {total}"]
+    if filter_type != "all":
+        lines.append(f"🔍 Filter: {filter_type.capitalize()}")
+    lines.append("")
+
+    start_idx = page * limit + 1
+    for i, row in enumerate(rows):
+        user_id, username, first_name, joined_at, order_count, total_spent = row
+        uname = f"@{username}" if username else (first_name or "no username")
+        join_date = str(joined_at)[:10] if joined_at else "N/A"
+        lines.append(f"{start_idx + i}. {uname}")
+        lines.append(f"   🆔 ID: {user_id}")
+        lines.append(f"   📅 Join: {join_date}")
+        lines.append(f"   🛒 Orders: {order_count or 0}")
+        lines.append(f"   💰 Total Spent: {round(total_spent or 0, 2)} BDT")
+        lines.append("")
+
+    if not rows:
+        lines.append("No users found.")
+
+    return "\n".join(lines)
+
+async def export_users(update, context):
+    if not is_admin(update.effective_user.id):
+        return
+
+    import csv
+    from io import StringIO
+
+    users = get_all_users_for_export()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["User ID", "Username", "First Name", "Joined At", "Orders", "Total Spent BDT"])
+    for row in users:
+        writer.writerow(row)
+
+    output.seek(0)
+    bio = BytesIO(output.read().encode("utf-8-sig"))
+    bio.name = f"users_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=bio,
+        caption="👥 User Data Export"
+    )
+
+async def users_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    args = context.args
+    filter_type = "all"
+    search_query = None
+
+    if args:
+        cmd = args[0].lower()
+        if cmd == "export":
+            return await export_users(update, context)
+        elif cmd in ["new", "top", "inactive"]:
+            filter_type = cmd
+        elif cmd == "search":
+            if len(args) > 1:
+                filter_type = "search"
+                search_query = " ".join(args[1:])
+            else:
+                await update.message.reply_text("Usage: /users search <ID/Name/Username>")
+                return
+
+    rows, total = get_users_paged(filter_type, 0, search_query)
+    total_pages = math.ceil(total / 10) if total > 0 else 1
+    text = users_list_text(rows, total, filter_type, 0)
+    markup = users_keyboard(filter_type, 0, total_pages, search_query)
+    await update.message.reply_text(text, reply_markup=markup)
 
 async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -7312,10 +7456,20 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("admin_user_analytics_lookup"):
         if not is_admin(user_id):
             context.user_data.pop("admin_user_analytics_lookup", None)
+            context.user_data.pop("user_search_active", None)
             return
-        target_user_id = incoming_text.strip()
-        await update.message.reply_text(user_analytics_text(target_user_id, lang), reply_markup=back_keyboard(lang))
-        context.user_data.pop("admin_user_analytics_lookup", None)
+
+        target_query = incoming_text.strip()
+        if context.user_data.get("user_search_active"):
+            context.user_data.pop("user_search_active", None)
+            context.user_data.pop("admin_user_analytics_lookup", None)
+            filter_type = "search"
+            rows, total = get_users_paged(filter_type, 0, target_query)
+            total_pages = math.ceil(total / 10) if total > 0 else 1
+            await update.message.reply_text(users_list_text(rows, total, filter_type, 0), reply_markup=users_keyboard(filter_type, 0, total_pages, target_query))
+        else:
+            await update.message.reply_text(user_analytics_text(target_query, lang), reply_markup=back_keyboard(lang))
+            context.user_data.pop("admin_user_analytics_lookup", None)
         return
 
     ref_admin_set = context.user_data.get("ref_admin_set")
@@ -8346,6 +8500,7 @@ async def main():
     app.add_handler(CommandHandler("pending", pending_cmd))
     app.add_handler(CommandHandler("failed", failed_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("users", users_cmd))
     app.add_handler(CommandHandler("balances", balances_cmd))
     app.add_handler(CommandHandler("maintenance", maintenance_cmd))
     app.add_handler(CommandHandler("terms", terms_cmd))
