@@ -49,20 +49,23 @@ def default_config_provider_order():
 
 
 class AIProviderOrderTests(unittest.TestCase):
-    def test_default_config_puts_groq_first_without_dropping_others(self):
+    def test_default_config_puts_cerebras_first_without_dropping_others(self):
         order = default_config_provider_order().split(",")
 
-        self.assertEqual(order[0], "groq")
+        self.assertEqual(order[0], "cerebras")
+        self.assertEqual(order[1], "groq")
+        self.assertEqual(order[2], "gemini")
+        self.assertEqual(order.count("cerebras"), 1)
         self.assertEqual(order.count("groq"), 1)
-        self.assertEqual(order[1:4], ["nvidia_deepseek", "nvidia_kimi", "nvidia_gemma"])
+        self.assertEqual(order.count("gemini"), 1)
 
-    def test_ai_provider_order_pins_groq_before_custom_order(self):
-        namespace = load_provider_order_namespace("gemini,openrouter,groq,mistral")
+    def test_ai_provider_order_pins_required_order_before_custom_order(self):
+        namespace = load_provider_order_namespace("openrouter,mistral")
 
         order = namespace["ai_provider_order"]()
 
-        self.assertEqual(order[:4], ["groq", "gemini", "openrouter", "mistral"])
-        self.assertEqual(order.count("groq"), 1)
+        self.assertEqual(order[:3], ["cerebras", "groq", "gemini"])
+        self.assertEqual(order[3:5], ["openrouter", "mistral"])
 
 
 if __name__ == "__main__":
