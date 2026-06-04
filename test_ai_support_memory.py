@@ -61,13 +61,14 @@ class AISupportMemoryTests(unittest.TestCase):
 
     def test_append_history_keeps_only_recent_session_turns(self):
         user_data = {"ai_support_history": []}
+        turns = self.namespace["AI_SUPPORT_HISTORY_TURNS"]
 
-        for index in range(10):
+        for index in range(turns + 2):
             self.namespace["append_ai_support_history"](user_data, f"q{index}", f"a{index}")
 
-        self.assertEqual(len(user_data["ai_support_history"]), self.namespace["AI_SUPPORT_HISTORY_TURNS"])
+        self.assertEqual(len(user_data["ai_support_history"]), turns)
         self.assertEqual(user_data["ai_support_history"][0]["user"], "q2")
-        self.assertEqual(user_data["ai_support_history"][-1]["assistant"], "a9")
+        self.assertEqual(user_data["ai_support_history"][-1]["assistant"], f"a{turns + 1}")
 
     def test_combined_context_preserves_memory_and_diagnostic_context(self):
         combined = self.namespace["combine_ai_support_context"]("Previous user: first question", "Order/TrxID context: pending")

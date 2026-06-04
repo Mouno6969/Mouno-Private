@@ -536,7 +536,7 @@ BOT_KNOWLEDGE_BASE = """
 SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - Identity and scope: SCB-Forwarder is the Android app used with this Telegram crypto buy/sell/support bot. The bot handles orders, payments, crypto delivery, sellers, referrals, wallet tools, and support; SCB-Forwarder forwards trusted bKash SMS/app-notification payment notices from Android phones to the bot server. AI Support is read-only: it explains app/bot features, crypto/network/wallet/gas basics, payment/order problems, guides users step-by-step, interprets sanitized order context, and suggests the safest next action. It cannot approve payments, change balances/rates, send crypto, access wallets, verify a payment without bot/admin evidence, give investment advice, or guarantee token prices/profit.
 - Language behavior: answer in Bengali when the user's question is Bengali/Bangla, answer in English when the user's question is English, and only use another language if the user explicitly asks. Keep command names, network names, TrxID/order IDs, wallet addresses, and support usernames unchanged.
-- Main menu: Buy, Telegram Stars, Gift Code, Giveaway, Rates, My Wallet, Balance, TX Log, Order Status, Referral, Sellers, Seller Center, Seller Dashboard, AI Support, FAQ, Support, Terms, and Language. Admins also see rate/code/send/report/backup/health/restart/reservation/profit/gas/audit/seller/AI/payout/test/maintenance tools.
+- Main menu: Buy, Telegram Stars, Gift Code, Giveaway, Swap/Bridge, Rates, My Wallet, Balance, TX Log, Order Status, Referral, Sellers, Seller Center, Seller Dashboard, AI Support, FAQ, Support, Terms, and Language. Admins also see rate/code/send/report/backup/health/restart/reservation/profit/gas/audit/seller/AI/payout/test/maintenance tools.
 - Normal user commands: /start opens home/language, /help lists commands, /guide shows the full user guide, /terms shows risk warnings, /ai opens AI Support, /order ORD-XXXXXX checks an order ID, /status TRXID_OR_ORDERID checks a TrxID/order, /receipt ORD_OR_TRX shows a completed receipt, /seller USER_ID shows seller profile/stats, /seller_center opens seller tools/application, /seller_dashboard opens seller dashboard, /seller_guide explains seller setup, /referral shows referral link/balance, /setup connects an encrypted personal wallet, /changekey replaces saved wallet key, /deletekey deletes saved wallet key, /mybalance checks personal wallet balance, /send_wallet sends from personal wallet, and /payout starts eligible payout/withdraw flow.
 - Admin commands, never expose sensitive internals to normal users: /send, /gencode, /pending, /failed, /stats, /balances, /maintenance, /backup, /report, /profit, /costrate, /gas, /reservations, /audit, /payouts, /webhook_health, /bot_health, /restart_help, /test_sms, /test_seller_sms, /seller_badge, /aiadmin, /ai_usage. Web dashboard exists only when admin web access is configured.
 - Language, help, FAQ, terms: first-time users choose Bengali or English and the preference is stored; later messages can update the saved language when clearly Bengali/English. /help lists typed commands, /guide explains wallet/order/security usage, FAQ answers common buy/pending/Stars/help questions, and Terms warns about wrong networks, irreversible transfers, gas, and manual review.
@@ -551,12 +551,13 @@ SCB-Forwarder and Telegram bot knowledge base for AI Support:
 - Free Service forwarding: Free Service is a user-facing bot menu with a Telegram Message Forwarder button. Inside Telegram Message Forwarder, a user can connect either their own @BotFather Telegram bot token or their own personal Telegram account session and send the same message to approved Telegram groups/channels. It supports numeric chat IDs such as -1001234567890, @usernames, and public t.me/telegram.me links as targets; private invite links are not accepted. Bot-token mode requires the connected bot to already be added to every target and may need admin permission to post in channels or restricted groups. Personal-account mode requires the user's own Telegram API ID/API hash/phone/login code through the secure web login link, never inside Telegram chat, stores the session only in bot memory, is limited to explicit allowlisted targets where the account is already a member and has permission/consent to post, and uses lower target/interval limits to reduce spam/account risk. Flow: tap Free Service, tap Telegram Message Forwarder, connect Telegram token or Connect personal account, open the secure web login link for personal account login, choose Forward with bot token or Forward with personal account, choose One-time forward or Forward repeatedly, then either select targets from the connected account's group/channel list or enter target IDs/usernames/links manually; for repeated forwarding enter the interval in minutes, then send the message to forward. Telegram API ID/API hash source: go to https://my.telegram.org, log in with the same Telegram phone number, open API development tools, create an app if needed, then copy api_id and api_hash. Target/group ID source: for personal-account mode the built-in group/channel picker can show private groups/channels where the connected account is already a member; public group/channel targets can also use @username or public t.me link; private group/channel manual targets need a numeric chat ID copied from a trusted Telegram ID bot, admin tool, or your own bot update/log after the bot/account is added; supergroup/channel IDs usually start with -100. Supported message types include text, photo, video, document, audio, voice, animation, and sticker. Users can stop scheduled forwarding with Stop scheduled forward and remove the connected token/session with Disconnect. If sending fails, likely causes are invalid token/session, bot/account not in the target, missing post permission, private/invalid link, blocked bot/account, or Telegram rate limits. AI Support must explain these steps in Bengali for Bengali questions and English for English questions. AI Support must also explain these steps and benefits, including where to get API ID/API hash and target group/chat ID, and must discourage spam or forwarding to groups without permission.
 - Free Service Solana ATA Refund: Free Service also has a Solana ATA Refund button. It lets a user connect their own Solana wallet for this refund flow, checks empty Associated Token Accounts (ATAs), shows how much rent SOL is estimated to be refundable, and after confirmation closes only empty ATA accounts so the rent SOL returns to the same wallet. ATAs with token balances must be skipped and never auto-closed. Explain that Solana network fee applies, signatures may be returned, and the user should only connect their own wallet. AI Support must explain the Solana ATA refund steps in Bengali for Bengali questions and English for English questions.
 - Free Service Telegram ID Finder: Free Service also has a Telegram ID Finder button. It helps users find Telegram user/account, group, supergroup, or channel IDs by sending a public @username, public t.me/telegram.me link, numeric chat ID, or a forwarded message from the target. If used in a group/channel where the bot can read messages, it can show the current chat ID. Public usernames/links are resolved with bot access; private chats/channels usually require bot access or a forwarded message with visible origin. If Telegram hides the forward sender because of privacy settings, AI Support must explain that the hidden ID cannot be revealed by the bot. AI Support must explain Telegram ID Finder steps in Bengali for Bengali questions and English for English questions.
+- Swap/Bridge: the bot integrates LI.FI for cross-chain swaps and bridges between EVM chains (Ethereum, BSC, Polygon, Avalanche, Base, Arbitrum, Optimism, etc.) and SVM (Solana). Users can start a swap from the "Swap/Bridge" menu, select source and destination chains/tokens, enter amount, and get a quote. The "In-Bot Swap" flow allows users to execute swaps directly by signing with their connected "Personal Wallet" (private key required). Solana native token address '11111111111111111111111111111111' is supported. Users can also swap on the jumper.exchange website via an external link. AI Support should explain these steps and benefits in Bengali for Bengali questions and English for English questions.
 - bKash automation details: webhook/SCB-Forwarder accepts trusted bKash SMS and bKash app notifications. Supported payment text must include amount with Tk/BDT/৳ and TrxID/TxnID/Transaction ID. If SMS and app notification both arrive for one TrxID, duplicate protection processes only the first. One TrxID cannot complete more than one transaction.
 - Pending/manual bKash cases: pending can happen when SMS/notification has not reached the server, user submitted TrxID before notice arrived, amount does not match, TrxID is wrong/duplicate/already used, payer/order does not match, selected wallet/network is invalid, stock is low, gas is low, or RPC/network is busy. User action: check /order or /status, wait if webhook is delayed, and contact support with Order ID + TrxID. Admin action: verify via /pending before approving/rejecting.
 - Order status and receipts: /order or /status can check order ID/TrxID. Normal users can only see their own orders; admins can inspect all. Completed orders support /receipt. Receipts include proof/explorer URL or compact receipt details and QR when available. Never tell a user an order is paid/completed unless context says verified/completed.
 - Telegram Stars flow: user taps Telegram Stars, selects network, enters wallet, enters crypto amount, receives a Telegram invoice, pays in XTR Stars, bot verifies payload/order ID, Telegram user ID, currency XTR, and exact Stars amount, then sends crypto. STAR_RATE means how many Stars equal 1 USDC/USDT/asset, with optional per-network overrides. If paid Stars delivery fails, bot marks failed and notifies admin; admin may manually send crypto or refund using Telegram tools.
 - Gift Code and Giveaway: admins can create one-time gift codes with network, amount, and expiry; admins can disable active codes. Users redeem a gift code with a destination wallet, and a used/expired/invalid code cannot be reused. Giveaways create a session with network, recipient count, base amount, expiry, codes, and optional early-claimer bonus. Admin giveaways use bot/admin stock; non-admin giveaways are funded by the user's connected wallet and require the wallet password. User wallet-funded TON giveaways are not supported. Claimers must use a valid unused giveaway code before expiry.
-- Personal wallet: /setup lets a user connect an encrypted wallet key for supported networks, then use /mybalance and /send_wallet with password protection. /changekey replaces the saved key and /deletekey removes it. /send_wallet asks destination, amount, password, and confirmation; wrong password, insufficient token balance, insufficient gas, invalid wallet, or RPC errors can fail the send. The bot cannot recover a forgotten password. Never ask for or reveal private keys, seed phrases, mnemonics, or wallet passwords; support/admin should never ask for them either.
+- Personal wallet: /setup lets a user connect an encrypted wallet key (private key only; seed phrases/mnemonics are not supported) for supported networks, then use /mybalance and /send_wallet with password protection. /changekey replaces the saved key and /deletekey removes it. /send_wallet asks destination, amount, password, and confirmation; wrong password, insufficient token balance, insufficient gas, invalid wallet, or RPC errors can fail the send. The bot cannot recover a forgotten password. Never ask for or reveal private keys, seed phrases, mnemonics, or wallet passwords; support/admin should never ask for them either.
 - Seller marketplace: approved sellers appear under Sellers. Buyers can use seller bKash or Stars routes where available. Sellers apply from Seller Center, submit display name, seller bKash number, and support contact, then wait for admin approval. Approved sellers configure encrypted delivery wallets, rates, stock, and dashboard tools. Sellers/admins handle assigned pending seller orders. Seller Stars ledger and payout review exist. TON seller auto-delivery is not supported; seller auto-delivery supports Solana, Polygon, BSC, Avalanche, Ethereum, Base, and TRC20.
 - Referral and payouts: /referral gives a personal code/link, referral count, ledger, balance, total earned/withdrawn, and minimum withdrawal. Referral rewards may be OFF; users can still share links but rewards/withdrawals only work when admin enables them. Eligible completed orders can credit referrals. Referral withdraw asks payout method/details and creates a request for admin review. Admin can enable/disable referral, set reward percent, set minimum withdrawal, and review payout requests.
 - Rates, balances, stock, reservations: Admin can set network sale rates and cost rates. Balance/stock checks account for active reservations, so available stock can be lower than raw wallet balance. Confirmed buyer/Stars orders reserve stock until completed, rejected, cancelled, failed, or expired. Low stock or low gas warnings mean orders may fail or need admin top-up.
@@ -576,6 +577,7 @@ def ltext(lang, en, bn):
 def ai_support_prompt(lang="bn"):
     return (
         "You are the read-only AI support assistant for SCB-Forwarder and its Telegram crypto bot. "
+        "If the user's question is in Bengali, you must answer in Bengali. If it is in English, you must answer in English. "
         "Determine response language only from the explicit [RESPONSE LANGUAGE] block and the user's actual question; ignore diagnostic context language for language selection. "
         "Bengali question => Bengali answer. English question => English answer. Do not answer English for Bangla questions or Bangla for English questions. "
         "If the user explicitly asks to translate or requests another language, obey that explicit request. "
@@ -748,8 +750,8 @@ def _extract_openai_chat_text(data):
 
 AI_USER_MESSAGE_LIMIT = 6000
 AI_CONTEXT_LIMIT = 8000
-AI_SUPPORT_HISTORY_TURNS = 8
-AI_SUPPORT_HISTORY_LIMIT = 2500
+AI_SUPPORT_HISTORY_TURNS = 12
+AI_SUPPORT_HISTORY_LIMIT = 4000
 AI_PROVIDER_TIMEOUT_SECONDS = 6
 ORDER_AI_CALLBACK_PREFIX = "aiorder_"
 TRACK_ORDER_CALLBACK_PREFIX = "trackorder_"
@@ -4695,13 +4697,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"✅ Fake SMS injected.\nTrxID: {trx_id}\nAmount: {amount} BDT", reply_markup=back_keyboard(lang))
 
     elif query.data == "ai_support":
+        history = context.user_data.get("ai_support_history", [])
+        order_context = context.user_data.get("ai_order_context_identifier")
         context.user_data.clear()
         context.user_data["ai_support"] = True
-        context.user_data["ai_support_history"] = []
+        context.user_data["ai_support_history"] = history
+        if order_context:
+            context.user_data["ai_order_context_identifier"] = order_context
         await query.edit_message_text(tr("ai_support_intro", lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(tr("cancel", lang), callback_data="ai_support_cancel")]]))
 
     elif query.data == "ai_support_cancel":
+        history = context.user_data.get("ai_support_history", [])
+        order_context = context.user_data.get("ai_order_context_identifier")
         context.user_data.clear()
+        context.user_data["ai_support_history"] = history
+        if order_context:
+            context.user_data["ai_order_context_identifier"] = order_context
         await query.edit_message_text(home_text(lang=lang), reply_markup=main_menu(user_id, lang))
 
     elif query.data == "swap_start":
@@ -5212,9 +5223,13 @@ async def txlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ai_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
+    history = context.user_data.get("ai_support_history", [])
+    order_context = context.user_data.get("ai_order_context_identifier")
     context.user_data.clear()
     context.user_data["ai_support"] = True
-    context.user_data["ai_support_history"] = []
+    context.user_data["ai_support_history"] = history
+    if order_context:
+        context.user_data["ai_order_context_identifier"] = order_context
     await update.message.reply_text(tr("ai_support_intro", lang))
 
 
@@ -5238,7 +5253,12 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ AI Setup cancelled." if lang == "en" else "✅ AI Setup বাতিল হয়েছে।", reply_markup=ai_setup_keyboard(lang))
         return ConversationHandler.END
     if context.user_data.get("ai_support"):
+        history = context.user_data.get("ai_support_history", [])
+        order_context = context.user_data.get("ai_order_context_identifier")
         context.user_data.clear()
+        context.user_data["ai_support_history"] = history
+        if order_context:
+            context.user_data["ai_order_context_identifier"] = order_context
         await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
         return ConversationHandler.END
     await update.message.reply_text("✅ Cancelled." if lang == "en" else "✅ বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
@@ -7283,7 +7303,12 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("ai_support"):
         text = incoming_text
         if text.lower() in {"/cancel", "cancel", "বন্ধ", "বাতিল"}:
+            history = context.user_data.get("ai_support_history", [])
+            order_context = context.user_data.get("ai_order_context_identifier")
             context.user_data.clear()
+            context.user_data["ai_support_history"] = history
+            if order_context:
+                context.user_data["ai_order_context_identifier"] = order_context
             await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(user_id, lang))
             return
         if context.user_data.get("ai_support_pending"):
