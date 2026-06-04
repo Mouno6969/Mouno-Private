@@ -29,7 +29,7 @@ def create_web_user(username, password_hash, telegram_id=None):
         try:
             con.execute(
                 "INSERT INTO web_users (username, password_hash, telegram_id) VALUES (?, ?, ?)",
-                (username, password_hash, telegram_id),
+                (username, password_hash, str(telegram_id) if telegram_id is not None else None),
             )
             con.commit()
             return True
@@ -66,7 +66,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                telegram_id TEXT,
+                telegram_id TEXT UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
