@@ -7,7 +7,7 @@ The bot includes a read-only `🤖 AI Support` button and `/ai` command.
 Set one or more free/free-tier provider keys in `.env`:
 
 ```env
-AI_PROVIDER_ORDER=nvidia_llama_8b,nvidia_qwen_7b,nvidia_mistral_small,nvidia_nemotron_nano,nvidia_llama4_scout,groq,openrouter,gemini,huggingface,cohere,mistral,nvidia_kimi,nvidia_deepseek,nvidia_gemma
+AI_PROVIDER_ORDER=cerebras,groq,gemini,nvidia_llama_8b,nvidia_qwen_7b,nvidia_mistral_small,nvidia_nemotron_nano,nvidia_llama4_scout,openrouter,huggingface,cohere,mistral,nvidia_kimi,nvidia_deepseek,nvidia_gemma
 NVIDIA_API_KEY=your_nvidia_build_nim_key
 NVIDIA_LLAMA_8B_API_KEY=
 NVIDIA_LLAMA_8B_MODEL=meta/llama-3.1-8b-instruct
@@ -40,7 +40,7 @@ MISTRAL_API_KEY=your_mistral_key
 MISTRAL_MODEL=mistral-small-latest
 ```
 
-You can set only one key, or multiple keys. The bot supports fast NVIDIA Build/NIM providers first (`nvidia_llama_8b`, `nvidia_qwen_7b`, `nvidia_mistral_small`, `nvidia_nemotron_nano`, `nvidia_llama4_scout`), then Groq, OpenRouter, Gemini, Hugging Face, Cohere, and Mistral. Slow/heavy NVIDIA Kimi K2.6, DeepSeek V4 Pro, and Gemma 4 31B remain available as bottom fallback providers. The bot enforces this practical order even if an old `.env` has a different `AI_PROVIDER_ORDER`, while still adding valid future providers without duplicates. It automatically falls back to the next configured provider if one fails or returns an empty answer. Use `NVIDIA_API_KEY` as a shared NVIDIA key, or per-model `NVIDIA_*_API_KEY` values when needed. Admins can view model success/failure counts from Admin Menu → 📊 AI Usage or `/ai_usage`. Restart the bot after editing `.env`.
+You can set only one key, or multiple keys. The bot supports Cerebras, Groq, and Gemini as the primary providers, followed by fast NVIDIA Build/NIM models (`nvidia_llama_8b`, `nvidia_qwen_7b`, `nvidia_mistral_small`, `nvidia_nemotron_nano`, `nvidia_llama4_scout`), then OpenRouter, Hugging Face, Cohere, and Mistral. Slow/heavy NVIDIA Kimi K2.6, DeepSeek V4 Pro, and Gemma 4 31B remain available as bottom fallback providers. The bot enforces this practical order even if an old `.env` has a different `AI_PROVIDER_ORDER`, while still adding valid future providers without duplicates. It automatically falls back to the next configured provider if one fails or returns an empty answer. Use `NVIDIA_API_KEY` as a shared NVIDIA key, or per-model `NVIDIA_*_API_KEY` values when needed. Admins can view model success/failure counts from Admin Menu → 📊 AI Usage or `/ai_usage`. Restart the bot after editing `.env`.
 
 These are free/free-tier/trial options where available; provider quotas and availability are not guaranteed unlimited.
 
@@ -66,4 +66,4 @@ The prompt intentionally keeps AI read-only for safety.
 
 ## Security note
 
-If you ever paste your API key in a chat or public place, rotate/restrict it in the provider dashboard.
+ If you ever paste your API key in a chat or public place, rotate/restrict it in the provider dashboard.

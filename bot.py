@@ -640,7 +640,7 @@ def _clean_ai_key(value):
 
 
 def ai_provider_order():
-    known_order = SLOW_NVIDIA_PROVIDER_ORDER + STANDARD_PROVIDER_ORDER + FAST_NVIDIA_PROVIDER_ORDER
+    known_order = FAST_NVIDIA_PROVIDER_ORDER + STANDARD_PROVIDER_ORDER + SLOW_NVIDIA_PROVIDER_ORDER
     order = ["cerebras", "groq", "gemini"]
     for provider in AI_PROVIDER_ORDER.split(","):
         provider = provider.strip().lower()
