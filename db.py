@@ -1700,6 +1700,67 @@ def get_seller_public_stats(user_id):
         }
 
 
+def get_user_analytics(user_id):
+    user_id = str(user_id)
+    with closing(connect()) as con:
+        # Basic user info
+        user_pref = con.execute("SELECT created_at FROM user_preferences WHERE user_id=?", (user_id,)).fetchone()
+        joined_at = user_pref[0] if user_pref else None
+
+        # Transaction stats
+        tx_stats = con.execute(
+            """
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(amount_bdt), 0),
+                COALESCE(AVG(amount_bdt), 0),
+                MAX(created_at)
+            FROM transactions
+            WHERE user_id=? AND status='completed'
+            """,
+            (user_id,),
+        ).fetchone()
+
+        total_orders = tx_stats[0] or 0
+        total_bdt = tx_stats[1] or 0
+        avg_bdt = round(tx_stats[2] or 0, 2)
+        last_order_at = tx_stats[3]
+
+        # Favorite network
+        fav_network_row = con.execute(
+            """
+            SELECT network, COUNT(*) as cnt
+            FROM transactions
+            WHERE user_id=? AND status='completed'
+            GROUP BY network
+            ORDER BY cnt DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+        fav_network = fav_network_row[0] if fav_network_row else None
+
+        # Inactivity
+        inactive_days = None
+        if last_order_at:
+            inactive_row = con.execute(
+                "SELECT CAST(julianday('now') - julianday(?) AS INTEGER)",
+                (last_order_at,)
+            ).fetchone()
+            inactive_days = inactive_row[0] if inactive_row else 0
+
+        return {
+            "user_id": user_id,
+            "joined_at": joined_at,
+            "total_orders": total_orders,
+            "total_bdt": total_bdt,
+            "avg_bdt": avg_bdt,
+            "fav_network": fav_network,
+            "last_order_at": last_order_at,
+            "inactive_days": inactive_days
+        }
+
+
 def dashboard_snapshot(limit=20):
     with closing(connect()) as con:
         return {
