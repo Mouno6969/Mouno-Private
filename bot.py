@@ -175,6 +175,7 @@ from db import (
     get_report_stats,
     get_seller_status,
     get_seller_public_stats,
+    get_user_analytics,
     get_profit_summary,
     get_webhook_health,
     find_order,
@@ -443,6 +444,9 @@ TEXT = {
     "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nOrder চেক: /order ORD-XXXXXX বা /status TRXID\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nCheck order: /order ORD-XXXXXX or /status TRXID\nSend /cancel to close."},
     "ai_unavailable": {"bn": "❌ AI Support এখন unavailable. Admin-কে জানান।", "en": "❌ AI Support is unavailable. Please contact admin."},
     "ai_thinking": {"bn": "🤖 উত্তর তৈরি করছি...", "en": "🤖 Thinking..."},
+    "user_analytics": {"bn": "📊 User Analytics", "en": "📊 User Analytics"},
+    "enter_user_id_analytics": {"bn": "বিশ্লেষণের জন্য User ID দিন:", "en": "Enter User ID for analytics:"},
+    "user_not_found": {"bn": "❌ ব্যবহারকারী পাওয়া যায়নি।", "en": "❌ User not found."},
 }
 
 
@@ -3221,6 +3225,39 @@ def report_text(period="daily"):
     return panel("📈 Admin Report", f"Period: {period}\n👥 New users: {new_users}\n🧾 Total orders: {total or 0}\n✅ Completed: {completed or 0}\n❌ Failed: {failed or 0}\n⏳ Pending/other: {(other or 0) + data['pending_orders']}\n💰 Completed BDT volume: {round(total_bdt or 0, 2)}\n💵 Completed crypto volume: {round(total_crypto or 0, 6)}\n💹 Profit: {round(total_profit or 0, 2)} BDT\n⭐ Stars ledger pending payout: {stars_count or 0} orders / {stars_amount or 0} Stars\n💸 Seller payout requests: {payout_count or 0} / {payout_amount or 0}\n👥 Referral liability: {round(ref_liability or 0, 6)} USD | credited {round(ref_credited or 0, 6)} | withdrawn {round(ref_withdrawn or 0, 6)} | failed wd {ref_failed}\n\nTop networks:\n{top}")
 
 
+def user_analytics_text(user_id, lang="bn"):
+    data = get_user_analytics(user_id)
+    if not data or not data.get("joined_at"):
+        return tr("user_not_found", lang)
+
+    joined_at = str(data["joined_at"])[:16]
+    last_order = str(data["last_order_at"])[:16] if data["last_order_at"] else (ltext(lang, "Never", "কখনো নয়"))
+    inactive = f"{data['inactive_days']} days" if data["inactive_days"] is not None else "N/A"
+    avg_size = f"{data['avg_bdt']} BDT"
+    total_spent = f"{data['total_bdt']} BDT"
+    fav_net = NETWORKS.get(data["fav_network"], {}).get("name", data["fav_network"]) if data["fav_network"] else "N/A"
+
+    body = ltext(lang,
+        f"👤 User: {user_id}\n"
+        f"📅 Joined: {joined_at}\n"
+        f"🛒 Total Orders: {data['total_orders']}\n"
+        f"💰 Total Spent: {total_spent}\n"
+        f"📊 Avg Order Size: {avg_size}\n"
+        f"🌐 Favorite Network: {fav_net}\n"
+        f"🕒 Last Order: {last_order}\n"
+        f"💤 Inactive: {inactive}",
+        f"👤 ব্যবহারকারী: {user_id}\n"
+        f"📅 প্রথম দেখা: {joined_at}\n"
+        f"🛒 মোট অর্ডার: {data['total_orders']}\n"
+        f"💰 মোট খরচ: {total_spent}\n"
+        f"📊 গড় অর্ডারের সাইজ: {avg_size}\n"
+        f"🌐 প্রিয় নেটওয়ার্ক: {fav_net}\n"
+        f"🕒 শেষ অর্ডার: {last_order}\n"
+        f"💤 ইনঅ্যাক্টিভ: {inactive}"
+    )
+    return panel(tr("user_analytics", lang), body)
+
+
 def seller_dashboard_text():
     balances, evm_addr = get_all_balances()
     lines = ["🏪 Seller Dashboard", DIVIDER]
@@ -3305,7 +3342,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
         keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
         keyboard.append([InlineKeyboardButton("🔁 Swap Status", callback_data="swap_status"), InlineKeyboardButton("🔁 Swap API Setup", callback_data="swap_setup")])
-        keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage")])
+        keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage"), InlineKeyboardButton(tr("user_analytics", lang), callback_data="admin_user_analytics")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
         keyboard.append([InlineKeyboardButton("💸 Payouts", callback_data="admin_payouts"), InlineKeyboardButton("👥 Referral Admin", callback_data="referral_admin")])
         keyboard.append([InlineKeyboardButton("🧪 Test Tools", callback_data="test_tools")])
@@ -4694,6 +4731,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin(user_id):
             return ConversationHandler.END
         await show_payouts_to_target(query)
+
+    elif query.data == "admin_user_analytics":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["admin_user_analytics_lookup"] = True
+        await query.edit_message_text(tr("enter_user_id_analytics", lang), reply_markup=back_keyboard(lang))
 
     elif query.data.startswith("payout_paid_") or query.data.startswith("payout_reject_"):
         if not is_admin(user_id):
@@ -7263,6 +7307,15 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("payout_request"):
         context.user_data.clear()
         await create_payout_from_text(update, user_id, incoming_text)
+        return
+
+    if context.user_data.get("admin_user_analytics_lookup"):
+        if not is_admin(user_id):
+            context.user_data.pop("admin_user_analytics_lookup", None)
+            return
+        target_user_id = incoming_text.strip()
+        await update.message.reply_text(user_analytics_text(target_user_id, lang), reply_markup=back_keyboard(lang))
+        context.user_data.pop("admin_user_analytics_lookup", None)
         return
 
     ref_admin_set = context.user_data.get("ref_admin_set")
