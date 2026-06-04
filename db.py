@@ -129,6 +129,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_preferences (
                 user_id TEXT PRIMARY KEY,
                 language TEXT DEFAULT 'bn',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -344,6 +345,8 @@ def init_db():
         ensure_column(con, "pending_orders", "seller_id", "TEXT")
         ensure_column(con, "star_orders", "seller_id", "TEXT")
         ensure_column(con, "stock_reservations", "seller_id", "TEXT")
+        ensure_column(con, "user_preferences", "created_at", "TIMESTAMP")
+        cur.execute("UPDATE user_preferences SET created_at=COALESCE(created_at, updated_at, CURRENT_TIMESTAMP)")
         cur.execute("UPDATE transactions SET updated_at=COALESCE(updated_at, created_at)")
         cur.execute("UPDATE transactions SET seller_id=COALESCE(seller_id, ?) ", (os.getenv("ADMIN_ID"),))
         cur.execute("UPDATE pending_orders SET updated_at=COALESCE(updated_at, created_at)")
@@ -541,7 +544,7 @@ def get_failed_transactions(limit=10):
 
 def get_transaction_stats():
     with closing(connect()) as con:
-        return con.execute(
+        tx = con.execute(
             """
             SELECT
                 COUNT(*) as total,
@@ -553,6 +556,15 @@ def get_transaction_stats():
             FROM transactions
             """
         ).fetchone()
+        users = con.execute(
+            """
+            SELECT
+                COUNT(*),
+                SUM(CASE WHEN datetime(created_at) >= datetime('now', '-1 day') THEN 1 ELSE 0 END)
+            FROM user_preferences
+            """
+        ).fetchone()
+        return tx + users
 
 
 def set_cost_rate(network, rate):
@@ -1634,7 +1646,11 @@ def get_report_stats(period="daily"):
             """
         ).fetchone()
         ref_failed = con.execute("SELECT COUNT(*) FROM referral_withdrawals WHERE status='failed'").fetchone()[0]
-        return {"period": period, "transactions": tx, "top_networks": top_networks, "pending_orders": pending, "stars_pending": stars_pending, "payouts_pending": payouts_pending, "referrals": ref, "referral_failed_withdrawals": ref_failed}
+        new_users = con.execute(
+            "SELECT COUNT(*) FROM user_preferences WHERE datetime(created_at) >= datetime('now', ?)",
+            (modifier,),
+        ).fetchone()[0]
+        return {"period": period, "transactions": tx, "top_networks": top_networks, "pending_orders": pending, "stars_pending": stars_pending, "payouts_pending": payouts_pending, "referrals": ref, "referral_failed_withdrawals": ref_failed, "new_users": new_users}
 
 
 def get_seller_public_stats(user_id):
