@@ -4034,11 +4034,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(users_list_text(rows, total, filter_type, 0), reply_markup=users_keyboard(filter_type, 0, total_pages))
 
         elif query.data.startswith("us_p_"):
-            parts = query.data.split("_", 5)
+            parts = query.data.split("_", 4)
             filter_type = parts[2]
-            page = int(parts[3])
-            search_query = parts[4] if parts[4] else None
-            show_filters = len(parts) > 5 and parts[5] == "show"
+            page_part = parts[3]
+            suffix = parts[4] if len(parts) > 4 else ""
+            show_filters = suffix == "show"
+            # Ignore hide suffix; page is always numeric
+            page = int(page_part) if page_part.isdigit() else 0
+            # Recover search query from server-side storage; never from callback_data
+            search_query = context.user_data.get("user_search_query") if filter_type == "search" else None
 
             rows, total = get_users_paged(filter_type, page, search_query)
             total_pages = math.ceil(total / 10) if total > 0 else 1
@@ -5364,16 +5368,14 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def users_keyboard(filter_type, page, total_pages, search_query=None, show_filters=False):
-    # Use | as separator for search_query to avoid issues with _
-    sq = str(search_query or "").replace("_", " ")
     rows = []
-    # Pagination
+    # Pagination — search query is stored server-side, not in callback_data
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅️ আগের পাতা", callback_data=f"us_p_{filter_type}_{page-1}_{sq}"))
+        nav.append(InlineKeyboardButton("⬅️ আগের পাতা", callback_data=f"us_p_{filter_type}_{page-1}"))
     nav.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="us_noop"))
     if page < total_pages - 1:
-        nav.append(InlineKeyboardButton("পরের পাতা ➡️", callback_data=f"us_p_{filter_type}_{page+1}_{sq}"))
+        nav.append(InlineKeyboardButton("পরের পাতা ➡️", callback_data=f"us_p_{filter_type}_{page+1}"))
     if nav:
         rows.append(nav)
 
@@ -5386,11 +5388,11 @@ def users_keyboard(filter_type, page, total_pages, search_query=None, show_filte
         rows.append([
             InlineKeyboardButton("🔎 Search", callback_data="us_f_search"),
             InlineKeyboardButton("📋 All", callback_data="us_f_all"),
-            InlineKeyboardButton("🔙 Hide Filters", callback_data=f"us_p_{filter_type}_{page}_{sq}_hide")
+            InlineKeyboardButton("🔙 Hide Filters", callback_data=f"us_p_{filter_type}_{page}_hide")
         ])
     else:
         rows.append([
-            InlineKeyboardButton("📂 Filters 🔍", callback_data=f"us_p_{filter_type}_{page}_{sq}_show"),
+            InlineKeyboardButton("📂 Filters 🔍", callback_data=f"us_p_{filter_type}_{page}_show"),
             InlineKeyboardButton("📤 Export CSV", callback_data="us_export")
         ])
 
@@ -5461,6 +5463,8 @@ async def users_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(args) > 1:
                 filter_type = "search"
                 search_query = " ".join(args[1:])
+                # Store server-side so pagination callbacks stay within 64-byte limit
+                context.user_data["user_search_query"] = search_query
             else:
                 await update.message.reply_text("Usage: /users search <ID/Name/Username>")
                 return
@@ -7463,6 +7467,8 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get("user_search_active"):
             context.user_data.pop("user_search_active", None)
             context.user_data.pop("admin_user_analytics_lookup", None)
+            # Store query server-side so pagination callbacks don't embed it
+            context.user_data["user_search_query"] = target_query
             filter_type = "search"
             rows, total = get_users_paged(filter_type, 0, target_query)
             total_pages = math.ceil(total / 10) if total > 0 else 1

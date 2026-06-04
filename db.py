@@ -1054,11 +1054,12 @@ def save_user_info(user_id, username, first_name):
     with closing(connect()) as con:
         con.execute(
             """
-            INSERT INTO user_preferences (user_id, username, first_name, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO user_preferences (user_id, username, first_name, created_at, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT(user_id) DO UPDATE SET
                 username=excluded.username,
                 first_name=excluded.first_name,
+                created_at=COALESCE(user_preferences.created_at, CURRENT_TIMESTAMP),
                 updated_at=CURRENT_TIMESTAMP
             """,
             (str(user_id), username, first_name),
