@@ -30,7 +30,7 @@ const Seller: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/seller/status', {
+      const res = await fetch('/api/seller/status', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -46,7 +46,7 @@ const Seller: React.FC = () => {
     e.preventDefault();
     setApplying(true);
     try {
-      const res = await fetch('http://localhost:5001/api/seller/apply', {
+      const res = await fetch('/api/seller/apply', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

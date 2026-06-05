@@ -19,7 +19,7 @@ const LinkTelegram: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/api/link-telegram', {
+      const res = await fetch('/api/link-telegram', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

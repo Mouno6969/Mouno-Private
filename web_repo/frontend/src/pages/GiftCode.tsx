@@ -21,7 +21,7 @@ const GiftCode: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5001/api/gift/redeem', {
+      const res = await fetch('/api/gift/redeem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
