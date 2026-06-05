@@ -1,6 +1,7 @@
 import os
 import logging
 import jwt
+from pathlib import Path
 import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
@@ -258,20 +259,94 @@ def redeem_gift(current_user):
         return jsonify({'message': 'Code and wallet required'}), 400
 
     user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
+    username = current_user[1]
 
-    # We use the existing logic from db.py but we need to handle the sending.
-    # Since the API is separate, it's better to reuse the bot's logic if possible.
-    # For now, let's just return a placeholder or implement basic verification.
-
-    row = db.get_code(code)
-    if not row:
+    # Peek at the code to determine if it's a giveaway code
+    peek = db.get_code(code)
+    if not peek:
         return jsonify({'message': 'Code not found'}), 404
-    if row[3]: # used
-        return jsonify({'message': 'Code already used'}), 400
+    giveaway_id = peek[7] if len(peek) > 7 else None
 
-    # In a real scenario, we'd trigger the send_crypto here.
-    # For simplicity, we'll assume the same shared logic.
-    return jsonify({'message': 'Redeem initiated (implement crypto send in backend)'}), 202
+    if giveaway_id:
+        # Giveaway codes: claim_giveaway_code uses BEGIN IMMEDIATE (atomic)
+        claim = db.claim_giveaway_code(code, user_id)
+        if not claim.get("ok"):
+            reason = claim.get("reason", "unknown")
+            msgs = {
+                "used": "This code has already been claimed",
+                "expired": "This code has expired",
+                "fully_claimed": "Giveaway is already fully claimed",
+                "not_found": "Code not found",
+            }
+            return jsonify({'message': msgs.get(reason, f"Could not claim: {reason}")}), 400
+        network = claim.get("network", "solana")
+        amount_crypto = claim.get("amount", 0)
+    else:
+        # Non-giveaway codes: use_code_if_available uses BEGIN IMMEDIATE (atomic)
+        # This prevents double-spend race conditions
+        row, error = db.use_code_if_available(code, user_id)
+        if error:
+            msgs = {
+                "not_found": ("Code not found", 404),
+                "used": ("This code has already been used", 400),
+                "expired": ("This code has expired", 400),
+            }
+            msg, status_code = msgs.get(error, (f"Could not redeem: {error}", 400))
+            return jsonify({'message': msg}), status_code
+        amount_crypto = row[1]
+        network = row[6] or 'solana'
+
+    status = "pending"
+    sig = ""
+
+    try:
+        _repo_root = str(Path(__file__).resolve().parent.parent.parent)
+        if _repo_root not in sys.path:
+            sys.path.insert(0, _repo_root)
+        from sender import send_usdc
+        from bsc_sender import send_bsc_usdt
+        from polygon_sender import send_polygon_usdc
+        from evm_sender import send_evm_token
+        from tron_sender import send_trc20_usdt
+        from ton_sender import send_ton
+
+        if network == "solana":
+            sig = send_usdc(wallet, amount_crypto)
+        elif network == "polygon":
+            sig = send_polygon_usdc(wallet, amount_crypto)
+        elif network == "bsc":
+            sig = send_bsc_usdt(wallet, amount_crypto)
+        elif network == "trc20":
+            sig = send_trc20_usdt(wallet, amount_crypto)
+        elif network == "ton":
+            sig = send_ton(wallet, amount_crypto)
+        elif network in ("avalanche", "ethereum", "ethereum_usdc", "base"):
+            asset = "usdc" if network in ("ethereum_usdc", "base") else "usdt"
+            chain = "ethereum" if network == "ethereum_usdc" else network
+            sig = send_evm_token(chain, asset, wallet, amount_crypto)
+        else:
+            sig = ""
+        status = "completed"
+        db.save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig or "", status, network, source="gift" if not giveaway_id else "giveaway")
+    except Exception as exc:
+        logger.error("Gift delivery failed: %s", exc)
+        status = "failed"
+        db.save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, "", status, network, source="gift" if not giveaway_id else "giveaway")
+
+    notify_admin_telegram(
+        f"{'✅' if status == 'completed' else '❌'} Web gift code redeemed\n\n"
+        f"📦 Code: {code}\n"
+        f"👤 User: {username} ({user_id})\n"
+        f"💵 Amount: {amount_crypto} ({network})\n"
+        f"📳 Wallet: {wallet}\n"
+        f"📊 Status: {status}\n"
+        f"🔗 Sig: {sig or 'N/A'}"
+    )
+
+    if status == "completed":
+        return jsonify({'message': f'Gift redeemed! {amount_crypto} sent to your wallet.', 'status': 'completed', 'sig': sig}), 200
+    else:
+        return jsonify({'message': 'Code claimed but delivery failed. Admin has been notified and will send manually.', 'status': 'failed'}), 202
 
 from ai_service import ask_ai_support
 

@@ -15,6 +15,8 @@ import GiftCode from './pages/GiftCode';
 import Support from './pages/Support';
 import Seller from './pages/Seller';
 import LinkTelegram from './pages/LinkTelegram';
+import FAQ from './pages/FAQ';
+import Terms from './pages/Terms';
 import { Toaster } from 'sonner';
 import { useAuth } from './context/AuthContext';
 
@@ -37,6 +39,8 @@ const App: React.FC = () => {
           <Route path="/support" element={token ? <Support /> : <Navigate to="/login" />} />
           <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
           <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/terms" element={<Terms />} />
         </Routes>
       </Layout>
       <Toaster richColors position="top-center" />
