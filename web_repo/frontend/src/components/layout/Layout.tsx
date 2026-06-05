@@ -14,7 +14,9 @@ import {
   Menu,
   X,
   User,
-  Store
+  Store,
+  Gift,
+  Coins
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -51,6 +53,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: t('gift'), icon: <User className="h-4 w-4" />, path: '/gift' },
     { name: t('sellers'), icon: <Store className="h-4 w-4" />, path: '/seller' },
     { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
+    { name: 'Giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
+    { name: 'Balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },
   ];
 
   const isActive = (path: string) => location.pathname === path;

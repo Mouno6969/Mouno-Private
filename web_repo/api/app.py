@@ -372,5 +372,42 @@ def get_seller_inventory(current_user):
         'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], row)) for row in wallets]
     })
 
+@app.route('/api/giveaways', methods=['GET'])
+def list_giveaways():
+    with db.closing(db.connect()) as con:
+        rows = con.execute(
+            """
+            SELECT session_id, network, base_amount, recipient_count,
+                   early_bonus_count, early_bonus_amount, claimed_count, expires_at, created_at
+            FROM giveaway_sessions
+            WHERE expires_at > datetime('now')
+            ORDER BY created_at DESC LIMIT 20
+            """
+        ).fetchall()
+    result = []
+    for r in rows:
+        remaining = (r[3] or 0) - (r[6] or 0)
+        result.append({
+            'session_id': r[0], 'network': r[1], 'base_amount': r[2],
+            'recipient_count': r[3], 'early_bonus_count': r[4],
+            'early_bonus_amount': r[5], 'claimed_count': r[6],
+            'remaining': max(remaining, 0),
+            'expires_at': r[7], 'created_at': r[8]
+        })
+    return jsonify(result)
+
+@app.route('/api/balance', methods=['GET'])
+def check_balance():
+    try:
+        _repo_root = str(Path(__file__).resolve().parent.parent.parent)
+        if _repo_root not in sys.path:
+            sys.path.insert(0, _repo_root)
+        from balance import get_all_balances
+        balances, evm_addr = get_all_balances()
+        return jsonify({'balances': balances, 'evm_address': evm_addr})
+    except Exception as exc:
+        logger.error("Balance check failed: %s", exc)
+        return jsonify({'message': 'Balance check unavailable', 'error': str(exc)}), 503
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
