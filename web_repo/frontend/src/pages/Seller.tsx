@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
-import { Store, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Store, CheckCircle2, Clock, XCircle, Package, History } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '../components/ui/badge';
 
 const Seller: React.FC = () => {
   const { t } = useTranslation();
@@ -13,6 +14,11 @@ const Seller: React.FC = () => {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
+
+  const [showInventory, setShowInventory] = useState(false);
+  const [showOrders, setShowOrders] = useState(false);
+  const [inventory, setInventory] = useState<any>(null);
+  const [sellerOrders, setSellerOrders] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     display_name: '',
@@ -27,6 +33,20 @@ const Seller: React.FC = () => {
         setLoading(false);
     }
   }, [token, user]);
+
+  useEffect(() => {
+    if (showInventory && !inventory && token) {
+      fetch('/api/seller/inventory', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setInventory(d)).catch(() => {});
+    }
+  }, [showInventory, inventory, token]);
+
+  useEffect(() => {
+    if (showOrders && sellerOrders.length === 0 && token) {
+      fetch('/api/seller/orders', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setSellerOrders(Array.isArray(d) ? d : d.orders || [])).catch(() => {});
+    }
+  }, [showOrders, sellerOrders.length, token]);
 
   const fetchStatus = async () => {
     try {
@@ -112,20 +132,78 @@ const Seller: React.FC = () => {
 
         <div className="grid gap-4 md:grid-cols-2">
             <Card>
-                <CardHeader><CardTitle>Manage Inventory</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-4 w-4" /> Manage Inventory</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">Update your rates and stock for different networks.</p>
-                    <Button variant="outline" className="w-full">Open Inventory</Button>
+                    <Button variant="outline" className="w-full" onClick={() => setShowInventory(!showInventory)}>
+                      {showInventory ? 'Hide Inventory' : 'Open Inventory'}
+                    </Button>
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader><CardTitle>Order History</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-4 w-4" /> Order History</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">View and manage orders from your customers.</p>
-                    <Button variant="outline" className="w-full">View Orders</Button>
+                    <Button variant="outline" className="w-full" onClick={() => setShowOrders(!showOrders)}>
+                      {showOrders ? 'Hide Orders' : 'View Orders'}
+                    </Button>
                 </CardContent>
             </Card>
         </div>
+
+        {showInventory && (
+          <Card>
+            <CardHeader><CardTitle>Inventory</CardTitle></CardHeader>
+            <CardContent>
+              {inventory ? (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Rates</h4>
+                    {inventory.rates?.length > 0 ? inventory.rates.map((r: any, i: number) => (
+                      <div key={i} className="flex justify-between py-1 border-b text-sm">
+                        <span className="font-mono">{r.network}</span>
+                        <Badge variant="outline">৳{r.rate}</Badge>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">No custom rates set.</p>}
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">Wallets</h4>
+                    {inventory.wallets?.length > 0 ? inventory.wallets.map((w: any, i: number) => (
+                      <div key={i} className="flex justify-between py-1 border-b text-sm">
+                        <span className="font-mono">{w.network}</span>
+                        <span className="font-mono text-xs truncate max-w-[200px]">{w.wallet_address}</span>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">No wallets configured.</p>}
+                  </div>
+                </div>
+              ) : <p className="text-sm text-muted-foreground">Loading...</p>}
+            </CardContent>
+          </Card>
+        )}
+
+        {showOrders && (
+          <Card>
+            <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
+            <CardContent>
+              {sellerOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {sellerOrders.map((order: any, i: number) => (
+                    <div key={i} className="p-3 border rounded-lg space-y-1">
+                      <div className="flex justify-between">
+                        <span className="font-mono font-bold">{order.order_id || order.trx_id}</span>
+                        <Badge variant={order.status === 'completed' ? 'default' : 'secondary'}>{order.status}</Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        ৳{order.amount_bdt} → {order.amount_crypto} {order.network?.toUpperCase()}
+                      </div>
+                      {order.wallet && <div className="text-xs font-mono text-muted-foreground truncate">{order.wallet}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-muted-foreground">No orders yet.</p>}
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
