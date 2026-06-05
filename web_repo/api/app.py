@@ -573,13 +573,24 @@ def order_receipt(current_user):
                     'message': 'Receipt is only available for completed orders.'
                 })
             return jsonify({'found': False, 'message': 'Order not found'}), 404
+        trx_id = tx[0]
+        if trx_id.startswith('STAR-'):
+            source = 'Stars'
+        elif trx_id.startswith('GIFT-'):
+            source = 'Gift Code'
+        elif trx_id.startswith('ADMIN-'):
+            source = 'Admin Send'
+        elif trx_id.startswith('WALLET-'):
+            source = 'User Wallet'
+        else:
+            source = f"{tx[1]} BDT"
         return jsonify({
             'found': True, 'status': 'completed',
-            'trx_id': tx[0], 'amount_bdt': tx[1], 'amount_crypto': tx[2],
+            'trx_id': trx_id, 'amount_bdt': tx[1], 'amount_crypto': tx[2],
             'network': tx[3], 'wallet': tx[4], 'created_at': tx[6],
             'order_id': tx[7] if len(tx) > 7 else None,
             'sig': tx[9] if len(tx) > 9 else None,
-            'source': tx[10] if len(tx) > 10 else None
+            'source': source
         })
     except Exception as exc:
         logger.error("Receipt failed: %s", exc)
@@ -676,11 +687,17 @@ def wallet_send(current_user):
     destination = data.get('destination')
     amount = data.get('amount')
     password = data.get('password')
-    if not destination or not amount or not password:
-        return jsonify({'message': 'Destination, amount and password are required'}), 400
+    if not destination or not password:
+        return jsonify({'message': 'Destination and password are required'}), 400
+    try:
+        amount = float(amount) if amount else 0
+        if amount <= 0:
+            return jsonify({'message': 'Amount must be positive'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'message': 'Invalid amount'}), 400
     try:
         user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
-        result = send_from_user_wallet(str(user_id), password, destination, float(amount))
+        result = send_from_user_wallet(str(user_id), password, destination, amount)
         if result:
             return jsonify({'success': True, 'tx_hash': result})
         return jsonify({'message': 'Send failed'}), 400
