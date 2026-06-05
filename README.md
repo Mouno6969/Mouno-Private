@@ -1,4 +1,4 @@
-# Mouno Private
+# BGC Private
 
 Organized Python source for a Telegram crypto seller bot recovered from Termux `cat ~/mouno/...` output.
 

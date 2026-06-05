@@ -1170,7 +1170,7 @@ def _ask_openrouter(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
         OPENROUTER_MODEL,
         question,
         lang,
-        {"HTTP-Referer": "https://t.me/", "X-Title": "Mouno Private Telegram Bot"},
+        {"HTTP-Referer": "https://t.me/", "X-Title": "BGC Crypto Bot"},
         timeout=timeout,
     )
 
@@ -1667,6 +1667,35 @@ def command_help_text(user_id=None):
         ("/send_wallet", "personal wallet থেকে crypto send"),
         ("/payout", "payout request flow শুরু"),
     ]
+    lines = ["Normal User Commands"] + [f"{cmd} — {desc}" for cmd, desc in user_commands]
+    if is_admin(user_id):
+        admin_commands = [
+            ("/send", "admin send flow শুরু"),
+            ("/gencode", "gift code generate"),
+            ("/pending", "pending/manual verify orders"),
+            ("/failed", "failed sends + retry button"),
+            ("/stats", "bot/order stats দেখুন"),
+            ("/balances", "admin stock balances দেখুন"),
+            ("/maintenance [on|off]", "maintenance mode on/off"),
+            ("/backup", "DB backup পাঠান"),
+            ("/report [weekly]", "sales/order report দেখুন"),
+            ("/profit [daily|weekly]", "profit summary দেখুন"),
+            ("/costrate [NETWORK RATE]", "cost rates set/list"),
+            ("/gas", "native gas monitor দেখুন"),
+            ("/reservations", "active reservations দেখুন"),
+            ("/audit", "audit log দেখুন"),
+            ("/payouts", "payout review করুন"),
+            ("/webhook_health", "bKash webhook health দেখুন"),
+            ("/bot_health", "overall bot health panel"),
+            ("/restart_help", "Termux safe restart guide"),
+            ("/test_sms [amount]", "fake buyer SMS test"),
+            ("/test_seller_sms [amount]", "fake seller SMS test"),
+            ("/seller_badge USER_ID new|verified|trusted", "seller badge update"),
+            ("/aiadmin why order failed ORD-123", "AI admin diagnostics"),
+            ("/ai_usage", "AI model success/failure counts"),
+        ]
+        lines += ["", "Admin Commands"] + [f"{cmd} — {desc}" for cmd, desc in admin_commands]
+    user_commands.append(("/link", "ওয়েবসাইট অ্যাকাউন্টের সাথে লিঙ্ক করার কোড পান"))
     lines = ["Normal User Commands"] + [f"{cmd} — {desc}" for cmd, desc in user_commands]
     if is_admin(user_id):
         admin_commands = [
@@ -2990,7 +3019,7 @@ def receipt_qr_payload(data):
     if tx:
         parts.append(f"tx={short_wallet(tx)}")
     parts.append(f"time={receipt_value(data.get('timestamp'))}")
-    return "Mouno receipt|" + "|".join(parts), "Encoded receipt details"
+    return "BGC receipt|" + "|".join(parts), "Encoded receipt details"
 
 
 def build_receipt_qr(data, size=190):
@@ -6397,7 +6426,7 @@ async def waiting_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     crypto_amount = round(amount_bdt / rate, 6)
     sufficient, current_bal = check_sufficient(network, crypto_amount)
     if not sufficient and current_bal is not None:
-        await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n{stock_detail(network, crypto_amount, current_bal)}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdMouno")
+        await update.message.reply_text(f"😔 দুঃখিত! এই মুহূর্তে অর্ডার পূরণ সম্ভব নয়।\n\n🌐 {net_info['name']}\n💵 আপনি চাইছেন: {crypto_amount} {net_info['symbol']}\n{stock_detail(network, crypto_amount, current_bal)}\n\nঅনুগ্রহ করে কম পরিমাণে অর্ডার করুন।\n❓ @MdBGC")
         return ConversationHandler.END
     context.user_data["amount_bdt"] = amount_bdt
     context.user_data["usdc_amount"] = crypto_amount
@@ -8279,6 +8308,19 @@ async def guide_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(GUIDE)
 
 
+async def link_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    code = secrets.token_hex(4).upper()
+    set_setting(f"link_code_{code}", user_id)
+    # Codes expire in 10 minutes (handled in API)
+    set_setting(f"link_code_time_{code}", str(asyncio.get_event_loop().time()))
+
+    lang = user_lang(user_id)
+    if lang == "en":
+        await update.message.reply_text(f"🔗 Your Website Link Code: `{code}`\n\nEnter this code on the website to link your account. It expires in 10 minutes.")
+    else:
+        await update.message.reply_text(f"🔗 আপনার ওয়েবসাইট লিঙ্ক কোড: `{code}`\n\nওয়েবসাইটে আপনার অ্যাকাউন্ট লিঙ্ক করতে এই কোডটি ব্যবহার করুন। এর মেয়াদ ১০ মিনিট।")
+
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(command_help_text(update.effective_user.id))
 
@@ -8407,14 +8449,15 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
             f"👤 User: {user_id}\n🔑 TrxID: {trx_id}\n🌐 {net_info['name']}\n❌ {exc}\n💡 {reason}",
         )
         try:
-            target_lang = user_lang(user_id)
-            await app.bot.send_message(
-                int(user_id),
-                f"✅ Payment verified, but crypto delivery failed. Admin has been notified.\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
-                if target_lang == "en"
-                else f"✅ Payment verified, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}",
-                reply_markup=track_order_keyboard(order_id or trx_id, user_id, target_lang),
-            )
+            if str(user_id).isdigit():
+                target_lang = user_lang(user_id)
+                await app.bot.send_message(
+                    int(user_id),
+                    f"✅ Payment verified, but crypto delivery failed. Admin has been notified.\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
+                    if target_lang == "en"
+                    else f"✅ Payment verified, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}",
+                    reply_markup=track_order_keyboard(order_id or trx_id, user_id, target_lang),
+                )
         except Exception:
             pass
         logger.error("Auto-complete pending order failed: %s", exc)
@@ -8500,6 +8543,7 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("link", link_cmd))
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
     app.add_handler(CommandHandler("giveaway", giveaway_cmd))

@@ -48,6 +48,11 @@ def get_web_user(username):
 def link_web_user_telegram(web_user_id, telegram_id):
     with closing(connect()) as con:
         con.execute("UPDATE web_users SET telegram_id=? WHERE id=?", (str(telegram_id), web_user_id))
+        # Migrate orders from web identity to telegram identity
+        web_identity = f"web_{web_user_id}"
+        con.execute("UPDATE transactions SET user_id=? WHERE user_id=?", (str(telegram_id), web_identity))
+        con.execute("UPDATE pending_orders SET user_id=? WHERE user_id=?", (str(telegram_id), web_identity))
+        con.execute("UPDATE star_orders SET user_id=? WHERE user_id=?", (str(telegram_id), web_identity))
         con.commit()
 
 

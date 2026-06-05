@@ -91,7 +91,7 @@ const Buy: React.FC = () => {
           </CardContent>
         </Card>
         <p className="text-muted-foreground mb-8 text-lg">
-          Your order is being processed automatically. You can track the status in the <Link to="/orders" className="text-primary underline">Orders</Link> section.
+          Your order is being processed automatically. You can track the status in the <a href="/orders" className="text-primary underline">Orders</a> section.
         </p>
         <Button size="lg" onClick={() => setSuccess(null)} className="rounded-full px-10">
           Place Another Order

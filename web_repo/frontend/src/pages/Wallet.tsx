@@ -11,20 +11,20 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 
 const MyWallet: React.FC = () => {
   const { t } = useTranslation();
-  const [privateKey, setPrivateKey] = useState(localStorage.getItem('mouno_private_key') || '');
+  const [privateKey, setPrivateKey] = useState(localStorage.getItem('bgc_private_key') || '');
   const [showKey, setShowKey] = useState(false);
-  const [isSaved, setIsSaved] = useState(!!localStorage.getItem('mouno_private_key'));
+  const [isSaved, setIsSaved] = useState(!!localStorage.getItem('bgc_private_key'));
 
   const saveKey = () => {
     if (!privateKey) return;
-    localStorage.setItem('mouno_private_key', privateKey);
+    localStorage.setItem('bgc_private_key', privateKey);
     setIsSaved(true);
     // Use a toast in a real app, here we just update state
   };
 
   const removeKey = () => {
     if (window.confirm('Are you sure? Your private key will be removed from this browser memory.')) {
-      localStorage.removeItem('mouno_private_key');
+      localStorage.removeItem('bgc_private_key');
       setPrivateKey('');
       setIsSaved(false);
     }
@@ -125,7 +125,7 @@ const MyWallet: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                  <p className="text-xs text-muted-foreground leading-relaxed">
-                   Saving your private key allows the MOUNO system to sign transactions directly from the web interface or telegram bot without requiring external wallet redirects (MetaMask/Phantom).
+                   Saving your private key allows the BGC system to sign transactions directly from the web interface or telegram bot without requiring external wallet redirects (MetaMask/Phantom).
                  </p>
                  <div className="space-y-2 pt-2 border-t border-muted">
                     <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase">

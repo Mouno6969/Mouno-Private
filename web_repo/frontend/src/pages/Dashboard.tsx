@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Battery, Wallet, Zap, ArrowRight, ShieldCheck, Globe, ShoppingCart, RefreshCw } from 'lucide-react';
+import { TrendingUp, Battery, Wallet, Zap, ArrowRight, ShieldCheck, Globe, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -186,6 +186,27 @@ const Dashboard: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="hover:border-primary/30 transition-all group">
+              <Link to="/referral" className="p-4 flex flex-col items-center text-center gap-2">
+                <Users className="text-primary group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-medium">{t('referral')}</span>
+              </Link>
+            </Card>
+            <Card className="hover:border-primary/30 transition-all group">
+              <Link to="/gift" className="p-4 flex flex-col items-center text-center gap-2">
+                <Gift className="text-primary group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-medium">{t('gift')}</span>
+              </Link>
+            </Card>
+            <Card className="hover:border-primary/30 transition-all group col-span-2">
+              <Link to="/seller" className="p-4 flex flex-row items-center justify-center gap-3">
+                <Store className="text-primary group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-medium">{t('sellers')}</span>
+              </Link>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
