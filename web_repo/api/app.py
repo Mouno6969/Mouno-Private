@@ -481,5 +481,252 @@ def check_balance(current_user):
         logger.error("Balance check failed: %s", exc)
         return jsonify({'message': 'Balance check unavailable', 'error': str(exc)}), 503
 
+# ─── TX Log ───
+@app.route('/api/txlog', methods=['GET'])
+@token_required
+def tx_log(current_user):
+    try:
+        user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
+        from contextlib import closing as _closing
+        from db import connect as _connect
+        with _closing(_connect()) as con:
+            rows = con.execute(
+                "SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id FROM transactions WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT 30",
+                (str(user_id),)
+            ).fetchall()
+        txs = []
+        for r in rows:
+            trx_id, bdt, crypto, network, wallet, status, created = r[:7]
+            order_id = r[7] if len(r) > 7 else None
+            if trx_id.startswith("STAR-"):
+                source = "Stars"
+            elif trx_id.startswith("GIFT-"):
+                source = "Gift Code"
+            elif trx_id.startswith("ADMIN-"):
+                source = "Admin Send"
+            elif trx_id.startswith("WALLET-"):
+                source = "User Wallet"
+            else:
+                source = f"{bdt} BDT"
+            txs.append({
+                'trx_id': trx_id, 'amount_bdt': bdt, 'amount_crypto': crypto,
+                'network': network, 'wallet': wallet, 'status': status,
+                'created_at': created, 'order_id': order_id, 'source': source
+            })
+        return jsonify(txs)
+    except Exception as exc:
+        logger.error("TX log failed: %s", exc)
+        return jsonify({'message': 'Failed to load TX log'}), 500
+
+# ─── Order Status Lookup ───
+@app.route('/api/order/lookup', methods=['GET'])
+@token_required
+def order_lookup(current_user):
+    identifier = request.args.get('id', '').strip()
+    if not identifier:
+        return jsonify({'message': 'Please provide an order ID or TrxID'}), 400
+    try:
+        kind, row = db.find_order(identifier)
+        if not row:
+            return jsonify({'message': 'Order not found', 'found': False}), 404
+        if kind == 'transaction':
+            return jsonify({
+                'found': True, 'type': 'transaction',
+                'trx_id': row[0], 'amount_bdt': row[1], 'amount_crypto': row[2],
+                'network': row[3], 'wallet': row[4], 'status': row[5],
+                'created_at': row[6], 'order_id': row[7],
+                'sig': row[9] if len(row) > 9 else None
+            })
+        elif kind == 'pending':
+            return jsonify({
+                'found': True, 'type': 'pending',
+                'trx_id': row[0] if len(row) > 0 else None,
+                'amount_bdt': row[2] if len(row) > 2 else None,
+                'amount_crypto': row[3] if len(row) > 3 else None,
+                'wallet': row[4] if len(row) > 4 else None,
+                'network': row[5] if len(row) > 5 else None,
+                'status': 'pending',
+                'created_at': row[6] if len(row) > 6 else None,
+                'order_id': row[7] if len(row) > 7 else None
+            })
+        elif kind == 'star':
+            return jsonify({
+                'found': True, 'type': 'star',
+                'order_id': row[0] if len(row) > 0 else None,
+                'status': row[7] if len(row) > 7 else None,
+                'network': row[3] if len(row) > 3 else None,
+                'amount_crypto': row[5] if len(row) > 5 else None,
+                'created_at': row[12] if len(row) > 12 else None
+            })
+        return jsonify({'found': True, 'type': kind, 'raw': str(row)})
+    except Exception as exc:
+        logger.error("Order lookup failed: %s", exc)
+        return jsonify({'message': 'Lookup failed'}), 500
+
+# ─── Receipt ───
+@app.route('/api/order/receipt', methods=['GET'])
+@token_required
+def order_receipt(current_user):
+    identifier = request.args.get('id', '').strip()
+    if not identifier:
+        return jsonify({'message': 'Please provide an order ID or TrxID'}), 400
+    try:
+        tx = db.get_transaction_detail(identifier)
+        if not tx:
+            pending = db.get_pending_order(identifier) or db.get_pending_order_by_order_id(identifier)
+            if pending:
+                return jsonify({
+                    'found': True, 'status': 'pending',
+                    'message': 'Receipt is only available for completed orders.'
+                })
+            return jsonify({'found': False, 'message': 'Order not found'}), 404
+        trx_id = tx[0]
+        if trx_id.startswith('STAR-'):
+            source = 'Stars'
+        elif trx_id.startswith('GIFT-'):
+            source = 'Gift Code'
+        elif trx_id.startswith('ADMIN-'):
+            source = 'Admin Send'
+        elif trx_id.startswith('WALLET-'):
+            source = 'User Wallet'
+        else:
+            source = f"{tx[1]} BDT"
+        return jsonify({
+            'found': True, 'status': 'completed',
+            'trx_id': trx_id, 'amount_bdt': tx[1], 'amount_crypto': tx[2],
+            'network': tx[3], 'wallet': tx[4], 'created_at': tx[6],
+            'order_id': tx[7] if len(tx) > 7 else None,
+            'sig': tx[9] if len(tx) > 9 else None,
+            'source': source
+        })
+    except Exception as exc:
+        logger.error("Receipt failed: %s", exc)
+        return jsonify({'message': 'Receipt unavailable'}), 500
+
+# ─── Payout / Withdraw ───
+@app.route('/api/payout', methods=['POST'])
+@token_required
+def payout_request(current_user):
+    data = request.get_json() or {}
+    amount = data.get('amount')
+    method = data.get('method', 'bKash')
+    details = data.get('details', '')
+    if not amount:
+        return jsonify({'message': 'Amount is required'}), 400
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            return jsonify({'message': 'Amount must be positive'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'message': 'Invalid amount'}), 400
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        req_id = db.create_payout_request(str(user_id), amount, method, details)
+        notify_admin_telegram(
+            f"💸 Web Payout Request\n\nID: {req_id}\nUser: {user_id}\nAmount: {amount}\nMethod: {method}\nDetails: {details}"
+        )
+        return jsonify({'success': True, 'request_id': req_id})
+    except Exception as exc:
+        logger.error("Payout request failed: %s", exc)
+        return jsonify({'message': 'Payout request failed'}), 500
+
+@app.route('/api/payout/history', methods=['GET'])
+@token_required
+def payout_history(current_user):
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        from contextlib import closing
+        from db import connect
+        with closing(connect()) as con:
+            rows = con.execute(
+                "SELECT id, amount, method, details, status, created_at FROM payout_requests WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT 20",
+                (str(user_id),)
+            ).fetchall()
+        result = [{'id': r[0], 'amount': r[1], 'method': r[2], 'details': r[3], 'status': r[4], 'created_at': r[5]} for r in rows]
+        return jsonify(result)
+    except Exception as exc:
+        logger.error("Payout history failed: %s", exc)
+        return jsonify([])
+
+# ─── Wallet Tools ───
+@app.route('/api/wallet/setup', methods=['POST'])
+@token_required
+def wallet_setup(current_user):
+    data = request.get_json() or {}
+    network = data.get('network')
+    private_key = data.get('private_key')
+    password = data.get('password')
+    if not network or not private_key or not password:
+        return jsonify({'message': 'Network, private_key and password are required'}), 400
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        try:
+            address = get_wallet_address(network, private_key)
+        except Exception:
+            return jsonify({'message': 'Invalid private key for this network'}), 400
+        if not address:
+            return jsonify({'message': 'Invalid private key for this network'}), 400
+        encrypted, salt = encrypt_key(private_key, password)
+        save_user_wallet(str(user_id), encrypted, salt, network, address)
+        return jsonify({'success': True, 'address': address, 'network': network})
+    except Exception as exc:
+        logger.error("Wallet setup failed: %s", exc)
+        return jsonify({'message': 'Wallet setup failed'}), 500
+
+@app.route('/api/wallet/balance', methods=['POST'])
+@token_required
+def wallet_balance(current_user):
+    data = request.get_json() or {}
+    password = data.get('password')
+    if not password:
+        return jsonify({'message': 'Password is required'}), 400
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        balance_info, network, error = get_user_balance(str(user_id), password)
+        if error or balance_info is None:
+            return jsonify({'message': error or 'No wallet found or wrong password'}), 400
+        return jsonify({'success': True, 'balance': balance_info, 'network': network})
+    except Exception as exc:
+        logger.error("Wallet balance failed: %s", exc)
+        return jsonify({'message': 'Balance check failed'}), 500
+
+@app.route('/api/wallet/send', methods=['POST'])
+@token_required
+def wallet_send(current_user):
+    data = request.get_json() or {}
+    destination = data.get('destination')
+    amount = data.get('amount')
+    password = data.get('password')
+    if not destination or not password:
+        return jsonify({'message': 'Destination and password are required'}), 400
+    try:
+        amount = float(amount) if amount else 0
+        if amount <= 0:
+            return jsonify({'message': 'Amount must be positive'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'message': 'Invalid amount'}), 400
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        result = send_from_user_wallet(str(user_id), password, destination, amount)
+        if result:
+            return jsonify({'success': True, 'tx_hash': result})
+        return jsonify({'message': 'Send failed'}), 400
+    except Exception as exc:
+        logger.error("Wallet send failed: %s", exc)
+        return jsonify({'message': 'Send failed'}), 500
+
+@app.route('/api/wallet/status', methods=['GET'])
+@token_required
+def wallet_status(current_user):
+    try:
+        user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
+        from crypto_manager import get_user_wallet as _get_uw
+        wallet = _get_uw(str(user_id))
+        if wallet:
+            return jsonify({'has_wallet': True, 'network': wallet[2] if len(wallet) > 2 else None})
+        return jsonify({'has_wallet': False})
+    except Exception:
+        return jsonify({'has_wallet': False})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
