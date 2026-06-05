@@ -1,4 +1,5 @@
 import os
+import logging
 import jwt
 import datetime
 from functools import wraps
@@ -6,12 +7,29 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import sys
+import requests as http_requests
 
 import db
 import config
 from balance import get_all_balances
 from swap_service import quote_lifi, summarize_quote, get_lifi_chains
 from crypto_manager import get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet
+
+logger = logging.getLogger(__name__)
+
+
+def notify_admin_telegram(message):
+    """Send a Telegram notification to the admin (best-effort, never raises)."""
+    if not config.BOT_TOKEN or not config.ADMIN_ID:
+        return
+    try:
+        http_requests.post(
+            f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage",
+            json={"chat_id": config.ADMIN_ID, "text": message},
+            timeout=5,
+        )
+    except Exception as exc:
+        logger.warning("Admin Telegram notification failed: %s", exc)
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -143,18 +161,36 @@ def buy_crypto(current_user):
     rate = db.get_network_rate(network) or config.RATE
     amount_usdc = round(amount_bdt / rate, 6)
 
-    # Check if SMS already arrived
-    sms = db.get_sms(trx_id)
-    if sms:
-        # For simplicity in this demo, we'll just save it as pending
-        # and let the admin or a background task handle it if needed.
-        # In a full implementation, we could trigger send_crypto here.
-        pass
-
     order_id = db.save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network)
 
     # Add audit log
     db.add_audit(user_id, "web_buy_order_created", "pending_order", order_id, f"network={network} amount={amount_bdt} BDT")
+
+    # Notify admin via Telegram (like the bot does)
+    sms = db.get_sms(trx_id)
+    if sms:
+        notify_admin_telegram(
+            "\U0001f6a8 Web order placed & bKash SMS already received!\n\n"
+            f"\U0001f4e6 Order: {order_id}\n"
+            f"\U0001f464 User: {user_id}\n"
+            f"\U0001f4b5 Amount: {amount_bdt} BDT \u2192 {amount_usdc} USDC\n"
+            f"\U0001f310 Network: {network}\n"
+            f"\U0001f4b3 Wallet: {wallet}\n"
+            f"\U0001f511 TrxID: {trx_id}\n\n"
+            "\u26a0\ufe0f Payment was already received before the order. "
+            "The bot should auto-match on the next webhook cycle, or approve manually."
+        )
+    else:
+        notify_admin_telegram(
+            "\U0001f6d2 New web order placed\n\n"
+            f"\U0001f4e6 Order: {order_id}\n"
+            f"\U0001f464 User: {user_id}\n"
+            f"\U0001f4b5 Amount: {amount_bdt} BDT \u2192 {amount_usdc} USDC\n"
+            f"\U0001f310 Network: {network}\n"
+            f"\U0001f4b3 Wallet: {wallet}\n"
+            f"\U0001f511 TrxID: {trx_id}\n\n"
+            "Waiting for bKash payment confirmation."
+        )
 
     return jsonify({
         'status': 'pending',
@@ -328,8 +364,8 @@ def get_seller_inventory(current_user):
     wallets = db.list_seller_wallets(current_user[3])
 
     return jsonify({
-        'rates': [dict(zip(['seller_id', 'network', 'rate', 'created_at', 'updated_at'], r)) for row in rates],
-        'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], w)) for row in wallets]
+        'rates': [dict(zip(['seller_id', 'network', 'rate', 'created_at', 'updated_at'], row)) for row in rates],
+        'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], row)) for row in wallets]
     })
 
 if __name__ == '__main__':
