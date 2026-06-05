@@ -486,7 +486,14 @@ def check_balance(current_user):
 @token_required
 def tx_log(current_user):
     try:
-        rows = db.get_recent_transactions(30)
+        user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
+        from contextlib import closing as _closing
+        from db import connect as _connect
+        with _closing(_connect()) as con:
+            rows = con.execute(
+                "SELECT trx_id, amount_bdt, amount_usdc, network, wallet, status, created_at, order_id FROM transactions WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT 30",
+                (str(user_id),)
+            ).fetchall()
         txs = []
         for r in rows:
             trx_id, bdt, crypto, network, wallet, status, created = r[:7]
@@ -653,7 +660,10 @@ def wallet_setup(current_user):
         return jsonify({'message': 'Network, private_key and password are required'}), 400
     try:
         user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
-        address = get_wallet_address(network, private_key)
+        try:
+            address = get_wallet_address(network, private_key)
+        except Exception:
+            return jsonify({'message': 'Invalid private key for this network'}), 400
         if not address:
             return jsonify({'message': 'Invalid private key for this network'}), 400
         encrypted, salt = encrypt_key(private_key, password)
