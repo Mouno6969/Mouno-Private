@@ -8,20 +8,11 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const Buy: React.FC = () => {
   const { t } = useTranslation();
-  const [networks] = useState([
-    { id: 'solana', name: 'Solana', asset: 'USDC', icon: '🪐' },
-    { id: 'trc20', name: 'Tron', asset: 'USDT', icon: '🔋' },
-    { id: 'polygon', name: 'Polygon', asset: 'USDC', icon: '🟣' },
-    { id: 'bsc', name: 'BSC', asset: 'USDT', icon: '🟡' },
-    { id: 'ton', name: 'TON', asset: 'USDT', icon: '💎' },
-    { id: 'avalanche', name: 'Avalanche', asset: 'USDT', icon: '🔺' },
-    { id: 'ethereum', name: 'ETH USDT', asset: 'USDT', icon: '🔹' },
-    { id: 'ethereum_usdc', name: 'ETH USDC', asset: 'USDC', icon: '🔹' },
-    { id: 'base', name: 'Base', asset: 'USDC', icon: '🔵' },
-  ]);
+  const networks = NETWORK_LIST;
 
   const [selectedNetwork, setSelectedNetwork] = useState('solana');
   const [bdtAmount, setBdtAmount] = useState('');
@@ -140,7 +131,7 @@ const Buy: React.FC = () => {
                         : 'border-muted bg-card hover:border-primary/50'
                       }`}
                     >
-                      <span className="text-2xl">{net.icon}</span>
+                      <NetworkLogo id={net.id} size={28} />
                       <span className="text-[10px] font-black uppercase tracking-tighter">{net.name}</span>
                       {selectedNetwork === net.id && (
                         <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { ShieldAlert } from 'lucide-react';
+import { NetworkLogo } from '../constants/networks';
 
 const Terms: React.FC = () => {
   return (
@@ -36,14 +37,14 @@ const Terms: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div className="p-2 rounded bg-muted/30">🪐 Solana — USDC</div>
-            <div className="p-2 rounded bg-muted/30">🔋 Tron (TRC20) — USDT</div>
-            <div className="p-2 rounded bg-muted/30">🟣 Polygon — USDC</div>
-            <div className="p-2 rounded bg-muted/30">🟡 BSC (BNB) — USDT</div>
-            <div className="p-2 rounded bg-muted/30">💎 TON — USDT</div>
-            <div className="p-2 rounded bg-muted/30">🔺 Avalanche — USDT</div>
-            <div className="p-2 rounded bg-muted/30">🔹 Ethereum — USDT / USDC</div>
-            <div className="p-2 rounded bg-muted/30">🔵 Base — USDC</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="solana" size={18} /> Solana — USDC</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="trc20" size={18} /> Tron (TRC20) — USDT</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="polygon" size={18} /> Polygon — USDC</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="bsc" size={18} /> BSC (BNB) — USDT</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="ton" size={18} /> TON — USDT</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="avalanche" size={18} /> Avalanche — USDT</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="ethereum" size={18} /> Ethereum — USDT / USDC</div>
+            <div className="p-2 rounded bg-muted/30 flex items-center gap-2"><NetworkLogo id="base" size={18} /> Base — USDC</div>
           </div>
         </CardContent>
       </Card>

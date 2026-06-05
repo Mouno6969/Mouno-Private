@@ -7,9 +7,11 @@ import { Badge } from '../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { useAuth } from '../context/AuthContext';
 
 const Orders: React.FC = () => {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [orderData, setOrderData] = useState<any>({ completed: [], pending: [] });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,7 +19,9 @@ const Orders: React.FC = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const res = await axios.get('/api/orders');
+        const res = await axios.get('/api/orders', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         setOrderData(res.data);
       } catch (err) {
         console.error(err);
@@ -25,8 +29,9 @@ const Orders: React.FC = () => {
         setLoading(false);
       }
     };
-    fetchOrders();
-  }, []);
+    if (token) { setLoading(true); fetchOrders(); }
+    else setLoading(false);
+  }, [token]);
 
   const StatusBadge = ({ status }: { status: string }) => {
     switch (status.toLowerCase()) {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Gift, Clock, Users, Loader2 } from 'lucide-react';
+import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
 
 interface GiveawaySession {
   session_id: string;
@@ -16,16 +17,7 @@ interface GiveawaySession {
   created_at: string;
 }
 
-const NETWORK_NAMES: Record<string, string> = {
-  solana: 'Solana USDC', trc20: 'Tron USDT', polygon: 'Polygon USDC',
-  bsc: 'BSC USDT', ton: 'TON', avalanche: 'Avalanche USDT',
-  ethereum: 'ETH USDT', ethereum_usdc: 'ETH USDC', base: 'Base USDC',
-};
 
-const NETWORK_ICONS: Record<string, string> = {
-  solana: '🪐', trc20: '🔋', polygon: '🟣', bsc: '🟡', ton: '💎',
-  avalanche: '🔺', ethereum: '🔹', ethereum_usdc: '🔹', base: '🔵',
-};
 
 const Giveaway: React.FC = () => {
   const [giveaways, setGiveaways] = useState<GiveawaySession[]>([]);
@@ -72,7 +64,7 @@ const Giveaway: React.FC = () => {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    {NETWORK_ICONS[g.network] || '🎁'} {NETWORK_NAMES[g.network] || g.network} Giveaway
+                    <NetworkLogo id={g.network} size={20} className="mr-1" /> {NETWORK_MAP[g.network]?.name || g.network} Giveaway
                   </CardTitle>
                   <Badge variant={expired ? 'destructive' : full ? 'secondary' : 'default'}>
                     {expired ? 'Expired' : full ? 'Fully Claimed' : 'Active'}
