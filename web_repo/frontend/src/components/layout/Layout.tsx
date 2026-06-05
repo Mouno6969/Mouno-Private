@@ -10,7 +10,6 @@ import {
   History,
   MessageSquare,
   LogOut,
-  Globe,
   Menu,
   X,
   User,
@@ -18,7 +17,12 @@ import {
   Gift,
   Coins,
   HelpCircle,
-  ShieldAlert
+  ShieldAlert,
+  ScrollText,
+  Search,
+  Banknote,
+  BookOpen,
+  Languages
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -57,7 +61,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
     { name: 'Giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
     { name: 'Balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },
+    { name: 'TX Log', icon: <ScrollText className="h-4 w-4" />, path: '/txlog' },
+    { name: 'Order Status', icon: <Search className="h-4 w-4" />, path: '/order-status' },
+    { name: 'Payout', icon: <Banknote className="h-4 w-4" />, path: '/payout' },
     { name: 'FAQ', icon: <HelpCircle className="h-4 w-4" />, path: '/faq' },
+    { name: 'Guide', icon: <BookOpen className="h-4 w-4" />, path: '/guide' },
     { name: 'Terms', icon: <ShieldAlert className="h-4 w-4" />, path: '/terms' },
   ];
 
@@ -88,9 +96,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={toggleLang} className="rounded-full">
-              <Globe className="h-5 w-5" />
-              <span className="sr-only">Toggle language</span>
+            <Button variant="ghost" size="sm" onClick={toggleLang} className="rounded-full gap-1 px-2">
+              <Languages className="h-4 w-4" />
+              <span className="text-xs font-medium">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
             </Button>
 
             {token ? (
