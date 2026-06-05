@@ -328,8 +328,8 @@ def get_seller_inventory(current_user):
     wallets = db.list_seller_wallets(current_user[3])
 
     return jsonify({
-        'rates': [dict(zip(['seller_id', 'network', 'rate', 'created_at', 'updated_at'], r)) for row in rates],
-        'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], w)) for row in wallets]
+        'rates': [dict(zip(['seller_id', 'network', 'rate', 'created_at', 'updated_at'], row)) for row in rates],
+        'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], row)) for row in wallets]
     })
 
 if __name__ == '__main__':
