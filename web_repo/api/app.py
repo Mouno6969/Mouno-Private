@@ -261,28 +261,14 @@ def redeem_gift(current_user):
     user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
     username = current_user[1]
 
-    row = db.get_code(code)
-    if not row:
+    # Peek at the code to determine if it's a giveaway code
+    peek = db.get_code(code)
+    if not peek:
         return jsonify({'message': 'Code not found'}), 404
-
-    _code_val, amount_crypto, expires_at, used, _used_by, _created_at, code_network, giveaway_id = row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7] if len(row) > 7 else None
-
-    if used:
-        return jsonify({'message': 'This code has already been used'}), 400
-
-    from datetime import datetime as dt
-    try:
-        if dt.now() > dt.fromisoformat(str(expires_at)):
-            return jsonify({'message': 'This code has expired'}), 400
-    except Exception:
-        pass
-
-    network = code_network or 'solana'
-    status = "pending"
-    sig = ""
-    order_id = None
+    giveaway_id = peek[7] if len(peek) > 7 else None
 
     if giveaway_id:
+        # Giveaway codes: claim_giveaway_code uses BEGIN IMMEDIATE (atomic)
         claim = db.claim_giveaway_code(code, user_id)
         if not claim.get("ok"):
             reason = claim.get("reason", "unknown")
@@ -293,8 +279,25 @@ def redeem_gift(current_user):
                 "not_found": "Code not found",
             }
             return jsonify({'message': msgs.get(reason, f"Could not claim: {reason}")}), 400
-        network = claim.get("network", network)
-        amount_crypto = claim.get("amount", amount_crypto)
+        network = claim.get("network", "solana")
+        amount_crypto = claim.get("amount", 0)
+    else:
+        # Non-giveaway codes: use_code_if_available uses BEGIN IMMEDIATE (atomic)
+        # This prevents double-spend race conditions
+        row, error = db.use_code_if_available(code, user_id)
+        if error:
+            msgs = {
+                "not_found": ("Code not found", 404),
+                "used": ("This code has already been used", 400),
+                "expired": ("This code has expired", 400),
+            }
+            msg, status_code = msgs.get(error, (f"Could not redeem: {error}", 400))
+            return jsonify({'message': msg}), status_code
+        amount_crypto = row[1]
+        network = row[6] or 'solana'
+
+    status = "pending"
+    sig = ""
 
     try:
         _repo_root = str(Path(__file__).resolve().parent.parent.parent)
@@ -324,14 +327,10 @@ def redeem_gift(current_user):
         else:
             sig = ""
         status = "completed"
-        if not giveaway_id:
-            db.use_code(code, user_id)
         db.save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, sig or "", status, network, source="gift" if not giveaway_id else "giveaway")
     except Exception as exc:
         logger.error("Gift delivery failed: %s", exc)
         status = "failed"
-        if not giveaway_id:
-            db.use_code(code, user_id)
         db.save_transaction(f"GIFT-{code}", user_id, 0, amount_crypto, wallet, "", status, network, source="gift" if not giveaway_id else "giveaway")
 
     notify_admin_telegram(
