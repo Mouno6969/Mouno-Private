@@ -9,6 +9,7 @@ import string
 import tempfile
 import threading
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -1216,6 +1217,10 @@ def _ask_mistral(question, lang="bn", timeout=AI_PROVIDER_TIMEOUT_SECONDS):
     )
 
 
+AI_RACE_BATCH_SIZE = 3  # race this many fast providers concurrently
+_ai_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ai")
+
+
 def ask_ai_support(question, lang="bn", context=None):
     question = compose_ai_user_message(question, context, lang)
     providers = configured_ai_providers()
@@ -1240,8 +1245,52 @@ def ask_ai_support(question, lang="bn", context=None):
         "nvidia_deepseek": _ask_nvidia_deepseek,
         "nvidia_gemma": _ask_nvidia_gemma,
     }
+
+    # Split providers into race batch (first N fast) and remainder
+    fast_batch = [p for p in providers[:AI_RACE_BATCH_SIZE] if p in askers]
+    rest = [p for p in providers[AI_RACE_BATCH_SIZE:] if p in askers]
     tried = []
-    for provider in providers:
+
+    # Race the first batch concurrently — use whichever responds first
+    if len(fast_batch) > 1:
+        def _call(provider):
+            timeout = 4 if provider in FAST_NVIDIA_PROVIDER_ORDER else AI_PROVIDER_TIMEOUT_SECONDS
+            return provider, askers[provider](question, lang, timeout=timeout)
+        futures = {_ai_executor.submit(_call, p): p for p in fast_batch}
+        tried.extend(AI_PROVIDER_LABELS[p] for p in fast_batch)
+        try:
+            for future in as_completed(futures, timeout=AI_PROVIDER_TIMEOUT_SECONDS + 2):
+                provider = futures[future]
+                try:
+                    _, answer = future.result(timeout=0.5)
+                    record_ai_provider_result_safe(provider, True)
+                    for f in futures:
+                        f.cancel()
+                    return answer
+                except Exception as exc:
+                    safe_error = _safe_ai_error(exc)
+                    record_ai_provider_result_safe(provider, False, safe_error)
+                    logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
+        except TimeoutError:
+            logger.warning("AI race batch timed out, falling back to sequential providers")
+            for f in futures:
+                f.cancel()
+    elif fast_batch:
+        # Only one fast provider, call directly
+        provider = fast_batch[0]
+        tried.append(AI_PROVIDER_LABELS[provider])
+        try:
+            timeout = 4 if provider in FAST_NVIDIA_PROVIDER_ORDER else AI_PROVIDER_TIMEOUT_SECONDS
+            answer = askers[provider](question, lang, timeout=timeout)
+            record_ai_provider_result_safe(provider, True)
+            return answer
+        except Exception as exc:
+            safe_error = _safe_ai_error(exc)
+            record_ai_provider_result_safe(provider, False, safe_error)
+            logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
+
+    # Fall back to remaining providers sequentially
+    for provider in rest:
         tried.append(AI_PROVIDER_LABELS[provider])
         try:
             timeout = 4 if provider in FAST_NVIDIA_PROVIDER_ORDER else AI_PROVIDER_TIMEOUT_SECONDS
@@ -1275,7 +1324,7 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
         diagnostic_context = build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None)
         loop = asyncio.get_running_loop()
         answer = await loop.run_in_executor(
-            None,
+            _ai_executor,
             lambda: ask_ai_support(
                 question,
                 lang,
