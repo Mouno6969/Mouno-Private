@@ -73,7 +73,7 @@ const Balance: React.FC = () => {
                 <div key={net.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-3">
                     <NetworkLogo id={net.id} size={24} />
-                    <span className="text-sm font-medium">{net.name}</span>
+                    <span className="text-sm font-medium">{net.name} {net.asset}</span>
                   </div>
                   <Badge variant="outline" className="font-mono text-sm">
                     {balances[net.id] !== undefined ? String(balances[net.id]) : 'N/A'}

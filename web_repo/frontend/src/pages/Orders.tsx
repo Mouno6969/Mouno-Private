@@ -29,7 +29,7 @@ const Orders: React.FC = () => {
         setLoading(false);
       }
     };
-    if (token) fetchOrders();
+    if (token) { setLoading(true); fetchOrders(); }
     else setLoading(false);
   }, [token]);
 
