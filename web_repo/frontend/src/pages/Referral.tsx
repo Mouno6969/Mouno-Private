@@ -20,7 +20,7 @@ const Referral: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('http://localhost:5001/api/referral', {
+      const res = await fetch('/api/referral', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();

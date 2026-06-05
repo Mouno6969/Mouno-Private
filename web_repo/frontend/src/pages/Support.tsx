@@ -30,7 +30,7 @@ const Support: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5001/api/ai/chat', {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
