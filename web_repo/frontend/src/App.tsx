@@ -15,6 +15,7 @@ import GiftCode from './pages/GiftCode';
 import Support from './pages/Support';
 import Seller from './pages/Seller';
 import LinkTelegram from './pages/LinkTelegram';
+import { Toaster } from 'sonner';
 import { useAuth } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
           <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
         </Routes>
       </Layout>
+      <Toaster richColors position="top-center" />
     </Router>
   );
 };
