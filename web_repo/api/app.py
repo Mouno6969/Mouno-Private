@@ -533,23 +533,23 @@ def order_lookup(current_user):
         elif kind == 'pending':
             return jsonify({
                 'found': True, 'type': 'pending',
-                'order_id': row[0] if len(row) > 0 else None,
-                'trx_id': row[1] if len(row) > 1 else None,
+                'trx_id': row[0] if len(row) > 0 else None,
                 'amount_bdt': row[2] if len(row) > 2 else None,
                 'amount_crypto': row[3] if len(row) > 3 else None,
-                'network': row[4] if len(row) > 4 else None,
-                'wallet': row[5] if len(row) > 5 else None,
+                'wallet': row[4] if len(row) > 4 else None,
+                'network': row[5] if len(row) > 5 else None,
                 'status': 'pending',
-                'created_at': row[6] if len(row) > 6 else None
+                'created_at': row[6] if len(row) > 6 else None,
+                'order_id': row[7] if len(row) > 7 else None
             })
         elif kind == 'star':
             return jsonify({
                 'found': True, 'type': 'star',
                 'order_id': row[0] if len(row) > 0 else None,
-                'status': row[4] if len(row) > 4 else None,
-                'network': row[2] if len(row) > 2 else None,
-                'amount_crypto': row[3] if len(row) > 3 else None,
-                'created_at': row[6] if len(row) > 6 else None
+                'status': row[7] if len(row) > 7 else None,
+                'network': row[3] if len(row) > 3 else None,
+                'amount_crypto': row[5] if len(row) > 5 else None,
+                'created_at': row[12] if len(row) > 12 else None
             })
         return jsonify({'found': True, 'type': kind, 'raw': str(row)})
     except Exception as exc:
@@ -661,10 +661,10 @@ def wallet_balance(current_user):
         return jsonify({'message': 'Password is required'}), 400
     try:
         user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
-        balance_info = get_user_balance(str(user_id), password)
-        if balance_info is None:
-            return jsonify({'message': 'No wallet found or wrong password'}), 400
-        return jsonify({'success': True, 'balance': balance_info})
+        balance_info, network, error = get_user_balance(str(user_id), password)
+        if error or balance_info is None:
+            return jsonify({'message': error or 'No wallet found or wrong password'}), 400
+        return jsonify({'success': True, 'balance': balance_info, 'network': network})
     except Exception as exc:
         logger.error("Wallet balance failed: %s", exc)
         return jsonify({'message': 'Balance check failed'}), 500
@@ -681,9 +681,9 @@ def wallet_send(current_user):
     try:
         user_id = current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', ''))
         result = send_from_user_wallet(str(user_id), password, destination, float(amount))
-        if result and result.get('success'):
-            return jsonify(result)
-        return jsonify({'message': result.get('error', 'Send failed')}), 400
+        if result:
+            return jsonify({'success': True, 'tx_hash': result})
+        return jsonify({'message': 'Send failed'}), 400
     except Exception as exc:
         logger.error("Wallet send failed: %s", exc)
         return jsonify({'message': 'Send failed'}), 500
