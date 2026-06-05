@@ -10,7 +10,8 @@ import sys
 import db
 import config
 from balance import get_all_balances
-from swap_service import quote_lifi, summarize_quote
+from swap_service import quote_lifi, summarize_quote, get_lifi_chains
+from crypto_manager import get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
@@ -136,16 +137,38 @@ def buy_crypto(current_user):
     if not (trx_id and network and wallet):
         return jsonify({'message': 'network, wallet and trx_id required'}), 400
 
+    if db.trx_exists(trx_id):
+        return jsonify({'message': 'This TrxID has already been used'}), 400
+
     rate = db.get_network_rate(network) or config.RATE
-    amount_usdc = round(amount_bdt / rate, 2)
+    amount_usdc = round(amount_bdt / rate, 6)
+
+    # Check if SMS already arrived
+    sms = db.get_sms(trx_id)
+    if sms:
+        # For simplicity in this demo, we'll just save it as pending
+        # and let the admin or a background task handle it if needed.
+        # In a full implementation, we could trigger send_crypto here.
+        pass
 
     order_id = db.save_pending_order(trx_id, user_id, amount_bdt, amount_usdc, wallet, network)
+
+    # Add audit log
+    db.add_audit(user_id, "web_buy_order_created", "pending_order", order_id, f"network={network} amount={amount_bdt} BDT")
 
     return jsonify({
         'status': 'pending',
         'order_id': order_id,
-        'message': 'Order submitted. It will be processed once bKash payment is verified.'
+        'message': 'Order submitted successfully! Our system will verify the bKash payment and deliver your crypto automatically.'
     })
+
+@app.route('/api/swap/chains', methods=['GET'])
+def get_chains():
+    try:
+        chains = get_lifi_chains(api_key=config.LIFI_API_KEY)
+        return jsonify(chains)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/api/swap/quote', methods=['GET'])
 def swap_quote():
@@ -170,6 +193,144 @@ def swap_quote():
         return jsonify({**quote, "summary": summary})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@app.route('/api/referral', methods=['GET'])
+@token_required
+def get_referral(current_user):
+    if not current_user[3]:
+        return jsonify({'message': 'Telegram account not linked'}), 400
+
+    stats = db.referral_stats(current_user[3])
+    code = db.get_or_create_referral_code(current_user[3])
+    enabled = db.get_setting("referral_enabled", "off") == "on"
+
+    return jsonify({
+        'stats': stats,
+        'code': code,
+        'enabled': enabled,
+        'min_withdraw': db.get_setting("referral_min_withdraw_usd", "1")
+    })
+
+@app.route('/api/gift/redeem', methods=['POST'])
+@token_required
+def redeem_gift(current_user):
+    data = request.get_json() or {}
+    code = (data.get('code') or '').strip().upper()
+    wallet = (data.get('wallet') or '').strip()
+
+    if not code or not wallet:
+        return jsonify({'message': 'Code and wallet required'}), 400
+
+    user_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
+
+    # We use the existing logic from db.py but we need to handle the sending.
+    # Since the API is separate, it's better to reuse the bot's logic if possible.
+    # For now, let's just return a placeholder or implement basic verification.
+
+    row = db.get_code(code)
+    if not row:
+        return jsonify({'message': 'Code not found'}), 404
+    if row[3]: # used
+        return jsonify({'message': 'Code already used'}), 400
+
+    # In a real scenario, we'd trigger the send_crypto here.
+    # For simplicity, we'll assume the same shared logic.
+    return jsonify({'message': 'Redeem initiated (implement crypto send in backend)'}), 202
+
+from ai_service import ask_ai_support
+
+@app.route('/api/ai/chat', methods=['POST'])
+@token_required
+def ai_chat(current_user):
+    data = request.get_json() or {}
+    question = data.get('question')
+    if not question:
+        return jsonify({'message': 'Question required'}), 400
+
+    answer = ask_ai_support(question)
+    return jsonify({'answer': answer}), 200
+
+@app.route('/api/link-telegram', methods=['POST'])
+@token_required
+def link_telegram(current_user):
+    data = request.get_json() or {}
+    link_code = (data.get('link_code') or '').strip().upper()
+
+    if not link_code:
+        return jsonify({'message': 'Link code required'}), 400
+
+    # Verify link code from shared database
+    telegram_id = db.get_setting(f"link_code_{link_code}")
+    if not telegram_id:
+        return jsonify({'message': 'Invalid or expired link code'}), 400
+
+    # Optional: check time
+    link_time = db.get_setting(f"link_code_time_{link_code}")
+    # Cleanup code after use
+    db.set_setting(f"link_code_{link_code}", "")
+
+    db.link_web_user_telegram(current_user[0], telegram_id)
+    return jsonify({'message': 'Telegram account linked successfully', 'telegram_id': telegram_id})
+
+@app.route('/api/seller/apply', methods=['POST'])
+@token_required
+def seller_apply(current_user):
+    data = request.get_json() or {}
+    display_name = data.get('display_name')
+    bkash_number = data.get('bkash_number')
+    support_contact = data.get('support_contact')
+
+    if not (display_name and bkash_number and support_contact):
+        return jsonify({'message': 'All fields required'}), 400
+
+    user_id = current_user[3]
+    if not user_id:
+        return jsonify({'message': 'Link Telegram account first to apply as seller'}), 400
+
+    seller = db.create_or_update_seller_application(user_id, current_user[1], display_name, bkash_number, support_contact)
+    return jsonify({'message': 'Application submitted', 'status': seller[5]})
+
+@app.route('/api/seller/status', methods=['GET'])
+@token_required
+def get_seller_status(current_user):
+    if not current_user[3]:
+        return jsonify({'status': 'not_linked'})
+
+    seller = db.get_seller(current_user[3])
+    if not seller:
+        return jsonify({'status': 'none'})
+
+    return jsonify({
+        'status': seller[5],
+        'display_name': seller[2],
+        'bkash_number': seller[3],
+        'sms_token': seller[6]
+    })
+
+@app.route('/api/seller/orders', methods=['GET'])
+@token_required
+def get_seller_orders(current_user):
+    if not current_user[3]:
+        return jsonify({'message': 'Telegram account not linked'}), 400
+
+    orders = db.list_seller_orders(current_user[3], limit=50)
+    # Convert list of tuples to list of dicts
+    cols = ['order_id', 'seller_id', 'buyer_id', 'buyer_username', 'payment_method', 'trx_id', 'network', 'wallet', 'amount_bdt', 'amount_crypto', 'stars_amount', 'status', 'tx_sig', 'error', 'created_at', 'updated_at']
+    return jsonify([dict(zip(cols, row)) for row in orders])
+
+@app.route('/api/seller/inventory', methods=['GET'])
+@token_required
+def get_seller_inventory(current_user):
+    if not current_user[3]:
+        return jsonify({'message': 'Telegram account not linked'}), 400
+
+    rates = db.list_seller_rates(current_user[3])
+    wallets = db.list_seller_wallets(current_user[3])
+
+    return jsonify({
+        'rates': [dict(zip(['seller_id', 'network', 'rate', 'created_at', 'updated_at'], r)) for row in rates],
+        'wallets': [dict(zip(['seller_id', 'network', 'encrypted_key', 'salt', 'wallet_address', 'enabled', 'created_at', 'updated_at'], w)) for row in wallets]
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)

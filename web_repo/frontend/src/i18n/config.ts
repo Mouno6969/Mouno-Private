@@ -5,7 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
   en: {
     translation: {
-      "welcome": "Welcome to MounoWeb",
+      "welcome": "Welcome to BGC Crypto",
       "buy": "Buy Crypto",
       "swap": "Swap & Bridge",
       "wallet": "Personal Wallet",
@@ -35,9 +35,21 @@ const resources = {
       "total_spent": "Total Spent",
       "order_count": "Total Orders",
       "copy_success": "Copied to clipboard!",
-      "footer_text": "© 2026 Mouno. All rights reserved.",
+      "footer_text": "© 2026 BGC Crypto. All rights reserved.",
       "send_bdt": "Send BDT to:",
       "after_payment": "After payment, submit the TrxID below.",
+      "referral_stats": "Referral Stats",
+      "referral_code": "Your Referral Code",
+      "referral_link": "Referral Link",
+      "earnings": "Total Earned",
+      "withdraw": "Withdraw",
+      "redeem_gift": "Redeem Gift Code",
+      "enter_code": "Enter code",
+      "apply_seller": "Become a Seller",
+      "seller_name": "Shop Name",
+      "seller_bkash": "Seller bKash Number",
+      "seller_support": "Support Username",
+      "sellers": "Sellers",
     }
   },
   bn: {
@@ -72,9 +84,21 @@ const resources = {
       "total_spent": "মোট খরচ",
       "order_count": "মোট অর্ডার",
       "copy_success": "কপি হয়েছে!",
-      "footer_text": "© ২০২৪ বিজিসি প্রাইভেট। সর্বস্বত্ব সংরক্ষিত।",
+      "footer_text": "© ২০২৬ বিজিসি ক্রিপ্টো। সর্বস্বত্ব সংরক্ষিত।",
       "send_bdt": "টাকা পাঠান এই নম্বরে:",
       "after_payment": "পেমেন্ট করার পর নিচের বক্সে TrxID দিন।",
+      "referral_stats": "রেফারেল পরিসংখ্যান",
+      "referral_code": "আপনার রেফারেল কোড",
+      "referral_link": "রেফারেল লিংক",
+      "earnings": "মোট আয়",
+      "withdraw": "উত্তোলন",
+      "redeem_gift": "গিফট কোড রিডিম করুন",
+      "enter_code": "কোড লিখুন",
+      "apply_seller": "সেলার হতে আবেদন করুন",
+      "seller_name": "দোকানের নাম",
+      "seller_bkash": "সেলার বিকাশ নম্বর",
+      "seller_support": "সাপোর্ট ইউজারনেম",
+      "sellers": "সেলারগণ",
     }
   }
 };

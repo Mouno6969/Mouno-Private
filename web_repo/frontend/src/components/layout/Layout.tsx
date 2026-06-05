@@ -46,6 +46,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: t('swap'), icon: <RefreshCw className="h-4 w-4" />, path: '/swap' },
     { name: t('wallet'), icon: <Wallet className="h-4 w-4" />, path: '/wallet' },
     { name: t('orders'), icon: <History className="h-4 w-4" />, path: '/orders' },
+    { name: t('referral'), icon: <User className="h-4 w-4" />, path: '/referral' },
+    { name: t('gift'), icon: <User className="h-4 w-4" />, path: '/gift' },
+    { name: t('sellers'), icon: <Store className="h-4 w-4" />, path: '/seller' },
     { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
   ];
 
@@ -99,6 +102,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {!user?.telegram_id && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/link-telegram">Link Telegram</Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>

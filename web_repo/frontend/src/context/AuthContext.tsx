@@ -12,6 +12,7 @@ interface AuthContextType {
   token: string | null;
   login: (username: string, token: string, telegram_id: string | null) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
 }
 
@@ -46,6 +47,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   };
 
+  const refreshUser = async () => {
+    if (token) {
+      try {
+        const res = await axios.get('/api/me');
+        setUser(res.data);
+      } catch (err) {
+        console.error('Refresh user error', err);
+      }
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -54,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
