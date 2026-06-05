@@ -1,10 +1,20 @@
 import os
+import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import base58
 import requests
 from solders.keypair import Keypair
 from web3 import Web3
+
+# ---------------------------------------------------------------------------
+# Balance cache: avoids redundant RPC calls within a short window.
+# Each entry: {network: (value, timestamp)}
+# ---------------------------------------------------------------------------
+_cache_lock = threading.Lock()
+_balance_cache: dict[str, tuple[float | None, float]] = {}
+_CACHE_TTL = 30  # seconds
 
 from config import (
     AVALANCHE_RPC,
@@ -68,7 +78,7 @@ def get_evm_balance(network, private_key=None):
         if not key or not rpc or not contract_info:
             return None
 
-        w3 = Web3(Web3.HTTPProvider(rpc))
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 6}))
         account = w3.eth.account.from_key(key).address
         contract = w3.eth.contract(address=Web3.to_checksum_address(contract_info["address"]), abi=ERC20_ABI)
         balance = contract.functions.balanceOf(account).call()
@@ -89,7 +99,7 @@ def get_evm_native_balance(network, private_key=None):
         rpc = RPCS.get(network)
         if not key or not rpc:
             return None
-        w3 = Web3(Web3.HTTPProvider(rpc))
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 6}))
         account = w3.eth.account.from_key(key).address
         return round(float(w3.from_wei(w3.eth.get_balance(account), "ether")), 6)
     except Exception:
@@ -182,14 +192,18 @@ def get_all_balances():
         "ton": get_ton_balance,
     }
     balances = {}
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    now = time.time()
+    with ThreadPoolExecutor(max_workers=9) as executor:
         futures = {executor.submit(fn): net for net, fn in tasks.items()}
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=10):
             net = futures[future]
             try:
-                balances[net] = future.result(timeout=8)
+                val = future.result(timeout=8)
             except Exception:
-                balances[net] = None
+                val = None
+            balances[net] = val
+            with _cache_lock:
+                _balance_cache[net] = (val, now)
     return balances, evm_addr
 
 
@@ -235,9 +249,38 @@ def check_gas_sufficient(network):
     return True, None, threshold, symbol
 
 
+def get_single_balance(network):
+    """Fetch balance for ONE network only (with cache)."""
+    with _cache_lock:
+        entry = _balance_cache.get(network)
+        if entry and (time.time() - entry[1]) < _CACHE_TTL:
+            return entry[0]
+
+    fetchers = {
+        "solana": get_solana_balance,
+        "polygon": lambda: get_evm_balance("polygon"),
+        "bsc": lambda: get_evm_balance("bsc"),
+        "avalanche": lambda: get_evm_balance("avalanche"),
+        "ethereum": lambda: get_evm_balance("ethereum"),
+        "ethereum_usdc": lambda: get_evm_balance("ethereum_usdc"),
+        "base": lambda: get_evm_balance("base"),
+        "trc20": get_tron_balance,
+        "ton": get_ton_balance,
+    }
+    fn = fetchers.get(network)
+    if not fn:
+        return None
+    try:
+        val = fn()
+    except Exception:
+        val = None
+    with _cache_lock:
+        _balance_cache[network] = (val, time.time())
+    return val
+
+
 def check_sufficient(network, amount, exclude_order_id=None, exclude_trx_id=None):
-    balances, _ = get_all_balances()
-    bal = balances.get(network)
+    bal = get_single_balance(network)
     if bal is None:
         return True, None
     try:
