@@ -4,18 +4,9 @@ import { Badge } from '../components/ui/badge';
 import { Coins, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
+import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
-const NETWORKS = [
-  { id: 'solana', name: 'Solana USDC', icon: '🪐' },
-  { id: 'polygon', name: 'Polygon USDC', icon: '🟣' },
-  { id: 'bsc', name: 'BSC USDT', icon: '🟡' },
-  { id: 'avalanche', name: 'Avalanche USDT', icon: '🔺' },
-  { id: 'ethereum', name: 'Ethereum USDT', icon: '🔹' },
-  { id: 'ethereum_usdc', name: 'Ethereum USDC', icon: '🔹' },
-  { id: 'base', name: 'Base USDC', icon: '🔵' },
-  { id: 'trc20', name: 'Tron USDT', icon: '🔋' },
-  { id: 'ton', name: 'TON', icon: '💎' },
-];
+
 
 const Balance: React.FC = () => {
   const { token } = useAuth();
@@ -78,10 +69,10 @@ const Balance: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {NETWORKS.map((net) => (
+              {NETWORK_LIST.map((net) => (
                 <div key={net.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{net.icon}</span>
+                    <NetworkLogo id={net.id} size={24} />
                     <span className="text-sm font-medium">{net.name}</span>
                   </div>
                   <Badge variant="outline" className="font-mono text-sm">

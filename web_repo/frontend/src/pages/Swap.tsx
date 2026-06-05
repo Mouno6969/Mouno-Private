@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { NetworkLogo } from '../constants/networks';
 
 const Swap: React.FC = () => {
   const { t } = useTranslation();
@@ -36,12 +37,12 @@ const Swap: React.FC = () => {
   };
 
   const chains = [
-    { id: '1', name: 'Ethereum', symbol: 'ETH', icon: '🔹' },
-    { id: '56', name: 'BSC', symbol: 'BNB', icon: '🟡' },
-    { id: '137', name: 'Polygon', symbol: 'POL', icon: '🟣' },
-    { id: '8453', name: 'Base', symbol: 'ETH', icon: '🔵' },
-    { id: '43114', name: 'Avalanche', symbol: 'AVAX', icon: '🔺' },
-    { id: '1151111081099710', name: 'Solana', symbol: 'SOL', icon: '🪐' },
+    { id: '1', name: 'Ethereum', symbol: 'ETH', networkId: 'ethereum' },
+    { id: '56', name: 'BSC', symbol: 'BNB', networkId: 'bsc' },
+    { id: '137', name: 'Polygon', symbol: 'POL', networkId: 'polygon' },
+    { id: '8453', name: 'Base', symbol: 'ETH', networkId: 'base' },
+    { id: '43114', name: 'Avalanche', symbol: 'AVAX', networkId: 'avalanche' },
+    { id: '1151111081099710', name: 'Solana', symbol: 'SOL', networkId: 'solana' },
   ];
 
   return (
@@ -88,7 +89,7 @@ const Swap: React.FC = () => {
                     <SelectContent>
                       {chains.map(chain => (
                         <SelectItem key={chain.id} value={chain.id}>
-                          <span className="mr-2">{chain.icon}</span> {chain.symbol}
+                          <NetworkLogo id={chain.networkId} size={16} className="mr-2" /> {chain.symbol}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -128,7 +129,7 @@ const Swap: React.FC = () => {
                     <SelectContent>
                        {chains.map(chain => (
                         <SelectItem key={chain.id} value={chain.id}>
-                          <span className="mr-2">{chain.icon}</span> {chain.symbol}
+                          <NetworkLogo id={chain.networkId} size={16} className="mr-2" /> {chain.symbol}
                         </SelectItem>
                       ))}
                     </SelectContent>

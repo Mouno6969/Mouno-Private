@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Link } from 'react-router-dom';
+import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -26,17 +27,7 @@ const Dashboard: React.FC = () => {
     fetchMarket();
   }, []);
 
-  const networks = [
-    { id: 'solana', name: 'Solana (SOL)', icon: '🪐', color: 'text-purple-400' },
-    { id: 'trc20', name: 'Tron (TRC20)', icon: '🔋', color: 'text-red-400' },
-    { id: 'polygon', name: 'Polygon (MATIC)', icon: '🟣', color: 'text-indigo-400' },
-    { id: 'bsc', name: 'BSC (BNB)', icon: '🟡', color: 'text-yellow-400' },
-    { id: 'ton', name: 'TON', icon: '💎', color: 'text-blue-400' },
-    { id: 'avalanche', name: 'Avalanche (AVAX)', icon: '🔺', color: 'text-red-500' },
-    { id: 'ethereum', name: 'Ethereum USDT', icon: '🔹', color: 'text-blue-500' },
-    { id: 'ethereum_usdc', name: 'Ethereum USDC', icon: '🔹', color: 'text-blue-400' },
-    { id: 'base', name: 'Base (USDC)', icon: '🔵', color: 'text-blue-600' },
-  ];
+  const networks = NETWORK_LIST;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -133,7 +124,7 @@ const Dashboard: React.FC = () => {
                 {networks.map((net) => (
                   <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
                     <TableCell className="py-4 pl-6 flex items-center gap-3">
-                      <span className="text-2xl">{net.icon}</span>
+                      <NetworkLogo id={net.id} size={28} />
                       <span className="font-semibold">{net.name}</span>
                     </TableCell>
                     <TableCell>
