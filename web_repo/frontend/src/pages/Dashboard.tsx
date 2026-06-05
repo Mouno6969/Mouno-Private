@@ -32,6 +32,10 @@ const Dashboard: React.FC = () => {
     { id: 'polygon', name: 'Polygon (MATIC)', icon: '🟣', color: 'text-indigo-400' },
     { id: 'bsc', name: 'BSC (BNB)', icon: '🟡', color: 'text-yellow-400' },
     { id: 'ton', name: 'TON', icon: '💎', color: 'text-blue-400' },
+    { id: 'avalanche', name: 'Avalanche (AVAX)', icon: '🔺', color: 'text-red-500' },
+    { id: 'ethereum', name: 'Ethereum USDT', icon: '🔹', color: 'text-blue-500' },
+    { id: 'ethereum_usdc', name: 'Ethereum USDC', icon: '🔹', color: 'text-blue-400' },
+    { id: 'base', name: 'Base (USDC)', icon: '🔵', color: 'text-blue-600' },
   ];
 
   return (
@@ -137,7 +141,7 @@ const Dashboard: React.FC = () => {
                     </TableCell>
                     <TableCell className="py-4 text-right pr-6">
                        <span className="font-mono text-lg font-bold text-primary group-hover:scale-105 transition-transform inline-block">
-                         ৳{marketData?.rates?.[net.id] || marketData?.rates?.solana || '...'}
+                         ৳{marketData?.rates?.[net.id] || '...'}
                        </span>
                     </TableCell>
                   </TableRow>

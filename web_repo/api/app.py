@@ -95,7 +95,7 @@ def login():
 
 @app.route('/api/market', methods=['GET'])
 def get_market():
-    networks = ["solana", "trc20", "polygon", "bsc", "ton"]
+    networks = ["solana", "trc20", "polygon", "bsc", "ton", "avalanche", "ethereum", "ethereum_usdc", "base"]
     rates = {}
     for net in networks:
         rate = db.get_network_rate(net) or config.RATE

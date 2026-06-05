@@ -77,7 +77,12 @@ def _get_provider_key(provider):
 def _configured_providers():
     order_str = getattr(config, "AI_PROVIDER_ORDER", "")
     order = [p.strip() for p in order_str.split(",") if p.strip()] if order_str else list(_PROVIDER_ENV_KEYS.keys())
-    return [(p, _get_provider_key(p)) for p in order if _get_provider_key(p)]
+    result = []
+    for p in order:
+        key = _get_provider_key(p)
+        if key:
+            result.append((p, key))
+    return result
 
 
 def _ask_openai_compatible(endpoint, api_key, model, question):
