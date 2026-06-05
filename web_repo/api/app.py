@@ -283,7 +283,11 @@ def ai_chat(current_user):
     if not question:
         return jsonify({'message': 'Question required'}), 400
 
-    answer = ask_ai_support(question)
+    try:
+        answer = ask_ai_support(question)
+    except Exception as exc:
+        logger.error("AI chat error: %s", exc)
+        answer = "Sorry, AI support is temporarily unavailable. Please try again later."
     return jsonify({'answer': answer}), 200
 
 @app.route('/api/link-telegram', methods=['POST'])

@@ -38,11 +38,12 @@ const Support: React.FC = () => {
         },
         body: JSON.stringify({ question: userMessage })
       });
-      const data = await res.json();
-      if (res.ok) {
+      let data: any = null;
+      try { data = await res.json(); } catch { /* non-JSON response */ }
+      if (res.ok && data?.answer) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again later.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data?.message || data?.answer || 'Sorry, I encountered an error. Please try again later.' }]);
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please check your internet.' }]);
