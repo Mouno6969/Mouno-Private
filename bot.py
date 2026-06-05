@@ -1256,15 +1256,14 @@ def ask_ai_support(question, lang="bn", context=None):
         def _call(provider):
             timeout = 4 if provider in FAST_NVIDIA_PROVIDER_ORDER else AI_PROVIDER_TIMEOUT_SECONDS
             return provider, askers[provider](question, lang, timeout=timeout)
-        with ThreadPoolExecutor(max_workers=len(fast_batch), thread_name_prefix="ai-race") as pool:
-            futures = {pool.submit(_call, p): p for p in fast_batch}
-            tried.extend(AI_PROVIDER_LABELS[p] for p in fast_batch)
+        futures = {_ai_executor.submit(_call, p): p for p in fast_batch}
+        tried.extend(AI_PROVIDER_LABELS[p] for p in fast_batch)
+        try:
             for future in as_completed(futures, timeout=AI_PROVIDER_TIMEOUT_SECONDS + 2):
                 provider = futures[future]
                 try:
                     _, answer = future.result(timeout=0.5)
                     record_ai_provider_result_safe(provider, True)
-                    # cancel remaining futures
                     for f in futures:
                         f.cancel()
                     return answer
@@ -1272,6 +1271,10 @@ def ask_ai_support(question, lang="bn", context=None):
                     safe_error = _safe_ai_error(exc)
                     record_ai_provider_result_safe(provider, False, safe_error)
                     logger.warning("AI provider %s failed: %s", AI_PROVIDER_LABELS[provider], safe_error)
+        except TimeoutError:
+            logger.warning("AI race batch timed out, falling back to sequential providers")
+            for f in futures:
+                f.cancel()
     elif fast_batch:
         # Only one fast provider, call directly
         provider = fast_batch[0]
