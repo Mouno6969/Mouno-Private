@@ -44,7 +44,7 @@ const Seller: React.FC = () => {
   useEffect(() => {
     if (showOrders && sellerOrders.length === 0 && token) {
       fetch('/api/seller/orders', { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setSellerOrders(d.orders || [])).catch(() => {});
+        .then(r => r.json()).then(d => setSellerOrders(Array.isArray(d) ? d : d.orders || [])).catch(() => {});
     }
   }, [showOrders, sellerOrders.length, token]);
 
