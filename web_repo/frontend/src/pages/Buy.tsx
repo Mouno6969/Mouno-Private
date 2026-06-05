@@ -17,6 +17,10 @@ const Buy: React.FC = () => {
     { id: 'polygon', name: 'Polygon', asset: 'USDC', icon: '🟣' },
     { id: 'bsc', name: 'BSC', asset: 'USDT', icon: '🟡' },
     { id: 'ton', name: 'TON', asset: 'USDT', icon: '💎' },
+    { id: 'avalanche', name: 'Avalanche', asset: 'USDT', icon: '🔺' },
+    { id: 'ethereum', name: 'ETH USDT', asset: 'USDT', icon: '🔹' },
+    { id: 'ethereum_usdc', name: 'ETH USDC', asset: 'USDC', icon: '🔹' },
+    { id: 'base', name: 'Base', asset: 'USDC', icon: '🔵' },
   ]);
 
   const [selectedNetwork, setSelectedNetwork] = useState('solana');
@@ -114,6 +118,7 @@ const Buy: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-2 space-y-6">
+          <form onSubmit={handleSubmit}>
           <Card className="shadow-xl border-primary/10 overflow-hidden">
             <CardHeader className="bg-muted/30">
                <CardTitle className="text-lg">Order Details</CardTitle>
@@ -123,7 +128,7 @@ const Buy: React.FC = () => {
               {/* Network Selection */}
               <div className="space-y-4">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t('network')}</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {networks.map((net) => (
                     <button
                       key={net.id}
@@ -228,7 +233,7 @@ const Buy: React.FC = () => {
               </div>
             </CardContent>
             <CardFooter className="bg-muted/20 p-6">
-              <Button type="submit" disabled={loading} onClick={handleSubmit} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
+              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
                 {loading ? (
                    <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -242,6 +247,7 @@ const Buy: React.FC = () => {
               </Button>
             </CardFooter>
           </Card>
+          </form>
         </div>
 
         {/* Sidebar */}
