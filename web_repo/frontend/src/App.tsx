@@ -40,7 +40,7 @@ const App: React.FC = () => {
           <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
           <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
           <Route path="/giveaway" element={<Giveaway />} />
-          <Route path="/balance" element={<Balance />} />
+          <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
         </Routes>
       </Layout>
       <Toaster richColors position="top-center" />

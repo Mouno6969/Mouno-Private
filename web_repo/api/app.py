@@ -1,6 +1,7 @@
 import os
 import logging
 import jwt
+from pathlib import Path
 import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
@@ -397,12 +398,9 @@ def list_giveaways():
     return jsonify(result)
 
 @app.route('/api/balance', methods=['GET'])
-def check_balance():
+@token_required
+def check_balance(current_user):
     try:
-        _repo_root = str(Path(__file__).resolve().parent.parent.parent)
-        if _repo_root not in sys.path:
-            sys.path.insert(0, _repo_root)
-        from balance import get_all_balances
         balances, evm_addr = get_all_balances()
         return jsonify({'balances': balances, 'evm_address': evm_addr})
     except Exception as exc:

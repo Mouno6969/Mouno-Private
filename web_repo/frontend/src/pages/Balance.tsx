@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Coins, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../context/AuthContext';
 
 const NETWORKS = [
   { id: 'solana', name: 'Solana USDC', icon: '🪐' },
@@ -17,6 +18,7 @@ const NETWORKS = [
 ];
 
 const Balance: React.FC = () => {
+  const { token } = useAuth();
   const [balances, setBalances] = useState<Record<string, string | number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,7 +26,7 @@ const Balance: React.FC = () => {
   const fetchBalance = () => {
     setLoading(true);
     setError('');
-    fetch('/api/balance')
+    fetch('/api/balance', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => {
         if (d.balances) {
