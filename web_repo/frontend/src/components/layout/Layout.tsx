@@ -13,7 +13,8 @@ import {
   Globe,
   Menu,
   X,
-  User
+  User,
+  Store
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
