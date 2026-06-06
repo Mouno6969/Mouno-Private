@@ -481,6 +481,44 @@ def check_balance(current_user):
         logger.error("Balance check failed: %s", exc)
         return jsonify({'message': 'Balance check unavailable', 'error': str(exc)}), 503
 
+# ─── Global Stats & Activity ───
+@app.route('/api/stats', methods=['GET'])
+def get_global_stats():
+    try:
+        total_tx, completed, failed, total_bdt, total_crypto, total_profit, total_users, new_users_today = db.get_transaction_stats()
+        return jsonify({
+            'total_orders': total_tx,
+            'completed_orders': completed,
+            'total_volume_bdt': total_bdt,
+            'total_users': total_users,
+            'new_users_today': new_users_today
+        })
+    except Exception as exc:
+        logger.error("Global stats failed: %s", exc)
+        return jsonify({'message': 'Failed to load stats'}), 500
+
+@app.route('/api/recent-activity', methods=['GET'])
+def get_recent_activity():
+    try:
+        rows = db.get_recent_transactions(limit=10)
+        activity = []
+        for r in rows:
+            # Mask wallet for privacy
+            wallet = r[4]
+            masked_wallet = f"{wallet[:6]}...{wallet[-4:]}" if wallet and len(wallet) > 10 else "N/A"
+            activity.append({
+                'trx_id': r[0],
+                'amount_crypto': r[2],
+                'network': r[3],
+                'wallet': masked_wallet,
+                'status': r[5],
+                'created_at': r[6]
+            })
+        return jsonify(activity)
+    except Exception as exc:
+        logger.error("Recent activity failed: %s", exc)
+        return jsonify([])
+
 # ─── TX Log ───
 @app.route('/api/txlog', methods=['GET'])
 @token_required

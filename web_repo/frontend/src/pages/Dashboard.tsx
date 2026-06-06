@@ -15,27 +15,44 @@ const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [marketData, setMarketData] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   useEffect(() => {
     const controller = new AbortController();
 
-    const fetchMarket = async () => {
+    const fetchData = async () => {
+      // Fetch market data (critical)
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/market`, { signal: controller.signal });
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`, { signal: controller.signal });
         if (!controller.signal.aborted) {
           setMarketData(res.data);
           setLastUpdated(new Date());
         }
       } catch (err) {
-        if (!axios.isCancel(err)) {
-          console.error(err);
-        }
+        if (!axios.isCancel(err)) console.error("Market fetch failed", err);
+      }
+
+      // Fetch global stats (optional)
+      try {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/stats`, { signal: controller.signal });
+        if (!controller.signal.aborted) setStats(res.data);
+      } catch (err) {
+        if (!axios.isCancel(err)) console.error("Stats fetch failed", err);
+      }
+
+      // Fetch recent activity (optional)
+      try {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal });
+        if (!controller.signal.aborted) setRecentActivity(res.data);
+      } catch (err) {
+        if (!axios.isCancel(err)) console.error("Activity fetch failed", err);
       }
     };
 
-    fetchMarket();
-    const interval = setInterval(fetchMarket, 10000); // Update every 10 seconds
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Update every 10 seconds
     return () => {
       controller.abort();
       clearInterval(interval);
@@ -47,6 +64,8 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <Marquee speed={30} className="font-mono text-[10px] uppercase tracking-[0.2em] mb-4">
+        <span className="flex items-center gap-2">◈ {stats?.total_users || '...'} USERS REGISTERED</span>
+        <span className="flex items-center gap-2">◈ {stats?.completed_orders || '...'} ORDERS COMPLETED</span>
         <span className="flex items-center gap-2">◈ LIFI PROTOCOL INTEGRATED</span>
         <span className="flex items-center gap-2">◈ 24/7 AUTOMATED DELIVERY</span>
         <span className="flex items-center gap-2">◈ CROSS-CHAIN SWAPS ACTIVE</span>
@@ -80,8 +99,10 @@ const Dashboard: React.FC = () => {
               <TrendingUp className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">{t('rates')}</p>
-              <p className="text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
+              <p className="text-sm font-medium text-muted-foreground">{user ? t('orders') : 'Total Orders'}</p>
+              <p className="text-2xl font-bold tracking-tight">
+                {user ? user.telegram_stats?.total_orders || 0 : stats?.completed_orders || '...'}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -92,8 +113,10 @@ const Dashboard: React.FC = () => {
               <Zap className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Network</p>
-              <p className="text-2xl font-bold tracking-tight">Healthy</p>
+              <p className="text-sm font-medium text-muted-foreground">Volume (BDT)</p>
+              <p className="text-2xl font-bold tracking-tight">
+                ৳{user ? user.telegram_stats?.total_bdt || 0 : stats?.total_volume_bdt?.toLocaleString() || '...'}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -101,11 +124,11 @@ const Dashboard: React.FC = () => {
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-6 flex items-center gap-4">
             <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl">
-              <ShieldCheck className="h-6 w-6" />
+              <Users className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Security</p>
-              <p className="text-2xl font-bold tracking-tight">{user ? 'Verified' : 'Guest'}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+              <p className="text-2xl font-bold tracking-tight">{stats?.total_users || '...'}</p>
             </div>
           </CardContent>
         </Card>
@@ -116,8 +139,8 @@ const Dashboard: React.FC = () => {
               <Wallet className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Assets</p>
-              <p className="text-2xl font-bold tracking-tight">Multi-Chain</p>
+              <p className="text-sm font-medium text-muted-foreground">Best Rate</p>
+              <p className="text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
             </div>
           </CardContent>
         </Card>
@@ -169,8 +192,40 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
+        {/* Quick Actions & Live Feed */}
         <div className="flex flex-col gap-6">
+          {/* Live Activity Feed */}
+          <Card className="border-primary/10 bg-black/40 overflow-hidden">
+            <CardHeader className="py-3 bg-muted/20">
+              <CardTitle className="text-xs uppercase tracking-[0.2em] flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Live Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-white/5">
+                {recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
+                  <div key={i} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <NetworkLogo id={act.network} size={16} />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-mono font-bold leading-none">{act.amount_crypto} {act.network?.toUpperCase()}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono leading-none mt-1">{act.wallet}</span>
+                      </div>
+                    </div>
+                    <Badge variant={act.status === 'completed' ? 'default' : 'secondary'} className="text-[8px] h-4 px-1 uppercase">
+                      {act.status}
+                    </Badge>
+                  </div>
+                )) : (
+                  <div className="p-6 text-center text-[10px] text-muted-foreground uppercase tracking-widest">
+                    Awaiting transactions...
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="bg-primary text-primary-foreground overflow-hidden border-none shadow-lg relative group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
               <ShoppingCart size={120} />

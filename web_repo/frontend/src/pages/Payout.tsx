@@ -19,7 +19,7 @@ const Payout: React.FC = () => {
 
   const fetchHistory = () => {
     setHistoryLoading(true);
-    fetch('/api/payout/history', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(`${process.env.REACT_APP_API_URL || ''}/api/payout/history`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => setHistory(Array.isArray(d) ? d : []))
       .catch(() => {})
@@ -33,7 +33,7 @@ const Payout: React.FC = () => {
     if (!amount || parseFloat(amount) <= 0) { toast.error('Enter a valid amount'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/payout', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/payout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ amount: parseFloat(amount), method, details })

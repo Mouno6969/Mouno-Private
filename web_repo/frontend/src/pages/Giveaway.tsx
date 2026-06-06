@@ -24,7 +24,7 @@ const Giveaway: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/giveaways')
+    fetch(`${process.env.REACT_APP_API_URL || ''}/api/giveaways`)
       .then(r => r.json())
       .then(d => setGiveaways(Array.isArray(d) ? d : []))
       .catch(() => {})

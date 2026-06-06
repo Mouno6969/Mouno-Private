@@ -24,7 +24,7 @@ const Swap: React.FC = () => {
     if (!amount) return;
     setLoading(true);
     try {
-      const res = await axios.get(`/api/swap/quote`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/swap/quote`, {
         params: { fromChain, toChain, fromToken, toToken, amount }
       });
       setQuote(res.data);

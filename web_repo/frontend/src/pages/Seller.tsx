@@ -36,21 +36,21 @@ const Seller: React.FC = () => {
 
   useEffect(() => {
     if (showInventory && !inventory && token) {
-      fetch('/api/seller/inventory', { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/inventory`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json()).then(d => setInventory(d)).catch(() => {});
     }
   }, [showInventory, inventory, token]);
 
   useEffect(() => {
     if (showOrders && sellerOrders.length === 0 && token) {
-      fetch('/api/seller/orders', { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/orders`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json()).then(d => setSellerOrders(Array.isArray(d) ? d : d.orders || [])).catch(() => {});
     }
   }, [showOrders, sellerOrders.length, token]);
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/seller/status', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -66,7 +66,7 @@ const Seller: React.FC = () => {
     e.preventDefault();
     setApplying(true);
     try {
-      const res = await fetch('/api/seller/apply', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/apply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

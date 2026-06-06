@@ -42,7 +42,7 @@ const MyWallet: React.FC = () => {
 
   useEffect(() => {
     if (token) {
-      fetch('/api/wallet/status', { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/status`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(d => { setHasWallet(d.has_wallet); setWalletNetwork(d.network || ''); })
         .catch(() => {});
@@ -54,7 +54,7 @@ const MyWallet: React.FC = () => {
     if (!privateKey || !password || !network) { toast.error('All fields are required'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/wallet/setup', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/setup`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ network, private_key: privateKey, password })
       });
@@ -78,7 +78,7 @@ const MyWallet: React.FC = () => {
     if (!balPassword) { toast.error('Password required'); return; }
     setLoading(true); setBalanceInfo(null);
     try {
-      const res = await fetch('/api/wallet/balance', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/balance`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ password: balPassword })
       });
@@ -98,7 +98,7 @@ const MyWallet: React.FC = () => {
     if (!window.confirm(`Send ${sendAmount} to ${sendDest}? This is irreversible!`)) return;
     setLoading(true); setSendResult(null);
     try {
-      const res = await fetch('/api/wallet/send', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/send`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ destination: sendDest, amount: parseFloat(sendAmount), password: sendPassword })
       });

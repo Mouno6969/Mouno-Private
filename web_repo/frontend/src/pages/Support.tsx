@@ -61,7 +61,7 @@ const Support: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/ai/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
