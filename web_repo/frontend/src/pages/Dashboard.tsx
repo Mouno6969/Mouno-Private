@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Battery, Wallet, Zap, ArrowRight, ShieldCheck, Globe, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Terminal,
+  Activity,
+  Shield,
+  Cpu,
+  Zap,
+  RefreshCw,
+  Users,
+  Gift,
+  Store
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -30,180 +41,161 @@ const Dashboard: React.FC = () => {
   const networks = NETWORK_LIST;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
-            {t('welcome')}, <span className="text-primary">{user ? user.username : 'Guest'}</span>!
+    <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-700 font-sans">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden py-10">
+        <div className="space-y-4 max-w-3xl">
+          <div className="flex items-center gap-2 text-white/40 mb-6">
+            <Terminal size={14} />
+            <span className="text-[10px] uppercase tracking-[0.3em] font-mono">Terminal Initialized</span>
+          </div>
+          <h1 className="text-5xl md:text-7xl font-heading font-bold tracking-tighter uppercase leading-[0.9]">
+            {t('welcome')}, <br />
+            <span className="text-white/40">{user ? user.username : 'Guest'}</span>
           </h1>
-          <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
-        </div>
-        <div className="flex gap-2">
-           <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-             <Globe className="mr-1 h-3 w-3" /> System: Online
-           </Badge>
+          <p className="text-white/40 text-lg max-w-xl font-medium tracking-tight">
+            Mouno Web onboards you into the internet economy — discovery, automation, and infrastructure, unified into one permissionless platform.
+          </p>
+          <div className="pt-6 flex flex-wrap gap-4">
+             <Button asChild size="lg" className="bg-white text-black rounded-none hover:bg-white/90 px-8 font-bold uppercase tracking-widest text-xs h-14">
+                <Link to="/buy">Open Platform</Link>
+             </Button>
+             <Button asChild variant="outline" size="lg" className="border-white/10 rounded-none hover:bg-white/5 px-8 uppercase tracking-widest text-xs h-14">
+                <Link to="/guide">Read System Brief</Link>
+             </Button>
+          </div>
         </div>
       </section>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
-              <TrendingUp className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{t('rates')}</p>
-              <p className="text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-green-500/10 text-green-500 rounded-xl">
-              <Zap className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Network</p>
-              <p className="text-2xl font-bold tracking-tight">Healthy</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl">
-              <ShieldCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Security</p>
-              <p className="text-2xl font-bold tracking-tight">{user ? 'Verified' : 'Guest'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-yellow-500/10 text-yellow-500 rounded-xl">
-              <Wallet className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Assets</p>
-              <p className="text-2xl font-bold tracking-tight">Multi-Chain</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stats Board */}
+      <div className="grid grid-cols-2 md:grid-cols-4 border border-white/10">
+         {[
+           { label: 'System Status', value: 'Nominal', icon: <Activity size={14} /> },
+           { label: 'Security', value: 'Encrypted', icon: <Shield size={14} /> },
+           { label: 'Network', value: 'Live', icon: <Zap size={14} /> },
+           { label: 'Infrastructure', value: 'V1.0', icon: <Cpu size={14} /> },
+         ].map((stat, i) => (
+           <div key={i} className="p-6 border-r last:border-r-0 border-white/10 space-y-2">
+              <div className="flex items-center gap-2 text-white/30">
+                 {stat.icon}
+                 <span className="text-[10px] uppercase tracking-widest font-mono">{stat.label}</span>
+              </div>
+              <p className="text-xl font-heading font-bold uppercase">{stat.value}</p>
+           </div>
+         ))}
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Market Table */}
-        <Card className="lg:col-span-2 overflow-hidden shadow-xl border-primary/10">
-          <CardHeader className="bg-muted/30 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" /> {t('rates')}
-                </CardTitle>
-                <CardDescription>Live BDT conversion rates for stablecoins</CardDescription>
-              </div>
-              <Badge variant="secondary" className="font-mono uppercase text-[10px]">Real-time</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        {/* Market Rates - Left Side */}
+        <div className="lg:col-span-7 space-y-8">
+           <div className="space-y-1">
+              <h2 className="text-xs uppercase tracking-[0.3em] text-white/40 font-heading font-bold">01 ◈ Live Surface</h2>
+              <h3 className="text-3xl font-heading font-bold uppercase tracking-tight">Digital Markets</h3>
+           </div>
+
+           <div className="border border-white/10 overflow-hidden">
             <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-muted/50">
-                  <TableHead className="w-[200px] pl-6 font-semibold uppercase text-[10px] tracking-wider">Network</TableHead>
-                  <TableHead className="font-semibold uppercase text-[10px] tracking-wider">Asset</TableHead>
-                  <TableHead className="text-right pr-6 font-semibold uppercase text-[10px] tracking-wider">Rate (1 USDT/USDC)</TableHead>
+              <TableHeader className="bg-white/5">
+                <TableRow className="hover:bg-transparent border-white/10">
+                  <TableHead className="pl-6 font-heading font-bold uppercase text-[10px] tracking-widest text-white/40 py-4">Network</TableHead>
+                  <TableHead className="font-heading font-bold uppercase text-[10px] tracking-widest text-white/40">Asset</TableHead>
+                  <TableHead className="text-right pr-6 font-heading font-bold uppercase text-[10px] tracking-widest text-white/40">Rate (BDT)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {networks.map((net) => (
-                  <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
-                    <TableCell className="py-4 pl-6 flex items-center gap-3">
-                      <NetworkLogo id={net.id} size={28} />
-                      <span className="font-semibold">{net.name}</span>
+                  <TableRow key={net.id} className="group hover:bg-white/5 transition-colors border-white/10">
+                    <TableCell className="py-6 pl-6">
+                      <div className="flex items-center gap-3">
+                        <div className="grayscale group-hover:grayscale-0 transition-all duration-500">
+                          <NetworkLogo id={net.id} size={24} />
+                        </div>
+                        <span className="font-heading font-bold uppercase tracking-wider text-sm">{net.name}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-mono text-[10px]">USDT/USDC</Badge>
+                      <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">USDT/USDC</span>
                     </TableCell>
-                    <TableCell className="py-4 text-right pr-6">
-                       <span className="font-mono text-lg font-bold text-primary group-hover:scale-105 transition-transform inline-block">
-                         ৳{marketData?.rates?.[net.id] || '...'}
+                    <TableCell className="py-6 text-right pr-6">
+                       <span className="font-mono text-lg font-bold">
+                         ৳{marketData?.rates?.[net.id] || '0.00'}
                        </span>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+           </div>
+        </div>
 
-        {/* Quick Actions */}
-        <div className="flex flex-col gap-6">
-          <Card className="bg-primary text-primary-foreground overflow-hidden border-none shadow-lg relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
-              <ShoppingCart size={120} />
-            </div>
-            <CardHeader>
-              <CardTitle className="text-2xl">{t('buy')}</CardTitle>
-              <CardDescription className="text-primary-foreground/70">
-                Purchase USDC or USDT using bKash instantly.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="secondary" className="w-full font-bold h-12 shadow-md">
-                <Link to="/buy" className="flex items-center gap-2">
-                  Start Order <ArrowRight size={18} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+        {/* Action Blocks - Right Side */}
+        <div className="lg:col-span-5 flex flex-col gap-8">
+           <div className="space-y-1">
+              <h2 className="text-xs uppercase tracking-[0.3em] text-white/40 font-heading font-bold">02 ◈ Modules</h2>
+              <h3 className="text-3xl font-heading font-bold uppercase tracking-tight">System Core</h3>
+           </div>
 
-          <Card className="bg-slate-900 border-primary/20 overflow-hidden shadow-lg relative group">
-             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
-              <RefreshCw size={120} />
-            </div>
-            <CardHeader>
-              <CardTitle className="text-2xl text-white">{t('swap')}</CardTitle>
-              <CardDescription className="text-gray-400">
-                Bridge assets between 20+ chains with LI.FI.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="outline" className="w-full font-bold h-12 border-primary/30 hover:bg-primary/10 text-primary">
-                <Link to="/swap" className="flex items-center gap-2">
-                  Launch Bridge <ArrowRight size={18} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+           <div className="grid grid-cols-1 gap-4">
+              <Link to="/buy" className="group border border-white/10 p-8 flex justify-between items-end hover:bg-white transition-all duration-300">
+                 <div className="space-y-2">
+                    <h4 className="text-sm font-heading font-bold uppercase tracking-widest text-white group-hover:text-black">Buy Crypto</h4>
+                    <p className="text-xs text-white/40 group-hover:text-black/60 max-w-[200px]">Purchase USDC or USDT using local payment methods.</p>
+                 </div>
+                 <ArrowUpRight size={24} className="text-white/20 group-hover:text-black transition-colors" />
+              </Link>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="hover:border-primary/30 transition-all group">
-              <Link to="/referral" className="p-4 flex flex-col items-center text-center gap-2">
-                <Users className="text-primary group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-medium">{t('referral')}</span>
+              <Link to="/swap" className="group border border-white/10 p-8 flex justify-between items-end hover:bg-white transition-all duration-300">
+                 <div className="space-y-2">
+                    <h4 className="text-sm font-heading font-bold uppercase tracking-widest text-white group-hover:text-black">Bridge & Swap</h4>
+                    <p className="text-xs text-white/40 group-hover:text-black/60 max-w-[200px]">Cross-chain liquidity aggregator via LI.FI protocols.</p>
+                 </div>
+                 <ArrowUpRight size={24} className="text-white/20 group-hover:text-black transition-colors" />
               </Link>
-            </Card>
-            <Card className="hover:border-primary/30 transition-all group">
-              <Link to="/gift" className="p-4 flex flex-col items-center text-center gap-2">
-                <Gift className="text-primary group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-medium">{t('gift')}</span>
+
+              <div className="grid grid-cols-2 gap-4">
+                 <Link to="/referral" className="group border border-white/10 p-6 flex flex-col gap-4 hover:bg-white transition-all duration-300">
+                    <Users size={20} className="text-white/40 group-hover:text-black" />
+                    <span className="text-[10px] font-heading font-bold uppercase tracking-widest group-hover:text-black">Referrals</span>
+                 </Link>
+                 <Link to="/gift" className="group border border-white/10 p-6 flex flex-col gap-4 hover:bg-white transition-all duration-300">
+                    <Gift size={20} className="text-white/40 group-hover:text-black" />
+                    <span className="text-[10px] font-heading font-bold uppercase tracking-widest group-hover:text-black">Rewards</span>
+                 </Link>
+              </div>
+
+              <Link to="/seller" className="group border border-white/10 p-6 flex items-center gap-4 hover:bg-white transition-all duration-300">
+                 <Store size={18} className="text-white/40 group-hover:text-black" />
+                 <span className="text-[10px] font-heading font-bold uppercase tracking-widest group-hover:text-black">Reseller Infrastructure</span>
+                 <ArrowUpRight size={14} className="ml-auto text-white/20 group-hover:text-black" />
               </Link>
-            </Card>
-            <Card className="hover:border-primary/30 transition-all group col-span-2">
-              <Link to="/seller" className="p-4 flex flex-row items-center justify-center gap-3">
-                <Store className="text-primary group-hover:scale-110 transition-transform" />
-                <span className="text-sm font-medium">{t('sellers')}</span>
-              </Link>
-            </Card>
-          </div>
+           </div>
         </div>
       </div>
+
+      {/* Technical Footer Section */}
+      <section className="pt-16 border-t border-white/10 pb-8">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div className="space-y-4">
+               <h4 className="text-[11px] font-heading font-bold uppercase tracking-[0.2em]">03 ◈ Vision</h4>
+               <p className="text-xs text-white/40 leading-relaxed font-medium">
+                  We believe in a world where the internet is the primary economy. No gatekeepers, no borders, just code. Mouno Web is your portal to this permissionless future.
+               </p>
+            </div>
+            <div className="space-y-4">
+               <h4 className="text-[11px] font-heading font-bold uppercase tracking-[0.2em]">04 ◈ Protocol</h4>
+               <p className="text-xs text-white/40 leading-relaxed font-medium">
+                  Built on top of leading DeFi protocols and settlement layers. Every transaction is transparent, secure, and verifiable on-chain.
+               </p>
+            </div>
+            <div className="space-y-4">
+               <h4 className="text-[11px] font-heading font-bold uppercase tracking-[0.2em]">05 ◈ Community</h4>
+               <p className="text-xs text-white/40 leading-relaxed font-medium">
+                  Join a network of thousands of users who are already earning and transacting in the digital economy.
+               </p>
+            </div>
+         </div>
+      </section>
     </div>
   );
 };

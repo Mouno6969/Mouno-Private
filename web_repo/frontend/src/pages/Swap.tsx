@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, ArrowRight, Settings, Info, ArrowDown, ChevronDown, Zap, ShieldCheck } from 'lucide-react';
+import { RefreshCw, ArrowRight, Settings, Info, ArrowDown, ChevronDown, Zap, ShieldCheck, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -46,167 +46,157 @@ const Swap: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <section className="space-y-1 text-center md:text-left">
-        <div className="flex items-center justify-center md:justify-start gap-3">
-           <div className="p-2 bg-primary/10 rounded-lg">
-              <RefreshCw className="h-6 w-6 text-primary" />
-           </div>
-           <h1 className="text-3xl font-extrabold tracking-tight">Cross-Chain Bridge</h1>
+    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 text-white/40">
+           <RefreshCw size={14} />
+           <span className="text-[10px] uppercase tracking-[0.3em] font-mono">Module ◈ Bridge_Swap</span>
         </div>
-        <p className="text-muted-foreground">Transfer assets between 20+ networks with deep liquidity.</p>
+        <h1 className="text-5xl font-heading font-bold tracking-tighter uppercase">Cross-Chain <span className="text-white/40">Liquidity</span></h1>
+        <p className="text-white/40 text-lg max-w-2xl font-medium tracking-tight">Aggregate deep liquidity across 20+ chains. Permissionless settlement.</p>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-        <div className="lg:col-span-3">
-          <Card className="shadow-2xl border-primary/10 relative overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50"></div>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Swap Interface</CardTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* From Block */}
-              <div className="rounded-2xl bg-muted/40 p-5 border border-muted transition-all focus-within:border-primary/30">
-                <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">You Pay</span>
-                   <Badge variant="outline" className="text-[10px] font-mono">Bal: 0.00</Badge>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        <div className="lg:col-span-8">
+          <div className="border border-white/10 p-1 bg-white/5 space-y-1">
+            {/* From Block */}
+            <div className="bg-black p-8 border border-white/5">
+                <div className="flex justify-between items-center mb-6">
+                   <span className="text-[10px] font-bold uppercase text-white/40 tracking-[0.2em]">01 ◈ Source Allocation</span>
+                   <Badge variant="outline" className="font-mono text-[9px] border-white/5">BAL: 0.00</Badge>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-6">
                   <Input
                     type="number"
-                    placeholder="0.0"
-                    className="border-none bg-transparent text-3xl font-black p-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30"
+                    placeholder="0.00"
+                    className="border-none bg-transparent text-5xl font-bold p-0 h-auto focus-visible:ring-0 placeholder:text-white/10 font-mono"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
                   <Select value={fromChain} onValueChange={setFromChain}>
-                    <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
+                    <SelectTrigger className="w-full sm:w-[180px] h-14 rounded-none bg-white text-black font-bold uppercase tracking-widest text-[11px] border-none">
                        <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black border-white/10 rounded-none">
                       {chains.map(chain => (
-                        <SelectItem key={chain.id} value={chain.id}>
-                          <NetworkLogo id={chain.networkId} size={16} className="mr-2" /> {chain.symbol}
+                        <SelectItem key={chain.id} value={chain.id} className="text-white focus:bg-white focus:text-black rounded-none">
+                          <div className="flex items-center gap-2">
+                             <NetworkLogo id={chain.networkId} size={16} /> <span>{chain.symbol}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+            </div>
 
-              {/* Reverse Icon */}
-              <div className="flex justify-center -my-7 z-10 relative">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full h-10 w-10 border-muted bg-background shadow-lg hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all group"
+            {/* Reverse Icon */}
+            <div className="flex justify-center -my-6 z-10 relative">
+                <button
+                  className="bg-white text-black h-12 w-12 flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
                   onClick={() => {
                     const temp = fromChain;
                     setFromChain(toChain);
                     setToChain(temp);
                   }}
                 >
-                  <ArrowDown className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                </Button>
-              </div>
+                  <ArrowDown className="h-5 w-5" />
+                </button>
+            </div>
 
-              {/* To Block */}
-              <div className="rounded-2xl bg-muted/40 p-5 border border-muted transition-all">
-                <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">You Receive (Estimated)</span>
+            {/* To Block */}
+            <div className="bg-black p-8 border border-white/5">
+                <div className="flex justify-between items-center mb-6">
+                   <span className="text-[10px] font-bold uppercase text-white/40 tracking-[0.2em]">02 ◈ Target Settlement (EST)</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-3xl font-black w-full text-primary/60 font-mono">
-                    {quote ? quote.summary?.to_amount : '0.0'}
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <div className="text-5xl font-bold w-full text-white/20 font-mono">
+                    {quote ? quote.summary?.to_amount : '0.00'}
                   </div>
                   <Select value={toChain} onValueChange={setToChain}>
-                    <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
+                    <SelectTrigger className="w-full sm:w-[180px] h-14 rounded-none border border-white/10 bg-black text-white font-bold uppercase tracking-widest text-[11px] hover:bg-white/5">
                        <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-black border-white/10 rounded-none">
                        {chains.map(chain => (
-                        <SelectItem key={chain.id} value={chain.id}>
-                          <NetworkLogo id={chain.networkId} size={16} className="mr-2" /> {chain.symbol}
+                        <SelectItem key={chain.id} value={chain.id} className="text-white focus:bg-white focus:text-black rounded-none">
+                          <div className="flex items-center gap-2">
+                             <NetworkLogo id={chain.networkId} size={16} /> <span>{chain.symbol}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              {quote && (
-                <div className="p-4 rounded-xl border border-dashed border-muted space-y-2 animate-in slide-in-from-top-2 duration-300">
-                   <div className="flex justify-between text-[11px] font-bold uppercase text-muted-foreground tracking-widest">
-                     <span>Best Price Across</span>
-                     <Badge variant="outline" className="h-4 px-1 text-[8px] bg-primary/5 border-primary/20 text-primary">LI.FI PROTOCOL</Badge>
-                   </div>
-                   <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Exchange Rate</span>
-                      <span className="font-mono font-bold">1 {chains.find(c => c.id === fromChain)?.symbol} ≈ <span>{quote.summary?.to_amount} {quote.summary?.to_symbol}</span></span>
-                   </div>
-                   <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Gas Fees</span>
-                      <span className="font-mono text-amber-500 font-bold">${quote.summary?.gas_usd}</span>
-                   </div>
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className="pt-2">
-              <Button
-                onClick={getQuote}
-                disabled={loading || !amount}
-                className="w-full h-14 text-lg font-black rounded-2xl shadow-xl shadow-primary/20"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Calculating Best Route...
-                  </>
-                ) : (
-                  <>Get Quote</>
-                )}
-              </Button>
-            </CardFooter>
+            </div>
 
             {quote && (
-               <div className="p-6 pt-0 space-y-4">
-                  <Button className="w-full h-14 rounded-2xl bg-white text-black hover:bg-white/90 font-black text-lg transition-all group">
-                    Execute Swap In-Bot <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
-                  </Button>
-                  <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Powered by Li.Fi Aggregator</p>
-               </div>
+                <div className="p-8 border-t border-white/10 bg-black space-y-4 animate-in slide-in-from-top-2 duration-300">
+                   <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-[0.2em] text-white/40">
+                      <span>Rate Optimization</span>
+                      <Badge variant="outline" className="text-[8px] border-white/10">LI.FI v2.4</Badge>
+                   </div>
+                   <div className="grid grid-cols-2 gap-8">
+                      <div className="space-y-1">
+                         <p className="text-[10px] text-white/20 uppercase tracking-widest">Exchange Rate</p>
+                         <p className="text-sm font-mono font-bold">1 {chains.find(c => c.id === fromChain)?.symbol} ≈ {quote.summary?.to_amount} {quote.summary?.to_symbol}</p>
+                      </div>
+                      <div className="space-y-1 text-right">
+                         <p className="text-[10px] text-white/20 uppercase tracking-widest">Est. Gas Fees</p>
+                         <p className="text-sm font-mono font-bold text-white">${quote.summary?.gas_usd}</p>
+                      </div>
+                   </div>
+                </div>
             )}
-          </Card>
+
+            <div className="p-8 pt-4">
+                {!quote ? (
+                   <Button
+                    onClick={getQuote}
+                    disabled={loading || !amount}
+                    className="w-full h-16 text-[11px] uppercase tracking-[0.3em]"
+                   >
+                    {loading ? (
+                        <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Fetching Routes...
+                        </>
+                    ) : (
+                        <>Get Quotation</>
+                    )}
+                   </Button>
+                ) : (
+                   <div className="space-y-4">
+                      <Button className="w-full h-16 text-[11px] bg-white text-black hover:bg-white/90 uppercase tracking-[0.3em]">
+                        Initialize Swap <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                      <p className="text-center text-[9px] uppercase font-bold text-white/20 tracking-[0.4em]">Settlement via Li.Fi Hub</p>
+                   </div>
+                )}
+            </div>
+          </div>
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-           <Card className="border-primary/10">
-              <CardHeader>
-                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" /> Routing Info
-                 </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                 <p className="text-xs text-muted-foreground leading-relaxed">
-                   We aggregate liquidity from multiple bridges (Hop, Stargate, Across) and DEXs (Uniswap, PancakeSwap) to ensure you get the maximum output for your cross-chain transfer.
+        <div className="lg:col-span-4 space-y-12">
+           <div className="space-y-6">
+              <h4 className="text-[11px] font-heading font-bold uppercase tracking-[0.2em] border-b border-white/10 pb-4">Routing Protocol</h4>
+              <div className="space-y-6">
+                 <p className="text-xs text-white/40 leading-relaxed font-medium">
+                   Our smart router aggregates liquidity from 30+ DEXs and 15+ bridges to ensure minimal slippage and optimal gas efficiency for your cross-chain journey.
                  </p>
-                 <div className="p-4 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
-                    <ShieldCheck className="h-5 w-5 text-green-500 shrink-0" />
-                    <div>
-                       <p className="text-xs font-bold mb-1 uppercase tracking-tighter">Secure & Audited</p>
-                       <p className="text-[10px] text-muted-foreground opacity-80 leading-tight">All bridge routes used are fully audited and battle-tested on-chain protocols.</p>
+                 <div className="p-6 border border-white/10 flex items-start gap-4">
+                    <ShieldCheck className="h-4 w-4 text-white/40 shrink-0 mt-1" />
+                    <div className="space-y-1">
+                       <p className="text-[10px] font-bold uppercase tracking-widest">Atomic Execution</p>
+                       <p className="text-[10px] text-white/30 leading-tight">All swaps are executed via non-custodial smart contracts, ensuring user control throughout the process.</p>
                     </div>
                  </div>
-              </CardContent>
-           </Card>
+              </div>
+           </div>
 
-           <Alert className="bg-blue-500/5 border-blue-500/10">
-              <Info className="h-4 w-4 text-blue-400" />
-              <AlertDescription className="text-xs text-muted-foreground">
-                 Cross-chain swaps can take anywhere from 2 to 20 minutes depending on the network congestion and destination chain.
+           <Alert className="bg-white/5 border-white/10 text-white/40 rounded-none">
+              <AlertDescription className="text-[10px] uppercase tracking-widest font-medium">
+                 Average Settlement Time: 3-8 Minutes
               </AlertDescription>
            </Alert>
         </div>
@@ -214,9 +204,5 @@ const Swap: React.FC = () => {
     </div>
   );
 };
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);
 
 export default Swap;

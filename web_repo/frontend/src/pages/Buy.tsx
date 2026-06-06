@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, CreditCard } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Link } from 'react-router-dom';
+import { ShoppingCart, Smartphone, CheckCircle, TrendingUp, ArrowRight, CreditCard, Loader2 } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Badge } from '../ui/badge';
+import { Alert, AlertDescription } from '../ui/alert';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const Buy: React.FC = () => {
@@ -75,221 +75,193 @@ const Buy: React.FC = () => {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 animate-in zoom-in duration-300">
-        <div className="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8">
-          <CheckCircle className="h-12 w-12" />
+        <div className="w-20 h-20 bg-white text-black flex items-center justify-center mx-auto mb-8">
+          <CheckCircle className="h-10 w-10" />
         </div>
-        <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Order Received!</h2>
-        <Card className="mb-8 border-green-500/30 bg-green-500/5">
-          <CardContent className="py-6">
-            <p className="text-muted-foreground mb-2 text-sm uppercase font-bold tracking-widest">Your Order ID</p>
-            <p className="text-4xl font-mono font-black text-primary">{success}</p>
-          </CardContent>
-        </Card>
-        <p className="text-muted-foreground mb-8 text-lg">
-          Your order is being processed automatically. You can track the status in the <a href="/orders" className="text-primary underline">Orders</a> section.
+        <h2 className="text-4xl font-heading font-bold mb-4 uppercase tracking-tighter">Order Received</h2>
+        <div className="mb-8 border border-white/10 bg-white/5 p-12">
+            <p className="text-white/40 mb-2 text-[10px] uppercase font-bold tracking-[0.2em]">Transaction ID</p>
+            <p className="text-5xl font-mono font-bold text-white">{success}</p>
+        </div>
+        <p className="text-white/40 mb-8 text-sm font-medium leading-relaxed max-w-md mx-auto">
+          Your order is being processed by the Mouno OS automation layer. Status will be updated in real-time.
         </p>
-        <Button size="lg" onClick={() => setSuccess(null)} className="rounded-full px-10">
-          Place Another Order
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button size="lg" onClick={() => setSuccess(null)} className="px-10">
+              New Transaction
+            </Button>
+            <Button asChild variant="outline" size="lg" className="px-10">
+                <Link to="/orders">View Orders</Link>
+            </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <section className="space-y-1">
-        <div className="flex items-center gap-3">
-           <div className="p-2 bg-primary/10 rounded-lg">
-              <ShoppingCart className="h-6 w-6 text-primary" />
-           </div>
-           <h1 className="text-3xl font-extrabold tracking-tight">{t('buy')} Crypto</h1>
+    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 text-white/40">
+           <ShoppingCart size={14} />
+           <span className="text-[10px] uppercase tracking-[0.3em] font-mono">Module ◈ Buy_Crypto</span>
         </div>
-        <p className="text-muted-foreground">Follow these simple steps to purchase stablecoins with bKash.</p>
+        <h1 className="text-5xl font-heading font-bold tracking-tighter uppercase">Digital <span className="text-white/40">Settlement</span></h1>
+        <p className="text-white/40 text-lg max-w-2xl font-medium tracking-tight">Acquire digital assets via local fiat rails. Secured by Mouno infrastructure.</p>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        <div className="lg:col-span-2 space-y-6">
-          <form onSubmit={handleSubmit}>
-          <Card className="shadow-xl border-primary/10 overflow-hidden">
-            <CardHeader className="bg-muted/30">
-               <CardTitle className="text-lg">Order Details</CardTitle>
-               <CardDescription>Select network and specify amounts</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-8">
-              {/* Network Selection */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        <div className="lg:col-span-8 space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Network Selection */}
+            <div className="space-y-4">
+              <Label className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">01 ◈ Select Network</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {networks.map((net) => (
+                  <button
+                    key={net.id}
+                    type="button"
+                    onClick={() => handleNetworkChange(net.id)}
+                    className={`p-6 border flex flex-col items-center gap-4 transition-all relative ${
+                      selectedNetwork === net.id
+                      ? 'border-white bg-white text-black'
+                      : 'border-white/10 bg-black text-white hover:border-white/30'
+                    }`}
+                  >
+                    <div className={selectedNetwork === net.id ? 'grayscale-0' : 'grayscale'}>
+                        <NetworkLogo id={net.id} size={32} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{net.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Amounts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
               <div className="space-y-4">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t('network')}</Label>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                  {networks.map((net) => (
-                    <button
-                      key={net.id}
-                      type="button"
-                      onClick={() => handleNetworkChange(net.id)}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all relative group ${
-                        selectedNetwork === net.id
-                        ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary'
-                        : 'border-muted bg-card hover:border-primary/50'
-                      }`}
-                    >
-                      <NetworkLogo id={net.id} size={28} />
-                      <span className="text-[10px] font-black uppercase tracking-tighter">{net.name}</span>
-                      {selectedNetwork === net.id && (
-                        <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                           <CheckCircle className="h-3 w-3" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Amounts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="bdt" className="text-xs uppercase tracking-wider text-muted-foreground">{t('bdt_amount')}</Label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold font-mono">৳</span>
-                    <Input
-                      id="bdt"
-                      type="number"
-                      className="pl-10 h-14 text-xl font-bold font-mono bg-muted/20"
-                      placeholder="Min 500"
-                      value={bdtAmount}
-                      onChange={(e) => handleBdtChange(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground italic">Approx. rate: ৳{marketData?.rates?.[selectedNetwork] || '...'}</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t('crypto_amount')} (Receive)</Label>
-                  <div className="h-14 flex items-center justify-between px-4 rounded-md border bg-primary/5 border-primary/20">
-                    <span className="text-2xl font-black font-mono text-primary">{cryptoAmount}</span>
-                    <Badge variant="outline" className="font-mono bg-primary/10 border-primary/30">
-                      {networks.find(n => n.id === selectedNetwork)?.asset}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Wallet Address */}
-              <div className="space-y-3">
-                <Label htmlFor="wallet" className="text-xs uppercase tracking-wider text-muted-foreground">{t('wallet_address')}</Label>
+                <Label htmlFor="bdt" className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">02 ◈ Fiat Amount (BDT)</Label>
                 <div className="relative">
-                   <ShieldCheck className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-                   <Input
-                    id="wallet"
-                    className="pl-10 h-12 font-mono"
-                    placeholder="Enter your receive address"
-                    value={wallet}
-                    onChange={(e) => setWallet(e.target.value)}
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20 font-bold font-mono text-xl">৳</span>
+                  <Input
+                    id="bdt"
+                    type="number"
+                    className="pl-12 h-16 text-2xl font-bold font-mono bg-white/5 border-white/10 rounded-none focus:ring-white focus:border-white"
+                    placeholder="500.00"
+                    value={bdtAmount}
+                    onChange={(e) => handleBdtChange(e.target.value)}
                     required
                   />
                 </div>
               </div>
 
-              <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
-                <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Double-check your wallet address. Crypto transactions are irreversible.
+              <div className="space-y-4">
+                <Label className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">03 ◈ You Receive (EST)</Label>
+                <div className="h-16 flex items-center justify-between px-6 bg-white text-black font-bold">
+                  <span className="text-2xl font-mono">{cryptoAmount}</span>
+                  <span className="text-xs tracking-widest font-heading uppercase">
+                    {networks.find(n => n.id === selectedNetwork)?.asset}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Wallet Address */}
+            <div className="space-y-4 pt-4">
+              <Label htmlFor="wallet" className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">04 ◈ Destination Address</Label>
+              <Input
+                id="wallet"
+                className="h-14 font-mono bg-white/5 border-white/10 rounded-none text-sm px-6"
+                placeholder="Connect destination wallet"
+                value={wallet}
+                onChange={(e) => setWallet(e.target.value)}
+                required
+              />
+              <Alert className="bg-white/5 border-white/10 text-white/60 rounded-none py-3">
+                <AlertDescription className="text-[10px] uppercase tracking-wider font-medium">
+                  Verify destination address. On-chain settlements are finalized upon execution.
                 </AlertDescription>
               </Alert>
+            </div>
 
-              <div className="space-y-6 pt-4 border-t">
-                 <div className="flex flex-col items-center gap-4 bg-muted/50 p-6 rounded-2xl border border-dashed">
-                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
-                       <Smartphone className="h-4 w-4" /> {t('send_bdt')} to this bKash Number
-                    </div>
-                    <div className="text-3xl font-black font-mono tracking-widest text-primary flex items-center gap-3">
-                       {marketData?.bKash || '01XXXXXXXXX'}
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => navigator.clipboard.writeText(marketData?.bKash)}>
-                          <CreditCard className="h-4 w-4" />
-                       </Button>
-                    </div>
-                    <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">Personal (Send Money / Cash In)</Badge>
-                 </div>
+            {/* Payment Section */}
+            <div className="space-y-6 pt-12 border-t border-white/10">
+               <div className="space-y-4">
+                  <Label className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">05 ◈ Settlement Provider</Label>
+                  <div className="border border-white/10 p-8 flex flex-col items-center gap-6 bg-black">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-white/40">
+                         <Smartphone size={12} /> bKash Automation
+                      </div>
+                      <div className="text-4xl font-bold font-mono tracking-tighter text-white flex items-center gap-6">
+                         {marketData?.bKash || '01XXXXXXXXX'}
+                         <button type="button" className="text-white/20 hover:text-white transition-colors" onClick={() => navigator.clipboard.writeText(marketData?.bKash)}>
+                            <CreditCard size={20} />
+                         </button>
+                      </div>
+                      <Badge variant="outline" className="border-white/20 text-white/40">Manual Verification Active</Badge>
+                  </div>
+               </div>
 
-                 <div className="space-y-3">
-                    <Label htmlFor="trxid" className="text-xs uppercase tracking-wider text-muted-foreground">{t('trx_id')}</Label>
-                    <Input
-                      id="trxid"
-                      className="h-12 font-mono uppercase"
-                      placeholder="e.g. BMA1234567"
-                      value={trxId}
-                      onChange={(e) => setTrxId(e.target.value)}
-                      required
-                    />
-                 </div>
-              </div>
-            </CardContent>
-            <CardFooter className="bg-muted/20 p-6">
-              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
-                {loading ? (
-                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processing Order...
-                   </>
-                ) : (
-                  <>
-                    Complete Purchase <ArrowRight className="ml-2 h-5 w-5" />
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
+               <div className="space-y-4">
+                  <Label htmlFor="trxid" className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold font-heading">06 ◈ Proof of Transaction (TRXID)</Label>
+                  <Input
+                    id="trxid"
+                    className="h-14 font-mono uppercase bg-white/5 border-white/10 rounded-none px-6"
+                    placeholder="Enter system identifier"
+                    value={trxId}
+                    onChange={(e) => setTrxId(e.target.value)}
+                    required
+                  />
+               </div>
+            </div>
+
+            <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount} className="w-full h-16 text-sm font-bold uppercase tracking-[0.2em]">
+              {loading ? (
+                 <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Finalizing...
+                 </>
+              ) : (
+                <>
+                  Initialize Order <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
           </form>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-           <Card className="border-primary/10">
-              <CardHeader>
-                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Info className="h-4 w-4 text-primary" /> {t('how_to_buy')}
-                 </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+        {/* Sidebar info */}
+        <div className="lg:col-span-4 space-y-12">
+           <div className="space-y-6">
+              <h4 className="text-[11px] font-heading font-bold uppercase tracking-[0.2em] border-b border-white/10 pb-4">Protocol Specs</h4>
+              <div className="space-y-6">
                  {[
-                   { step: 1, text: "Select your network and enter the amount you want to pay." },
-                   { step: 2, text: "Send the money via bKash to the provided number." },
-                   { step: 3, text: "Copy the TrxID from the bKash confirmation message." },
-                   { step: 4, text: "Enter TrxID and your wallet address, then submit." }
+                   { step: "01", title: "Allocation", desc: "Select target network and define fiat expenditure." },
+                   { step: "02", title: "Transfer", desc: "Execute payment via bKash to the designated provider." },
+                   { step: "03", title: "Proof", desc: "Input the transaction identifier for system matching." },
+                   { step: "04", title: "Settlement", desc: "Assets are dispatched to your destination wallet." }
                  ].map((i) => (
-                   <div key={i.step} className="flex gap-3 items-start">
-                      <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                         {i.step}
+                   <div key={i.step} className="flex gap-6 items-start">
+                      <span className="text-[10px] font-mono text-white/20 font-bold">{i.step}</span>
+                      <div className="space-y-1">
+                         <h5 className="text-[10px] uppercase font-bold tracking-widest">{i.title}</h5>
+                         <p className="text-[11px] text-white/40 leading-relaxed font-medium">{i.desc}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{i.text}</p>
                    </div>
                  ))}
-              </CardContent>
-           </Card>
+              </div>
+           </div>
 
-           <Card className="bg-primary/5 border-primary/20">
-              <CardHeader className="pb-2">
-                 <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Live Exchange Rate</CardDescription>
-                 <CardTitle className="text-2xl font-black text-primary">৳{marketData?.rates?.[selectedNetwork] || '...'}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                 <div className="flex items-center gap-1 text-[10px] text-green-500 font-bold uppercase">
-                    <TrendingUp className="h-3 w-3" /> Best rate in Bangladesh
-                 </div>
-              </CardContent>
-           </Card>
+           <div className="border border-white/10 p-8 space-y-2">
+              <span className="text-[10px] uppercase font-bold text-white/40 tracking-[0.2em]">Market Signal</span>
+              <p className="text-3xl font-bold font-mono">৳{marketData?.rates?.[selectedNetwork] || '0.00'}</p>
+              <div className="flex items-center gap-2 text-[10px] text-white/20 font-bold uppercase tracking-widest pt-2">
+                 <TrendingUp size={12} /> Optimization: Enabled
+              </div>
+           </div>
         </div>
       </div>
     </div>
   );
 };
-
-// Help helper
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);
-
-const Link = ({ to, children, className }: any) => (
-  <a href={to} className={className}>{children}</a>
-);
 
 export default Buy;
