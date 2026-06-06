@@ -204,12 +204,10 @@ describe('Layout', () => {
           <Layout>child</Layout>
         </MemoryRouter>
       );
-      // Find the menu toggle button (md:hidden)
       const menuBtn = container.querySelector('button.md\\:hidden') as HTMLButtonElement;
-      if (menuBtn) {
-        fireEvent.click(menuBtn);
-        expect(container.querySelector('.fixed.inset-0')).toBeInTheDocument();
-      }
+      expect(menuBtn).not.toBeNull();
+      fireEvent.click(menuBtn);
+      expect(container.querySelector('.fixed.inset-0')).toBeInTheDocument();
     });
   });
 
