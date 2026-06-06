@@ -22,7 +22,7 @@ const Dashboard: React.FC = () => {
 
     const fetchMarket = async () => {
       try {
-        const res = await axios.get('/api/market', { signal: controller.signal });
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/market`, { signal: controller.signal });
         if (!controller.signal.aborted) {
           setMarketData(res.data);
           setLastUpdated(new Date());
