@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Battery, Wallet, Zap, ArrowRight, ShieldCheck, Globe, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
+import { TrendingUp, Wallet, Zap, ArrowRight, ShieldCheck, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
+import Marquee from '../components/ui/marquee';
 import { Badge } from '../components/ui/badge';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
@@ -14,23 +15,45 @@ const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [marketData, setMarketData] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchMarket = async () => {
       try {
-        const res = await axios.get('/api/market');
-        setMarketData(res.data);
+        const res = await axios.get('/api/market', { signal: controller.signal });
+        if (!controller.signal.aborted) {
+          setMarketData(res.data);
+          setLastUpdated(new Date());
+        }
       } catch (err) {
-        console.error(err);
+        if (!axios.isCancel(err)) {
+          console.error(err);
+        }
       }
     };
+
     fetchMarket();
+    const interval = setInterval(fetchMarket, 10000); // Update every 10 seconds
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   const networks = NETWORK_LIST;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <Marquee speed={30} className="font-mono text-[10px] uppercase tracking-[0.2em] mb-4">
+        <span className="flex items-center gap-2">◈ LIFI PROTOCOL INTEGRATED</span>
+        <span className="flex items-center gap-2">◈ 24/7 AUTOMATED DELIVERY</span>
+        <span className="flex items-center gap-2">◈ CROSS-CHAIN SWAPS ACTIVE</span>
+        <span className="flex items-center gap-2">◈ SECURE P2P SETTLEMENT</span>
+        <span className="flex items-center gap-2">◈ AI ONBOARDING ONLINE</span>
+      </Marquee>
+
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
@@ -38,10 +61,14 @@ const Dashboard: React.FC = () => {
           </h1>
           <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
         </div>
-        <div className="flex gap-2">
-           <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-             <Globe className="mr-1 h-3 w-3" /> System: Online
+        <div className="flex flex-col items-end gap-1">
+           <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 px-3 py-1">
+             <div className="mr-2 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+             System: Online
            </Badge>
+           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+             Refreshed: {lastUpdated.toLocaleTimeString()}
+           </span>
         </div>
       </section>
 

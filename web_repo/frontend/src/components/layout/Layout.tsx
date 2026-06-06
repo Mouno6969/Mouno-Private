@@ -78,11 +78,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <Link to="/" className="flex items-center space-x-2">
-              <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-full object-cover border border-primary" />
+              <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-none object-cover border border-white" />
             </Link>
           </div>
 
-          <div className="hidden md:flex items-center space-x-6 text-sm font-medium">
+          <div className="hidden md:flex items-center space-x-6 text-xs uppercase tracking-widest font-mono">
             <Link to="/" className={isActive('/') ? "text-primary" : "text-muted-foreground transition-colors hover:text-primary"}>Dashboard</Link>
             {navItems.map((item) => (
               <Link
@@ -96,19 +96,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={toggleLang} className="rounded-full gap-1 px-2">
+            <Button variant="ghost" size="sm" onClick={toggleLang} className="rounded-none gap-1 px-2 border border-white/10 hover:border-white">
               <Languages className="h-4 w-4" />
-              <span className="text-xs font-medium">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
+              <span className="text-xs font-mono">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
             </Button>
 
             {token ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="" alt={user?.username} />
-                      <AvatarFallback className="bg-primary/20 text-primary">{user?.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-                    </Avatar>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-none border border-white/10 p-0">
+                    <div className="h-full w-full bg-white/10 flex items-center justify-center font-mono text-xs">
+                      {user?.username?.[0]?.toUpperCase() || 'U'}
+                    </div>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
