@@ -23,23 +23,31 @@ const Dashboard: React.FC = () => {
     const controller = new AbortController();
 
     const fetchData = async () => {
+      // Fetch market data (critical)
       try {
-        const [marketRes, statsRes, activityRes] = await Promise.all([
-          axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`, { signal: controller.signal }),
-          axios.get(`${process.env.REACT_APP_API_URL || ''}/api/stats`, { signal: controller.signal }),
-          axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal })
-        ]);
-
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`, { signal: controller.signal });
         if (!controller.signal.aborted) {
-          setMarketData(marketRes.data);
-          setStats(statsRes.data);
-          setRecentActivity(activityRes.data);
+          setMarketData(res.data);
           setLastUpdated(new Date());
         }
       } catch (err) {
-        if (!axios.isCancel(err)) {
-          console.error(err);
-        }
+        if (!axios.isCancel(err)) console.error("Market fetch failed", err);
+      }
+
+      // Fetch global stats (optional)
+      try {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/stats`, { signal: controller.signal });
+        if (!controller.signal.aborted) setStats(res.data);
+      } catch (err) {
+        if (!axios.isCancel(err)) console.error("Stats fetch failed", err);
+      }
+
+      // Fetch recent activity (optional)
+      try {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal });
+        if (!controller.signal.aborted) setRecentActivity(res.data);
+      } catch (err) {
+        if (!axios.isCancel(err)) console.error("Activity fetch failed", err);
       }
     };
 
