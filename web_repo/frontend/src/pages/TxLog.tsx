@@ -25,7 +25,7 @@ const TxLog: React.FC = () => {
 
   const fetchTxLog = () => {
     setLoading(true);
-    fetch('/api/txlog', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(`${process.env.REACT_APP_API_URL || ''}/api/txlog`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => setTxs(Array.isArray(d) ? d : []))
       .catch(() => {})

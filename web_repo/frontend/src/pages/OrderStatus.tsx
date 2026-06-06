@@ -19,14 +19,14 @@ const OrderStatus: React.FC = () => {
     if (!query.trim()) return;
     setLoading(true); setError(''); setResult(null); setReceipt(null);
     try {
-      const res = await fetch(`/api/order/lookup?id=${encodeURIComponent(query.trim())}`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/order/lookup?id=${encodeURIComponent(query.trim())}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
       if (data.found) {
         setResult(data);
         // Also try to fetch receipt
-        const rRes = await fetch(`/api/order/receipt?id=${encodeURIComponent(query.trim())}`, {
+        const rRes = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/order/receipt?id=${encodeURIComponent(query.trim())}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         const rData = await rRes.json();

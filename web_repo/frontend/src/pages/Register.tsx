@@ -28,7 +28,7 @@ const Register: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      await axios.post('/api/register', { username, password });
+      await axios.post(`${process.env.REACT_APP_API_URL || ''}/api/register`, { username, password });
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {

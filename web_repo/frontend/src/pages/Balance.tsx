@@ -17,7 +17,7 @@ const Balance: React.FC = () => {
   const fetchBalance = () => {
     setLoading(true);
     setError('');
-    fetch('/api/balance', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
+    fetch(`${process.env.REACT_APP_API_URL || ''}/api/balance`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => {
         if (d.balances) {

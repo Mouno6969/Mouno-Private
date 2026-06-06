@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (token) {
         try {
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          const res = await axios.get('/api/me');
+          const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/me`);
           setUser(res.data);
         } catch (err) {
           console.error('Auth error', err);
@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = async () => {
     if (token) {
       try {
-        const res = await axios.get('/api/me');
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/me`);
         setUser(res.data);
       } catch (err) {
         console.error('Refresh user error', err);
