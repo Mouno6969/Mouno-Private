@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -20,27 +20,17 @@ const Support: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const sessionId = useMemo(
-    () => Math.random().toString(36).slice(2, 8).toUpperCase(),
-    []
-  );
-  const trafficBars = useMemo(
-    () => Array.from({ length: 10 }, () => Math.random() * 100),
-    []
-  );
 
   useEffect(() => {
-    setMessages(prev => {
-      if (prev.length > 0) return prev; // don't wipe an active conversation
-      const welcome = i18n.language === 'bn'
-        ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
-        : 'System Online. I am your AI Support assistant. How can I help you today?';
-      return [
-        { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
-        { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
-        { role: 'assistant', content: welcome },
-      ];
-    });
+    const welcome = i18n.language === 'bn'
+      ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
+      : 'System Online. I am your AI Support assistant. How can I help you today?';
+
+    setMessages([
+      { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
+      { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
+      { role: 'assistant', content: welcome }
+    ]);
   }, [i18n.language]);
 
   useEffect(() => {
@@ -88,7 +78,7 @@ const Support: React.FC = () => {
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
-        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • SESSION: {sessionId}</span>
+        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • SESSION: {Math.random().toString(36).substring(7).toUpperCase()}</span>
       </Marquee>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1 overflow-hidden">
@@ -138,8 +128,8 @@ const Support: React.FC = () => {
             </CardHeader>
             <CardContent className="p-4 pt-0 overflow-hidden">
               <div className="space-y-1 opacity-50">
-                 {trafficBars.map((width, i) => (
-                   <div key={i} className="h-1 bg-white/10 w-full" style={{ width: `${width}%` }} />
+                 {[...Array(10)].map((_, i) => (
+                   <div key={i} className="h-1 bg-white/10 w-full" style={{ width: `${Math.random() * 100}%` }} />
                  ))}
               </div>
             </CardContent>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Wallet, Zap, ArrowRight, ShieldCheck, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
+import { TrendingUp, Battery, Wallet, Zap, ArrowRight, ShieldCheck, Globe, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -18,28 +18,19 @@ const Dashboard: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   useEffect(() => {
-    const controller = new AbortController();
-
     const fetchMarket = async () => {
       try {
-        const res = await axios.get('/api/market', { signal: controller.signal });
-        if (!controller.signal.aborted) {
-          setMarketData(res.data);
-          setLastUpdated(new Date());
-        }
+        const res = await axios.get('/api/market');
+        setMarketData(res.data);
+        setLastUpdated(new Date());
       } catch (err) {
-        if (!axios.isCancel(err)) {
-          console.error(err);
-        }
+        console.error(err);
       }
     };
 
     fetchMarket();
     const interval = setInterval(fetchMarket, 10000); // Update every 10 seconds
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   const networks = NETWORK_LIST;
