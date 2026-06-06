@@ -22,15 +22,17 @@ const Support: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const welcome = i18n.language === 'bn'
-      ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
-      : 'System Online. I am your AI Support assistant. How can I help you today?';
-
-    setMessages([
-      { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
-      { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
-      { role: 'assistant', content: welcome }
-    ]);
+    setMessages(prev => {
+      if (prev.length > 0) return prev; // don't wipe an active conversation
+      const welcome = i18n.language === 'bn'
+        ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
+        : 'System Online. I am your AI Support assistant. How can I help you today?';
+      return [
+        { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
+        { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
+        { role: 'assistant', content: welcome },
+      ];
+    });
   }, [i18n.language]);
 
   useEffect(() => {
