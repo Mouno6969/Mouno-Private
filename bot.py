@@ -427,7 +427,7 @@ TEXT = {
     "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
     "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
     "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
-    "custom_amount": {"bn": "��️ Custom Amount", "en": "✏️ Custom Amount"},
+    "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
     "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
     "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
     "enter_custom_duration": {"bn": "মিনিট লিখুন। যেমন: 60", "en": "Send minutes. Example: 60"},
@@ -3432,7 +3432,7 @@ def faq_text(lang="bn"):
         "৩. Delivery কত সময় লাগে?\n"
         "Payment verify হলে সাধারণত কয়েক মিনিটের মধ্যে delivery হয়। bKash notice delay, ভুল TrxID, stock কম, অথবা network/RPC busy থাকলে সময় বেশি লাগতে পারে।\n\n"
         "৪. Payment করার আগে কী check করব?\n"
-        "Selected network, wallet address, BDT amount এবং bKash number ভালোভাবে মিলিয়ে নি���। ভুল network বা ভুল wallet transfer reverse করা যায় না।\n\n"
+        "Selected network, wallet address, BDT amount এবং bKash number ভালোভাবে মিলিয়ে নিন। ভুল network বা ভুল wallet transfer reverse করা যায় না।\n\n"
         "৫. Order pending থাকলে কী করব?\n"
         "Order ID এবং TrxID সংরক্ষণ করুন। Order Status, /order ORD-XXXXXX অথবা /status TRXID ব্যবহার করুন। দরকার হলে admin manually payment verify করবেন।\n\n"
         "৬. Telegram Stars দিয়ে payment করা যাবে?\n"
@@ -6935,7 +6935,7 @@ async def handle_referral_withdraw_text(update: Update, context: ContextTypes.DE
             if amount <= 0 or amount + 1e-9 < min_withdraw or amount - balance > 1e-9:
                 raise ValueError
         except Exception:
-            await update.message.reply_text(ltext(lang, f"❌ Invalid amount. Send an amount between {min_withdraw} and {round(balance, 6)}.", f"❌ ভুল amount। {min_withdraw} থেকে {round(balance, 6)} এর মধ��যে লিখুন।"))
+            await update.message.reply_text(ltext(lang, f"❌ Invalid amount. Send an amount between {min_withdraw} and {round(balance, 6)}.", f"❌ ভুল amount। {min_withdraw} থেকে {round(balance, 6)} এর মধ্যে লিখুন।"))
             return
         context.user_data["ref_withdraw_amount"] = amount
         context.user_data["ref_withdraw_step"] = "wallet"
@@ -8293,7 +8293,7 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
         save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network, source="wallet")
         record_referral_reward_for_transaction(user_id, "wallet", f"WALLET-{sig[:24]}", network, amount, 0, "user_wallet_transfer")
         context.user_data.clear()
-        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n�� {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
+        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
     except Exception as exc:
         context.user_data.clear()
         reason = failure_reason_text(exc, network, lang)

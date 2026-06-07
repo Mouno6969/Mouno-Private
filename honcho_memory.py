@@ -22,7 +22,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 # Short timeouts so a slow Honcho never blocks a chat reply for long.
-_CLIENT_TIMEOUT = 6.0
+_CLIENT_TIMEOUT = 4.0
 
 # Workspace + assistant peer naming
 _WORKSPACE_ID = "mouno"
