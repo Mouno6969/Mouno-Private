@@ -304,6 +304,7 @@ from personal_auth import (
     personal_auth_available,
     set_personal_auth_runtime,
 )
+import honcho_memory
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -1322,13 +1323,19 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
         order_identifier = user_data.get("ai_order_context_identifier")
         memory_context = format_ai_support_history(user_data.get("ai_support_history"))
         diagnostic_context = build_ai_support_context(question, user_id, lang, admin=is_admin(user_id), order_identifiers=[order_identifier] if order_identifier else None)
+        honcho_session = f"tg-{user_id}"
+        honcho_peer = f"tg-user-{user_id}"
         loop = asyncio.get_running_loop()
+        honcho_context = await loop.run_in_executor(
+            _ai_executor,
+            lambda: honcho_memory.get_memory_context(honcho_session, honcho_peer, question),
+        )
         answer = await loop.run_in_executor(
             _ai_executor,
             lambda: ask_ai_support(
                 question,
                 lang,
-                combine_ai_support_context(memory_context, diagnostic_context),
+                combine_ai_support_context(honcho_context, memory_context, diagnostic_context),
             ),
         )
     except Exception as exc:
@@ -1341,6 +1348,14 @@ async def _send_ai_support_answer(bot, chat_id, user_id, question, lang, pending
         if user_data.get("ai_support") and user_data.get("ai_support_pending") == pending_token:
             await bot.send_message(chat_id=chat_id, text=answer)
             append_ai_support_history(user_data, question, answer)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(
+                    _ai_executor,
+                    lambda: honcho_memory.record_turn(f"tg-{user_id}", f"tg-user-{user_id}", question, answer),
+                )
+            except Exception:
+                pass
     except Exception as exc:
         logger.error("AI support answer send failed: %s", exc)
     finally:
@@ -1438,6 +1453,37 @@ def ai_setup_keyboard(lang="bn"):
 def ai_setup_provider_prompt(provider, lang="bn"):
     label = AI_PROVIDER_LABELS[provider]
     return panel("🔑 AI API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।"))
+
+
+def honcho_setup_text(lang="bn"):
+    try:
+        configured = honcho_memory.is_configured()
+    except Exception:
+        configured = False
+    status = ltext(lang, "✅ Configured (key hidden)", "✅ সেট করা আছে (key লুকানো)") if configured else ltext(lang, "❌ Not configured", "❌ সেট করা নেই")
+    lines = [
+        ltext(lang, "Conversation memory powered by Honcho (app.honcho.dev).", "Honcho (app.honcho.dev) দিয়ে conversation memory।"),
+        ltext(lang, "When set, the website AI chat and this bot remember earlier messages in each session.", "সেট করা থাকলে ওয়েবসাইট AI চ্যাট ও এই বট প্রতি session-এ আগের মেসেজ মনে রাখবে।"),
+        ltext(lang, "The key is saved to SQLite; HONCHO_API_KEY in .env also works (DB key takes priority).", "Key SQLite-এ save হবে; .env-এ HONCHO_API_KEY থাকলেও কাজ করবে (DB key আগে ব্যবহার হবে)।"),
+        "",
+        f"Status: {status}",
+    ]
+    return panel("🧠 Memory (Honcho)", "\n".join(lines))
+
+
+def honcho_setup_keyboard(lang="bn"):
+    try:
+        configured = honcho_memory.is_configured()
+    except Exception:
+        configured = False
+    keyboard = [[InlineKeyboardButton(
+        ltext(lang, "🔑 Set / Update key", "🔑 Key সেট/আপডেট"),
+        callback_data="honcho_setup_start",
+    )]]
+    if configured:
+        keyboard.append([InlineKeyboardButton(ltext(lang, "🗑 Remove key", "🗑 Key মুছুন"), callback_data="honcho_clear")])
+    keyboard.append([InlineKeyboardButton(tr("back", lang), callback_data="back")])
+    return InlineKeyboardMarkup(keyboard)
 
 
 SWAP_PROVIDER_LABELS = {"lifi": "LI.FI", "relay": "Relay", "socket": "Socket"}
@@ -3422,6 +3468,7 @@ def main_menu(user_id, lang=None):
         keyboard.append([InlineKeyboardButton("⛽ Gas Monitor", callback_data="admin_gas"), InlineKeyboardButton("🧾 Audit Log", callback_data="admin_audit")])
         keyboard.append([InlineKeyboardButton("🏷 Seller Badges", callback_data="seller_badges"), InlineKeyboardButton("🤖 AI Admin", callback_data="ai_admin_help")])
         keyboard.append([InlineKeyboardButton("🤖 AI Status", callback_data="ai_status"), InlineKeyboardButton("⚙️ AI Setup", callback_data="ai_setup")])
+        keyboard.append([InlineKeyboardButton("🧠 Memory (Honcho)", callback_data="honcho_setup")])
         keyboard.append([InlineKeyboardButton("🔁 Swap Status", callback_data="swap_status"), InlineKeyboardButton("🔁 Swap API Setup", callback_data="swap_setup")])
         keyboard.append([InlineKeyboardButton("📊 AI Usage", callback_data="ai_usage"), InlineKeyboardButton(tr("user_analytics", lang), callback_data="admin_user_analytics")])
         keyboard.append([InlineKeyboardButton("🏪 Seller Apps", callback_data="admin_sellers"), InlineKeyboardButton("⭐ Seller Stars", callback_data="seller_payouts")])
@@ -4844,6 +4891,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         context.user_data["ai_setup_provider"] = provider
         await query.edit_message_text(ai_setup_provider_prompt(provider, lang), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="ai_setup_cancel")]]))
+
+    elif query.data == "honcho_setup":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data.pop("honcho_setup", None)
+        await query.edit_message_text(honcho_setup_text(lang), reply_markup=honcho_setup_keyboard(lang))
+    elif query.data == "honcho_setup_start":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        context.user_data["honcho_setup"] = True
+        await query.edit_message_text(
+            ltext(
+                lang,
+                "🧠 Send the Honcho API key (from app.honcho.dev) in the next message.\n\nThe message will be deleted automatically for security. Send /cancel to abort.",
+                "🧠 পরবর্তী মেসেজে Honcho API key (app.honcho.dev থেকে) পাঠান।\n\nনিরাপত্তার জন্য মেসেজটি স্বয়ংক্রিয়ভাবে মুছে ফেলা হবে। বাতিল করতে /cancel লিখুন।",
+            ),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="honcho_setup")]]),
+        )
+    elif query.data == "honcho_clear":
+        if not is_admin(user_id):
+            return ConversationHandler.END
+        set_setting("honcho_api_key", "")
+        try:
+            honcho_memory.reset_client()
+        except Exception:
+            pass
+        add_audit(user_id, "honcho_api_key_cleared", "setting", "honcho_api_key", "cleared via bot")
+        context.user_data.pop("honcho_setup", None)
+        await query.edit_message_text(
+            ltext(lang, "✅ Honcho memory key removed.", "✅ Honcho memory key মুছে ফেলা হয়েছে।") + "\n\n" + honcho_setup_text(lang),
+            reply_markup=honcho_setup_keyboard(lang),
+        )
 
     elif query.data == "admin_payouts":
         if not is_admin(user_id):
@@ -7579,6 +7658,42 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.user_data.get("ref_withdraw_step"):
         await handle_referral_withdraw_text(update, context, user_id, lang, incoming_text)
+        return
+
+    if context.user_data.get("honcho_setup"):
+        if not is_admin(user_id):
+            context.user_data.pop("honcho_setup", None)
+            return
+        text = incoming_text.strip()
+        if text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
+            context.user_data.pop("honcho_setup", None)
+            await update.message.reply_text(
+                ltext(lang, "✅ Honcho setup cancelled.", "✅ Honcho setup বাতিল হয়েছে।"),
+                reply_markup=honcho_setup_keyboard(lang),
+            )
+            return
+        api_key = _clean_ai_key(text)
+        if not api_key or len(api_key) < 12:
+            await update.message.reply_text(
+                ltext(lang, "❌ Key is too short or empty. Send the correct key, or send /cancel.", "❌ Key খুব ছোট/খালি। সঠিক key পাঠান, অথবা /cancel লিখুন।"),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="honcho_setup")]]),
+            )
+            return
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+        set_setting("honcho_api_key", api_key)
+        try:
+            honcho_memory.reset_client()
+        except Exception:
+            pass
+        context.user_data.pop("honcho_setup", None)
+        add_audit(user_id, "honcho_api_key_updated", "setting", "honcho_api_key", "configured via bot setup")
+        await update.message.reply_text(
+            ltext(lang, "✅ Honcho memory key saved. No restart required.", "✅ Honcho memory key saved। Restart লাগবে না।") + "\n\n" + honcho_setup_text(lang),
+            reply_markup=honcho_setup_keyboard(lang),
+        )
         return
 
     setup_provider = context.user_data.get("ai_setup_provider")

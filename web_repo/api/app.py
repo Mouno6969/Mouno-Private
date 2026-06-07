@@ -349,21 +349,128 @@ def redeem_gift(current_user):
         return jsonify({'message': 'Code claimed but delivery failed. Admin has been notified and will send manually.', 'status': 'failed'}), 202
 
 from ai_service import ask_ai_support
+import honcho_memory
+from concurrent.futures import ThreadPoolExecutor
+
+# Small pool for fetching Honcho memory concurrently with the AI call so the
+# remote Honcho round-trip does not add serial latency to every chat reply.
+_honcho_executor = ThreadPoolExecutor(max_workers=4)
+
+
+def _recent_chat_context(session_id, user_id):
+    """Build context from recent locally-stored turns (fast, no network)."""
+    try:
+        recent = db.get_recent_chat_messages(session_id, user_id, limit=8)
+        if not recent:
+            return ""
+        lines = []
+        for m in recent:
+            speaker = "User" if m["role"] == "user" else "AI"
+            lines.append(f"{speaker}: {m['content']}")
+        return "Recent conversation in this chat:\n" + "\n".join(lines)
+    except Exception as exc:
+        logger.warning("Recent chat context failed: %s", exc)
+        return ""
+
+
+def _honcho_context(session_id, user_id, question):
+    """Fetch Honcho insight (remote, possibly slow). Never raises."""
+    try:
+        honcho_ctx = honcho_memory.get_memory_context(
+            f"web-{session_id}", f"web-user-{user_id}", question
+        )
+        if honcho_ctx:
+            return "What we know about this user:\n" + honcho_ctx
+    except Exception as exc:
+        logger.warning("Honcho web context failed: %s", exc)
+    return ""
+
+
+@app.route('/api/ai/sessions', methods=['GET'])
+@token_required
+def ai_list_sessions(current_user):
+    sessions = db.list_chat_sessions(current_user[0])
+    return jsonify({'sessions': sessions}), 200
+
+
+@app.route('/api/ai/sessions', methods=['POST'])
+@token_required
+def ai_create_session(current_user):
+    data = request.get_json() or {}
+    title = (data.get('title') or 'New chat')[:120]
+    session_id = db.create_chat_session(current_user[0], title)
+    return jsonify({'session_id': session_id, 'title': title}), 201
+
+
+@app.route('/api/ai/sessions/<int:session_id>/messages', methods=['GET'])
+@token_required
+def ai_session_messages(current_user, session_id):
+    messages = db.get_chat_messages(session_id, current_user[0])
+    if messages is None:
+        return jsonify({'message': 'Session not found'}), 404
+    return jsonify({'messages': messages}), 200
+
+
+@app.route('/api/ai/sessions/<int:session_id>', methods=['DELETE'])
+@token_required
+def ai_delete_session(current_user, session_id):
+    ok = db.delete_chat_session(session_id, current_user[0])
+    if not ok:
+        return jsonify({'message': 'Session not found'}), 404
+    return jsonify({'message': 'Deleted'}), 200
+
 
 @app.route('/api/ai/chat', methods=['POST'])
 @token_required
 def ai_chat(current_user):
     data = request.get_json() or {}
-    question = data.get('question')
+    question = (data.get('question') or '').strip()
     if not question:
         return jsonify({'message': 'Question required'}), 400
 
+    user_id = current_user[0]
+
+    # Coerce session_id to int; treat anything non-numeric as "no session".
+    raw_session_id = data.get('session_id')
     try:
-        answer = ask_ai_support(question)
+        session_id = int(raw_session_id) if raw_session_id is not None else None
+    except (TypeError, ValueError):
+        session_id = None
+
+    # Create a session on the fly if none was provided / it isn't ours.
+    if not session_id or db.get_chat_messages(session_id, user_id) is None:
+        session_id = db.create_chat_session(user_id)
+
+    # Persist the user's message first so history is never lost.
+    db.add_chat_message(session_id, user_id, 'user', question)
+
+    # Kick off the (possibly slow) Honcho memory lookup concurrently so it
+    # overlaps with building local context, instead of blocking serially.
+    honcho_future = _honcho_executor.submit(_honcho_context, session_id, user_id, question)
+    recent_context = _recent_chat_context(session_id, user_id)
+
+    try:
+        honcho_context = honcho_future.result(timeout=4)
+    except Exception:
+        honcho_context = ""
+
+    context_text = "\n\n".join(p for p in (honcho_context, recent_context) if p)[:4000]
+
+    try:
+        answer = ask_ai_support(question, context=context_text or None)
     except Exception as exc:
         logger.error("AI chat error: %s", exc)
         answer = "Sorry, AI support is temporarily unavailable. Please try again later."
-    return jsonify({'answer': answer}), 200
+
+    db.add_chat_message(session_id, user_id, 'assistant', answer)
+
+    # Record into Honcho so future turns remember this exchange (best-effort).
+    try:
+        honcho_memory.record_turn(f"web-{session_id}", f"web-user-{user_id}", question, answer)
+    except Exception as exc:
+        logger.warning("Honcho record_turn (web) failed: %s", exc)
+
+    return jsonify({'answer': answer, 'session_id': session_id}), 200
 
 @app.route('/api/link-telegram', methods=['POST'])
 @token_required
