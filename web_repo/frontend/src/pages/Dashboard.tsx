@@ -92,11 +92,7 @@ const Dashboard: React.FC = () => {
               </span>
             ))
           ) : (
-            <>
-              <span className="text-muted-foreground">15 ETH swapped on Solana</span>
-              <span className="text-muted-foreground">•  500 USDT bought via bKash</span>
-              <span className="text-muted-foreground">•  Order #349 fulfilled</span>
-            </>
+            <span className="text-muted-foreground">Live activity will appear here.</span>
           )}
         </span>
       </Marquee>
@@ -110,7 +106,9 @@ const Dashboard: React.FC = () => {
         <span className="flex items-center gap-2">▸ LIVE</span>
         <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
         <span className="flex items-center gap-2">▸ SECURE P2P SETTLEMENT</span>
-        <span className="flex items-center gap-2">▸ {stats?.total_users || '42'} ONBOARDINGS ONLINE</span>
+        {stats?.total_users ? (
+          <span className="flex items-center gap-2">▸ {stats.total_users} ONBOARDINGS ONLINE</span>
+        ) : null}
         <span className="flex items-center gap-2">▸ LIFI PROTOCOL INTEGRATED</span>
         <span className="flex items-center gap-2">▸ 24/7 AUTOMATED DELIVERY</span>
         <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
