@@ -80,14 +80,14 @@ const Support: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100dvh-12rem)] min-h-0 flex flex-col gap-4 font-mono relative overflow-hidden">
+    <div className="max-w-4xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
         <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • SESSION: {sessionId}</span>
       </Marquee>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1 min-h-0 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:flex-1 md:min-h-0 md:overflow-hidden">
         {/* Technical Sidebar */}
         <div className="hidden md:flex flex-col gap-4">
           <Card className="bg-black/50 border-white/10">
@@ -143,7 +143,7 @@ const Support: React.FC = () => {
         </div>
 
         {/* Main Chat Area */}
-        <Card className="md:col-span-3 h-full flex flex-col bg-black border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
+        <Card className="md:col-span-3 h-[calc(100dvh-13rem)] md:h-full flex flex-col bg-black border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
           <CardHeader className="border-b border-white/10 py-3">
             <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-[0.2em]">
               <Terminal className="h-4 w-4" />

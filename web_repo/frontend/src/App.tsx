@@ -42,7 +42,7 @@ const App: React.FC = () => {
           <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
           <Route path="/referral" element={token ? <Referral /> : <Navigate to="/login" />} />
           <Route path="/gift" element={token ? <GiftCode /> : <Navigate to="/login" />} />
-          <Route path="/support" element={token ? <Support /> : <Navigate to="/login" />} />
+          <Route path="/support" element={<Support />} />
           <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
           <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
           <Route path="/giveaway" element={<Giveaway />} />
