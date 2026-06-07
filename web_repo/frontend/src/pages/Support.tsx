@@ -6,7 +6,6 @@ import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
 import { Send, Terminal, Cpu, ShieldCheck, Activity } from 'lucide-react';
-import { ScrollArea } from '../components/ui/scroll-area';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -45,12 +44,9 @@ const Support: React.FC = () => {
 
   useEffect(() => {
     if (scrollRef.current) {
-      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -84,7 +80,7 @@ const Support: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[80vh] flex flex-col gap-4 font-mono relative overflow-hidden">
+    <div className="max-w-4xl mx-auto h-[calc(100vh-12rem)] min-h-[420px] flex flex-col gap-4 font-mono relative overflow-hidden">
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
@@ -154,18 +150,18 @@ const Support: React.FC = () => {
               {t('support')} OS
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-            <ScrollArea className="h-full p-4" ref={scrollRef}>
+          <CardContent className="flex-1 min-h-0 overflow-hidden p-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
+            <div ref={scrollRef} className="h-full overflow-y-auto overscroll-contain p-4">
               <div className="space-y-4">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[90%] ${m.role === 'user' ? 'text-right' : ''}`}>
                       {m.role === 'system' ? (
-                        <div className="text-[10px] text-muted-foreground mb-1 opacity-50">
+                        <div className="text-[10px] text-muted-foreground mb-1 opacity-50 break-words">
                           {m.content}
                         </div>
                       ) : (
-                        <div className={`inline-block px-3 py-2 text-sm border ${
+                        <div className={`inline-block px-3 py-2 text-sm border break-words whitespace-pre-wrap ${
                           m.role === 'user'
                           ? 'bg-white text-black border-white'
                           : 'bg-black text-white border-white/20'
@@ -185,7 +181,7 @@ const Support: React.FC = () => {
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
           </CardContent>
           <CardFooter className="p-4 border-t border-white/10 bg-black">
             <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); handleSend(); }}>

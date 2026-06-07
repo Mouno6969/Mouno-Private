@@ -211,13 +211,12 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-muted/50">
-                    <TableHead className="w-[160px] pl-4 sm:pl-6 font-semibold uppercase text-[10px] tracking-wider">Network</TableHead>
+                    <TableHead className="w-[150px] pl-4 sm:pl-6 font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Network</TableHead>
                     <TableHead className="font-semibold uppercase text-[10px] tracking-wider">Asset</TableHead>
                     <TableHead className="text-right font-semibold uppercase text-[10px] tracking-wider">Market Cap</TableHead>
-                    <TableHead className="text-right font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Rate (1 USDT/USDC)</TableHead>
                     <TableHead className="text-right pr-4 sm:pr-6 font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Rate (1 USDT/USDC)</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -233,16 +232,16 @@ const Dashboard: React.FC = () => {
                         <TableCell className="py-3.5 pl-4 sm:pl-6">
                           <div className="flex items-center gap-2.5">
                             <NetworkLogo id={net.id} size={24} />
-                            <span className="font-semibold text-sm">{net.name}</span>
+                            <span className="font-semibold text-sm whitespace-nowrap">{net.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <Badge variant="outline" className="font-mono text-[9px] px-1.5">USDT/USDC</Badge>
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
                           ৳{marketCap ? Number(marketCap).toLocaleString() : '...'}
                         </TableCell>
-                        <TableCell className="py-3.5 text-right whitespace-nowrap">
+                        <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-mono text-sm font-bold text-foreground">৳{rate || '...'}</span>
                             {hasNumericChange && (
@@ -253,9 +252,6 @@ const Dashboard: React.FC = () => {
                               </Badge>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
-                          <span className="font-mono text-sm font-bold text-primary">৳{rate || '...'}</span>
                         </TableCell>
                       </TableRow>
                     );
