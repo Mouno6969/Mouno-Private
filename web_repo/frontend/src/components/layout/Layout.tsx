@@ -11,7 +11,6 @@ import {
   MessageSquare,
   LogOut,
   Menu,
-  X,
   User,
   Store,
   Gift,
@@ -22,7 +21,9 @@ import {
   Search,
   Banknote,
   BookOpen,
-  Languages
+  Languages,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -33,7 +34,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -75,27 +75,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="container flex h-16 items-center justify-between gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <Link to="/" className="flex items-center space-x-2">
               <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-none object-cover border border-white" />
             </Link>
           </div>
 
-          <div className="hidden md:flex items-center space-x-6 text-xs uppercase tracking-widest font-mono">
-            <Link to="/" className={isActive('/') ? "text-primary" : "text-muted-foreground transition-colors hover:text-primary"}>Dashboard</Link>
+          {/* Horizontal scrollable nav (visible on all sizes) */}
+          <nav className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] uppercase tracking-widest font-mono py-2">
+            <Link
+              to="/"
+              className={
+                isActive('/')
+                  ? "shrink-0 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-foreground"
+                  : "shrink-0 px-2 py-1 text-muted-foreground transition-colors hover:text-primary"
+              }
+            >
+              Dashboard
+            </Link>
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={isActive(item.path) ? "text-primary" : "text-muted-foreground transition-colors hover:text-primary"}
+                className={
+                  isActive(item.path)
+                    ? "shrink-0 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-foreground"
+                    : "shrink-0 px-2 py-1 text-muted-foreground transition-colors hover:text-primary"
+                }
               >
                 {item.name}
               </Link>
             ))}
-          </div>
+          </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="ghost" size="sm" onClick={toggleLang} className="rounded-none gap-1 px-2 border border-white/10 hover:border-white">
               <Languages className="h-4 w-4" />
               <span className="text-xs font-mono">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
@@ -130,7 +144,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <div className="flex gap-2">
+              <div className="hidden sm:flex gap-2">
                 <Button asChild variant="ghost" size="sm">
                   <Link to="/login">{t('login')}</Link>
                 </Button>
@@ -139,28 +153,47 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </Button>
               </div>
             )}
-
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
           </div>
         </div>
       </header>
 
       <div className="flex-1">
-        <main className="container py-6 md:py-10">
+        <main className="container py-6 md:py-10 pb-24 md:pb-10">
           {children}
         </main>
       </div>
 
-      <footer className="border-t py-6 md:px-8 md:py-0">
-        <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
+      {/* Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="container flex items-center justify-around h-16 px-4">
+          <Link to="/" className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
+            <Home className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Home</span>
+          </Link>
+          <Link
+            to={token ? '/wallet' : '/login'}
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/wallet') || isActive('/login') ? 'text-primary' : 'text-muted-foreground'}`}
+          >
+            <User className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Account</span>
+          </Link>
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isMenuOpen ? 'text-primary' : 'text-muted-foreground'}`}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Menu</span>
+          </button>
+          <Link to="/support" className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/support') ? 'text-primary' : 'text-muted-foreground'}`}>
+            <Sparkles className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Support</span>
+          </Link>
         </div>
-      </footer>
+      </nav>
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-background md:hidden">
+        <div className="fixed inset-0 z-40 bg-background overflow-y-auto pb-24">
           <div className="container flex flex-col gap-6 pt-20">
             <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-lg font-medium">
               <LayoutDashboard className="h-5 w-5 text-primary" />
