@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Wallet, Zap, ArrowRight, ShieldCheck, ShoppingCart, RefreshCw, Users, Gift, Store } from 'lucide-react';
+import { TrendingUp, Zap, ArrowRight, ShieldCheck, ShoppingCart, RefreshCw, Users, Gift, Store, Layers, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -122,55 +122,60 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-blue-500/10 text-blue-500 rounded-xl shrink-0">
-              <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-muted text-foreground rounded-lg shrink-0">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-muted-foreground truncate">Live Rates</p>
+                <p className="text-base sm:text-lg font-bold tracking-tight truncate">৳{marketData?.rates?.solana || '...'}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{user ? t('orders') : 'Total Orders'}</p>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight">
-                {user ? user.telegram_stats?.total_orders || 0 : stats?.completed_orders || '...'}
-              </p>
+            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+              {user ? (
+                <span className="font-mono text-xs font-bold">{user.username?.[0]?.toUpperCase() || 'U'}</span>
+              ) : (
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-green-500/10 text-green-500 rounded-xl shrink-0">
-              <Zap className="h-5 w-5 sm:h-6 sm:w-6" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
+            <div className="p-2 bg-muted text-green-500 rounded-lg shrink-0">
+              <Zap className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Volume (BDT)</p>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight truncate">
-                ৳{user ? user.telegram_stats?.total_bdt || 0 : stats?.total_volume_bdt?.toLocaleString() || '...'}
-              </p>
+              <p className="text-[11px] font-medium text-muted-foreground truncate">Network</p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Healthy</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-purple-500/10 text-purple-500 rounded-xl shrink-0">
-              <Users className="h-5 w-5 sm:h-6 sm:w-6" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
+            <div className="p-2 bg-muted text-blue-500 rounded-lg shrink-0">
+              <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Users</p>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight">{stats?.total_users || '...'}</p>
+              <p className="text-[11px] font-medium text-muted-foreground truncate">Security</p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">{user ? user.username : 'Guest'}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-yellow-500/10 text-yellow-500 rounded-xl shrink-0">
-              <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
+            <div className="p-2 bg-muted text-yellow-500 rounded-lg shrink-0">
+              <Layers className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Best Rate</p>
-              <p className="text-xl sm:text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
+              <p className="text-[11px] font-medium text-muted-foreground truncate">Assets</p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Multi-Chain</p>
             </div>
           </CardContent>
         </Card>
