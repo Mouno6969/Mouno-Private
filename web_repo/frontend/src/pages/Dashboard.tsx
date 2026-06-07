@@ -76,45 +76,41 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Top Marquee 1: Latest transactions / news ticker */}
-      <Marquee
-        speed={35}
-        containerClassName="bg-muted/40 border-y border-white/10 py-1.5 -mx-3 sm:-mx-5 lg:-mx-8"
-        className="text-xs"
-      >
-        <span className="flex items-center gap-1.5 px-2">
-          <span className="font-bold text-primary">Latest:</span>
-          {recentActivity.length > 0 ? (
-            recentActivity.slice(0, 6).map((act, i) => (
+      {/* Top Marquee 1: Latest transactions / news ticker - Only show when activity exists */}
+      {recentActivity.length > 0 && (
+        <Marquee
+          speed={35}
+          containerClassName="bg-muted/40 border-y border-white/10 py-1.5 -mx-3 sm:-mx-5 lg:-mx-8"
+          className="text-xs"
+        >
+          <span className="flex items-center gap-1.5 px-2">
+            <span className="font-bold text-primary">Latest:</span>
+            {recentActivity.slice(0, 6).map((act, i) => (
               <span key={i} className="text-muted-foreground">
                 {act.amount_crypto} {act.network?.toUpperCase()} {formatActivityStatus(act.status)}
                 {i < 5 ? '  •  ' : ''}
               </span>
-            ))
-          ) : (
-            <>
-              <span className="text-muted-foreground">15 ETH swapped on Solana</span>
-              <span className="text-muted-foreground">•  500 USDT bought via bKash</span>
-              <span className="text-muted-foreground">•  Order #349 fulfilled</span>
-            </>
-          )}
-        </span>
-      </Marquee>
+            ))}
+          </span>
+        </Marquee>
+      )}
 
-      {/* Top Marquee 2: Live status ticker */}
-      <Marquee
-        speed={30}
-        containerClassName="bg-green-500/5 border-y border-green-500/15 py-1 -mx-3 sm:-mx-5 lg:-mx-8 !mt-0"
-        className="font-mono text-[10px] uppercase tracking-[0.2em] text-green-500"
-      >
-        <span className="flex items-center gap-2">▸ LIVE</span>
-        <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
-        <span className="flex items-center gap-2">▸ SECURE P2P SETTLEMENT</span>
-        <span className="flex items-center gap-2">▸ {stats?.total_users || '42'} ONBOARDINGS ONLINE</span>
-        <span className="flex items-center gap-2">▸ LIFI PROTOCOL INTEGRATED</span>
-        <span className="flex items-center gap-2">▸ 24/7 AUTOMATED DELIVERY</span>
-        <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
-      </Marquee>
+      {/* Top Marquee 2: Live status ticker - Only show when stats available */}
+      {stats?.total_users && (
+        <Marquee
+          speed={30}
+          containerClassName="bg-green-500/5 border-y border-green-500/15 py-1 -mx-3 sm:-mx-5 lg:-mx-8 !mt-0"
+          className="font-mono text-[10px] uppercase tracking-[0.2em] text-green-500"
+        >
+          <span className="flex items-center gap-2">▸ LIVE</span>
+          <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
+          <span className="flex items-center gap-2">▸ SECURE P2P SETTLEMENT</span>
+          <span className="flex items-center gap-2">▸ {stats.total_users} ONBOARDINGS ONLINE</span>
+          <span className="flex items-center gap-2">▸ LIFI PROTOCOL INTEGRATED</span>
+          <span className="flex items-center gap-2">▸ 24/7 AUTOMATED DELIVERY</span>
+          <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
+        </Marquee>
+      )}
 
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -353,7 +349,7 @@ const Dashboard: React.FC = () => {
                 </div>
               )) : (
                 <div className="p-6 text-center text-[10px] text-muted-foreground uppercase tracking-widest">
-                  Awaiting transactions...
+                  No public activity yet. Live activity will appear here.
                 </div>
               )}
             </div>
