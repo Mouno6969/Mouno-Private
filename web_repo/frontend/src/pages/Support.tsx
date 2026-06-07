@@ -80,14 +80,14 @@ const Support: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-12rem)] min-h-[420px] flex flex-col gap-4 font-mono relative overflow-hidden">
+    <div className="max-w-4xl mx-auto h-[calc(100dvh-12rem)] min-h-0 flex flex-col gap-4 font-mono relative overflow-hidden">
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
         <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • SESSION: {sessionId}</span>
       </Marquee>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Technical Sidebar */}
         <div className="hidden md:flex flex-col gap-4">
           <Card className="bg-black/50 border-white/10">
