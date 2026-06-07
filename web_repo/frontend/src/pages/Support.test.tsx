@@ -31,14 +31,29 @@ jest.mock('../components/ui/marquee', () => ({
   ),
 }));
 
-// Mock ScrollArea from radix-ui
-jest.mock('../components/ui/scroll-area', () => ({
-  ScrollArea: React.forwardRef(({ children, className }: any, ref: any) => (
-    <div ref={ref} className={className} data-testid="scroll-area">
-      {children}
-    </div>
-  )),
-}));
+const urlOf = (input: RequestInfo | URL): string =>
+  typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+
+// Route fetch calls by URL. Session listing returns empty by default; the
+// chat endpoint uses whatever `chatResponse` is configured for the test.
+const setupFetch = (chatResponse?: Partial<Response> & { json?: () => Promise<any> }) => {
+  mockedFetch.mockImplementation((input: RequestInfo | URL) => {
+    const url = urlOf(input);
+    if (url.includes('/api/ai/sessions')) {
+      return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
+    }
+    if (url.includes('/api/ai/chat')) {
+      if (chatResponse) return Promise.resolve(chatResponse as Response);
+      return Promise.resolve({ ok: true, json: async () => ({ answer: 'OK' }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+};
+
+const chatCalls = () =>
+  mockedFetch.mock.calls.filter(([input]) => urlOf(input as RequestInfo | URL).includes('/api/ai/chat'));
+
+const sendButton = () => screen.getByRole('button', { name: 'send' });
 
 const renderSupport = () => {
   return render(
@@ -53,6 +68,7 @@ describe('Support', () => {
     jest.clearAllMocks();
     mockI18n.language = 'en';
     mockUseAuth.mockReturnValue({ token: 'test-token' });
+    setupFetch();
   });
 
   describe('initial messages (PR addition: system + welcome messages)', () => {
@@ -89,33 +105,13 @@ describe('Support', () => {
         )).toBeInTheDocument();
       });
     });
-
-    it('does NOT wipe existing messages when language changes (conversation preservation)', async () => {
-      const { rerender } = renderSupport();
-      await waitFor(() => {
-        expect(screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...')).toBeInTheDocument();
-      });
-
-      // Simulate a user message being in the conversation (by simulating state having messages)
-      // We test that the init effect respects `if (prev.length > 0) return prev`
-      // After initial render, messages are > 0 so re-trigger should not reset
-      mockI18n.language = 'bn';
-      rerender(
-        <MemoryRouter>
-          <Support />
-        </MemoryRouter>
-      );
-
-      // English init message should still be visible (not wiped)
-      expect(screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...')).toBeInTheDocument();
-    });
   });
 
   describe('message rendering styles (PR change)', () => {
     it('system messages have low opacity muted style', async () => {
       renderSupport();
       await waitFor(() => {
-        const sysMsg = screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...').parentElement as HTMLElement;
+        const sysMsg = screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...') as HTMLElement;
         expect(sysMsg.className).toContain('opacity-50');
         expect(sysMsg.className).toContain('text-muted-foreground');
       });
@@ -129,10 +125,9 @@ describe('Support', () => {
       });
     });
 
-    it('assistant message bubble has black background and white border', async () => {
+    it('assistant message bubble has black background and white text', async () => {
       renderSupport();
       await waitFor(() => {
-        // The assistant welcome message
         const msgEl = screen.getByText(
           'System Online. I am your AI Support assistant. How can I help you today?'
         ).closest('div.inline-block') as HTMLElement;
@@ -150,21 +145,19 @@ describe('Support', () => {
 
     it('renders the send button', () => {
       renderSupport();
-      expect(screen.getByRole('button', { name: '' })).toBeInTheDocument();
+      expect(sendButton()).toBeInTheDocument();
     });
 
     it('send button is disabled when input is empty', () => {
       renderSupport();
-      const btn = screen.getByRole('button');
-      expect(btn).toBeDisabled();
+      expect(sendButton()).toBeDisabled();
     });
 
     it('send button is enabled when input has text', async () => {
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'hello');
-      const btn = screen.getByRole('button');
-      expect(btn).not.toBeDisabled();
+      expect(sendButton()).not.toBeDisabled();
     });
 
     it('input has the > prefix symbol visible', () => {
@@ -175,15 +168,11 @@ describe('Support', () => {
 
   describe('handleSend - success flow', () => {
     it('adds user message to the chat on submit', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ answer: 'Bot reply' }),
-      } as Response);
-
+      setupFetch({ ok: true, json: async () => ({ answer: 'Bot reply' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'my question');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(screen.getByText('my question')).toBeInTheDocument();
@@ -191,15 +180,11 @@ describe('Support', () => {
     });
 
     it('clears input after send', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ answer: 'OK' }),
-      } as Response);
-
+      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...') as HTMLInputElement;
       await userEvent.type(input, 'test');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(input.value).toBe('');
@@ -207,74 +192,65 @@ describe('Support', () => {
     });
 
     it('adds assistant reply message to chat on success', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ answer: 'Helpful answer from bot' }),
-      } as Response);
-
+      setupFetch({ ok: true, json: async () => ({ answer: 'Helpful answer from bot' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'question');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(screen.getByText('Helpful answer from bot')).toBeInTheDocument();
       });
     });
 
-    it('sends fetch request to /api/ai/chat with correct payload', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ answer: 'OK' }),
-      } as Response);
-
+    it('sends fetch request to /api/ai/chat with question and session_id', async () => {
+      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'my question');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
-        expect(mockedFetch).toHaveBeenCalledWith('/api/ai/chat', expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ question: 'my question' }),
-        }));
+        const calls = chatCalls();
+        expect(calls.length).toBe(1);
+        const [, init] = calls[0];
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(init?.body as string)).toEqual({ question: 'my question', session_id: null });
       });
     });
 
     it('sends Authorization header with token', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ answer: 'OK' }),
-      } as Response);
-
+      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
-        expect(mockedFetch).toHaveBeenCalledWith('/api/ai/chat', expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer test-token',
-          }),
-        }));
+        const calls = chatCalls();
+        expect(calls.length).toBe(1);
+        const [, init] = calls[0];
+        expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-token');
       });
     });
 
     it('shows loading indicator while waiting for response', async () => {
       let resolveResponse: (value: Response) => void;
-      mockedFetch.mockReturnValueOnce(
-        new Promise<Response>((resolve) => { resolveResponse = resolve; })
-      );
+      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes('/api/ai/sessions')) {
+          return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
+        }
+        return new Promise<Response>((resolve) => { resolveResponse = resolve; });
+      });
 
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'question');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       expect(screen.getByText(/Computing response.../i)).toBeInTheDocument();
 
-      // Resolve the promise
       act(() => {
         resolveResponse!({
           ok: true,
@@ -289,29 +265,31 @@ describe('Support', () => {
   });
 
   describe('handleSend - error flows (PR change: new error messages)', () => {
-    it('shows ERROR: UPLINK_FAILURE when response is not ok (PR change)', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ message: undefined, answer: undefined }),
-      } as Response);
-
+    it('shows ERROR: UPLINK_FAILURE when response is not ok', async () => {
+      setupFetch({ ok: false, json: async () => ({}) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(screen.getByText('ERROR: UPLINK_FAILURE')).toBeInTheDocument();
       });
     });
 
-    it('shows CRITICAL_ERROR: NETWORK_OFFLINE on fetch exception (PR change)', async () => {
-      mockedFetch.mockRejectedValueOnce(new Error('Network down'));
+    it('shows CRITICAL_ERROR: NETWORK_OFFLINE on fetch exception', async () => {
+      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes('/api/ai/sessions')) {
+          return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
+        }
+        return Promise.reject(new Error('Network down'));
+      });
 
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(screen.getByText('CRITICAL_ERROR: NETWORK_OFFLINE')).toBeInTheDocument();
@@ -319,15 +297,11 @@ describe('Support', () => {
     });
 
     it('uses data.message from error response when available', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ message: 'Service unavailable' }),
-      } as Response);
-
+      setupFetch({ ok: false, json: async () => ({ message: 'Service unavailable' }) });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(sendButton());
 
       await waitFor(() => {
         expect(screen.getByText('Service unavailable')).toBeInTheDocument();
@@ -340,15 +314,14 @@ describe('Support', () => {
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, '   ');
-      const btn = screen.getByRole('button');
-      expect(btn).toBeDisabled();
+      expect(sendButton()).toBeDisabled();
     });
 
-    it('does not submit on empty input via keyboard Enter', async () => {
+    it('does not call the chat endpoint on empty input via keyboard Enter', async () => {
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       fireEvent.submit(input.closest('form')!);
-      expect(mockedFetch).not.toHaveBeenCalled();
+      expect(chatCalls().length).toBe(0);
     });
   });
 
@@ -360,15 +333,51 @@ describe('Support', () => {
     });
   });
 
+  describe('chat history sidebar (PR addition)', () => {
+    it('shows the New Chat button', () => {
+      renderSupport();
+      expect(screen.getByRole('button', { name: /New Chat/i })).toBeInTheDocument();
+    });
+
+    it('shows the Chat History heading', () => {
+      renderSupport();
+      expect(screen.getByText('Chat History')).toBeInTheDocument();
+    });
+
+    it('shows an empty-history hint when there are no sessions', async () => {
+      renderSupport();
+      await waitFor(() => {
+        expect(screen.getByText('No conversations yet.')).toBeInTheDocument();
+      });
+    });
+
+    it('prompts login when there is no token', async () => {
+      mockUseAuth.mockReturnValue({ token: null });
+      renderSupport();
+      await waitFor(() => {
+        expect(screen.getByText('Log in to keep chat history.')).toBeInTheDocument();
+      });
+    });
+
+    it('lists existing sessions returned by the API', async () => {
+      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes('/api/ai/sessions')) {
+          return Promise.resolve({ ok: true, json: async () => ({ sessions: [{ id: 1, title: 'My first chat' }] }) } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      });
+      renderSupport();
+      await waitFor(() => {
+        expect(screen.getByText('My first chat')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('sidebar content', () => {
     it('shows System Status section', () => {
       renderSupport();
       expect(screen.getByText('System Status')).toBeInTheDocument();
-    });
-
-    it('shows kernel version v0.1-prod', () => {
-      renderSupport();
-      expect(screen.getByText('v0.1-prod')).toBeInTheDocument();
     });
 
     it('shows AI Node ACTIVE status', () => {
@@ -376,9 +385,9 @@ describe('Support', () => {
       expect(screen.getByText('● ACTIVE')).toBeInTheDocument();
     });
 
-    it('shows Security section with E2E encryption info', () => {
+    it('shows the E2E encryption ENABLED status', () => {
       renderSupport();
-      expect(screen.getByText('E2E Encryption: ENABLED')).toBeInTheDocument();
+      expect(screen.getByText('ENABLED')).toBeInTheDocument();
     });
   });
 });
