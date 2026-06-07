@@ -22,22 +22,17 @@ const TxLog: React.FC = () => {
   const { token } = useAuth();
   const [txs, setTxs] = useState<TxEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
 
   const fetchTxLog = () => {
     setLoading(true);
-    setError(null);
     fetch(`${process.env.REACT_APP_API_URL || ''}/api/txlog`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => setTxs(Array.isArray(d) ? d : []))
-      .catch((err: Error) => setError(err))
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { if (token) fetchTxLog(); else setLoading(false); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Surface async fetch errors into render so the ErrorBoundary can catch them.
-  if (error) throw error;
 
   const shortWallet = (w: string) => w ? `${w.slice(0, 6)}...${w.slice(-4)}` : 'N/A';
 

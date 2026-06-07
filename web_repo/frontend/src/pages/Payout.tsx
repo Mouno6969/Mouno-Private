@@ -16,22 +16,17 @@ const Payout: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<Error | null>(null);
 
   const fetchHistory = () => {
     setHistoryLoading(true);
-    setFetchError(null);
     fetch(`${process.env.REACT_APP_API_URL || ''}/api/payout/history`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then(r => r.json())
       .then(d => setHistory(Array.isArray(d) ? d : []))
-      .catch((err: Error) => setFetchError(err))
+      .catch(() => {})
       .finally(() => setHistoryLoading(false));
   };
 
   useEffect(() => { if (token) fetchHistory(); else setHistoryLoading(false); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Surface async fetch errors into render so the ErrorBoundary can catch them.
-  if (fetchError) throw fetchError;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -26,14 +26,11 @@ const Balance: React.FC = () => {
           setError(d.message || 'Failed to load balances');
         }
       })
-      .catch((err: Error) => setError(err?.message || 'Failed to connect to server'))
+      .catch(() => setError('Failed to connect to server'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchBalance(); }, []);
-
-  // Surface async fetch errors into render so the ErrorBoundary can catch them.
-  if (error) throw new Error(error);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -57,6 +54,12 @@ const Balance: React.FC = () => {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      )}
+
+      {error && (
+        <Card className="border-destructive/30">
+          <CardContent className="py-6 text-center text-destructive">{error}</CardContent>
+        </Card>
       )}
 
       {balances && (
