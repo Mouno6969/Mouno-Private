@@ -92,15 +92,15 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
-              <TrendingUp className="h-6 w-6" />
+          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-blue-500/10 text-blue-500 rounded-xl shrink-0">
+              <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{user ? t('orders') : 'Total Orders'}</p>
-              <p className="text-2xl font-bold tracking-tight">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{user ? t('orders') : 'Total Orders'}</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">
                 {user ? user.telegram_stats?.total_orders || 0 : stats?.completed_orders || '...'}
               </p>
             </div>
@@ -108,13 +108,13 @@ const Dashboard: React.FC = () => {
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-green-500/10 text-green-500 rounded-xl">
-              <Zap className="h-6 w-6" />
+          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-green-500/10 text-green-500 rounded-xl shrink-0">
+              <Zap className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Volume (BDT)</p>
-              <p className="text-2xl font-bold tracking-tight">
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Volume (BDT)</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight truncate">
                 ৳{user ? user.telegram_stats?.total_bdt || 0 : stats?.total_volume_bdt?.toLocaleString() || '...'}
               </p>
             </div>
@@ -122,25 +122,25 @@ const Dashboard: React.FC = () => {
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl">
-              <Users className="h-6 w-6" />
+          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-purple-500/10 text-purple-500 rounded-xl shrink-0">
+              <Users className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-              <p className="text-2xl font-bold tracking-tight">{stats?.total_users || '...'}</p>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Total Users</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">{stats?.total_users || '...'}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-yellow-500/10 text-yellow-500 rounded-xl">
-              <Wallet className="h-6 w-6" />
+          <CardContent className="p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-yellow-500/10 text-yellow-500 rounded-xl shrink-0">
+              <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Best Rate</p>
-              <p className="text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Best Rate</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">৳{marketData?.rates?.solana || '...'}</p>
             </div>
           </CardContent>
         </Card>
@@ -226,13 +226,13 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-primary text-primary-foreground overflow-hidden border-none shadow-lg relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
+          <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg relative group transition-all hover:border-primary/30">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-125 transition-transform duration-500">
               <ShoppingCart size={120} />
             </div>
             <CardHeader>
               <CardTitle className="text-2xl">{t('buy')}</CardTitle>
-              <CardDescription className="text-primary-foreground/70">
+              <CardDescription className="text-muted-foreground">
                 Purchase USDC or USDT using bKash instantly.
               </CardDescription>
             </CardHeader>
@@ -245,18 +245,18 @@ const Dashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900 border-primary/20 overflow-hidden shadow-lg relative group">
-             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
+          <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg relative group transition-all hover:border-primary/30">
+             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-125 transition-transform duration-500">
               <RefreshCw size={120} />
             </div>
             <CardHeader>
-              <CardTitle className="text-2xl text-white">{t('swap')}</CardTitle>
-              <CardDescription className="text-gray-400">
+              <CardTitle className="text-2xl text-foreground">{t('swap')}</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Bridge assets between 20+ chains with LI.FI.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild variant="outline" className="w-full font-bold h-12 border-primary/30 hover:bg-primary/10 text-primary">
+              <Button asChild variant="outline" className="w-full font-bold h-12 border-primary/30 hover:bg-primary/10">
                 <Link to="/swap" className="flex items-center gap-2">
                   Launch Bridge <ArrowRight size={18} />
                 </Link>
