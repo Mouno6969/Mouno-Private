@@ -1,16 +1,24 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
-import { Send, Terminal, Cpu, ShieldCheck, Activity } from 'lucide-react';
+import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
+
+interface ChatSession {
+  id: number;
+  title: string;
+  updated_at?: string;
+}
+
+const API = process.env.REACT_APP_API_URL || '';
 
 const Support: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -18,29 +26,82 @@ const Support: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const sessionId = useMemo(
-    () => Math.random().toString(36).slice(2, 8).toUpperCase(),
-    []
-  );
-  const trafficBars = useMemo(
-    () => Array.from({ length: 10 }, () => Math.random() * 100),
-    []
+
+  const welcomeMessages = useMemo<Message[]>(() => {
+    const welcome = i18n.language === 'bn'
+      ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
+      : 'System Online. I am your AI Support assistant. How can I help you today?';
+    return [
+      { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
+      { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
+      { role: 'assistant', content: welcome },
+    ];
+  }, [i18n.language]);
+
+  const authHeaders = useMemo(
+    () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
+    [token]
   );
 
+  // Load the list of chat sessions (logged-in users only).
+  const loadSessions = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/ai/sessions`, { headers: authHeaders });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSessions(Array.isArray(data?.sessions) ? data.sessions : []);
+    } catch {
+      /* offline: keep current list */
+    }
+  }, [token, authHeaders]);
+
+  // Load messages for a specific session.
+  const openSession = useCallback(async (sessionId: number) => {
+    setActiveSessionId(sessionId);
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/ai/sessions/${sessionId}/messages`, { headers: authHeaders });
+      if (!res.ok) {
+        setMessages(welcomeMessages);
+        return;
+      }
+      const data = await res.json();
+      const loaded: Message[] = Array.isArray(data?.messages)
+        ? data.messages.map((m: any) => ({ role: m.role, content: m.content }))
+        : [];
+      setMessages(loaded.length ? [welcomeMessages[0], ...loaded] : welcomeMessages);
+    } catch {
+      setMessages(welcomeMessages);
+    }
+  }, [token, authHeaders, welcomeMessages]);
+
+  const startNewChat = useCallback(() => {
+    setActiveSessionId(null);
+    setMessages(welcomeMessages);
+    setInput('');
+  }, [welcomeMessages]);
+
+  const deleteSession = useCallback(async (sessionId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!token) return;
+    try {
+      await fetch(`${API}/api/ai/sessions/${sessionId}`, { method: 'DELETE', headers: authHeaders });
+    } catch {
+      /* ignore */
+    }
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) startNewChat();
+  }, [token, authHeaders, activeSessionId, startNewChat]);
+
+  // Initial load.
   useEffect(() => {
-    setMessages(prev => {
-      if (prev.length > 0) return prev; // don't wipe an active conversation
-      const welcome = i18n.language === 'bn'
-        ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
-        : 'System Online. I am your AI Support assistant. How can I help you today?';
-      return [
-        { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
-        { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
-        { role: 'assistant', content: welcome },
-      ];
-    });
-  }, [i18n.language]);
+    setMessages(welcomeMessages);
+    if (token) loadSessions();
+  }, [token, welcomeMessages, loadSessions]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -57,18 +118,20 @@ const Support: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/ai/chat`, {
+      const res = await fetch(`${API}/api/ai/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ question: userMessage })
+        headers: authHeaders,
+        body: JSON.stringify({ question: userMessage, session_id: activeSessionId }),
       });
       let data: any = null;
       try { data = await res.json(); } catch { /* non-JSON response */ }
       if (res.ok && data?.answer) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
+        if (data.session_id && data.session_id !== activeSessionId) {
+          setActiveSessionId(data.session_id);
+        }
+        // Refresh history so the new/updated session shows up.
+        if (token) loadSessions();
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data?.message || data?.answer || 'ERROR: UPLINK_FAILURE' }]);
       }
@@ -80,16 +143,62 @@ const Support: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
+    <div className="max-w-5xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
-        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • SESSION: {sessionId}</span>
+        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • MEMORY: HONCHO</span>
       </Marquee>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:flex-1 md:min-h-0 md:overflow-hidden">
-        {/* Technical Sidebar */}
-        <div className="hidden md:flex flex-col gap-4">
+        {/* Sidebar: Chat history + System status */}
+        <div className="hidden md:flex flex-col gap-4 md:min-h-0">
+          <Button
+            onClick={startNewChat}
+            className="w-full bg-white text-black hover:bg-white/90 uppercase text-xs tracking-widest gap-2 h-9"
+          >
+            <Plus className="h-4 w-4" /> {i18n.language === 'bn' ? 'নতুন চ্যাট' : 'New Chat'}
+          </Button>
+
+          <Card className="bg-black/50 border-white/10 flex-1 min-h-0 flex flex-col">
+            <CardHeader className="p-4">
+              <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
+                <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'চ্যাট হিস্টোরি' : 'Chat History'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 pt-0 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+              {!token ? (
+                <p className="text-[10px] text-muted-foreground px-2">
+                  {i18n.language === 'bn' ? 'হিস্টোরি দেখতে লগইন করুন।' : 'Log in to keep chat history.'}
+                </p>
+              ) : sessions.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground px-2">
+                  {i18n.language === 'bn' ? 'এখনো কোনো চ্যাট নেই।' : 'No conversations yet.'}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => openSession(s.id)}
+                      className={`group w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left text-[11px] border transition-colors ${
+                        activeSessionId === s.id
+                          ? 'border-white/40 bg-white/10 text-white'
+                          : 'border-transparent hover:border-white/20 hover:bg-white/5 text-muted-foreground'
+                      }`}
+                    >
+                      <span className="truncate flex-1">{s.title || 'New chat'}</span>
+                      <Trash2
+                        className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red-400"
+                        onClick={(e) => deleteSession(s.id, e)}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="bg-black/50 border-white/10">
             <CardHeader className="p-4">
               <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
@@ -98,45 +207,12 @@ const Support: React.FC = () => {
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
               <div className="flex justify-between text-[10px]">
-                <span className="text-muted-foreground uppercase">Kernel</span>
-                <span className="text-primary">v0.1-prod</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
                 <span className="text-muted-foreground uppercase">AI Node</span>
                 <span className="text-green-500 animate-pulse">● ACTIVE</span>
               </div>
               <div className="flex justify-between text-[10px]">
-                <span className="text-muted-foreground uppercase">Latency</span>
-                <span className="text-primary">24ms</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/50 border-white/10">
-            <CardHeader className="p-4">
-              <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
-                <ShieldCheck className="h-3 w-3" /> Security
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-[10px] text-muted-foreground">
-                <p>E2E Encryption: ENABLED</p>
-                <p className="mt-1">All queries are processed anonymously through Mouno Engine.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/50 border-white/10 flex-1">
-            <CardHeader className="p-4">
-              <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
-                <Activity className="h-3 w-3" /> Traffic
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 overflow-hidden">
-              <div className="space-y-1 opacity-50">
-                 {trafficBars.map((width, i) => (
-                   <div key={i} className="h-1 bg-white/10 w-full" style={{ width: `${width}%` }} />
-                 ))}
+                <span className="text-muted-foreground uppercase flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> E2E</span>
+                <span className="text-primary">ENABLED</span>
               </div>
             </CardContent>
           </Card>
@@ -144,11 +220,19 @@ const Support: React.FC = () => {
 
         {/* Main Chat Area */}
         <Card className="md:col-span-3 h-[calc(100dvh-13rem)] md:h-full flex flex-col bg-black border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
-          <CardHeader className="border-b border-white/10 py-3">
+          <CardHeader className="border-b border-white/10 py-3 flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-[0.2em]">
               <Terminal className="h-4 w-4" />
               {t('support')} OS
             </CardTitle>
+            <Button
+              onClick={startNewChat}
+              size="sm"
+              variant="ghost"
+              className="md:hidden h-7 px-2 text-[10px] uppercase tracking-widest gap-1 text-primary"
+            >
+              <Plus className="h-3 w-3" /> {i18n.language === 'bn' ? 'নতুন' : 'New'}
+            </Button>
           </CardHeader>
           <CardContent className="flex-1 min-h-0 overflow-hidden p-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
             <div ref={scrollRef} className="h-full overflow-y-auto overscroll-contain p-4">
@@ -195,7 +279,7 @@ const Support: React.FC = () => {
                   className="pl-7 bg-transparent border-white/20 focus:border-white focus:ring-0 uppercase placeholder:opacity-30"
                 />
               </div>
-              <Button type="submit" size="icon" disabled={loading || !input.trim()} className="bg-white text-black hover:bg-white/90">
+              <Button type="submit" size="icon" aria-label="send" disabled={loading || !input.trim()} className="bg-white text-black hover:bg-white/90">
                 <Send className="h-4 w-4" />
               </Button>
             </form>
