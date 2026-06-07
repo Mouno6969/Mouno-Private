@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, Zap, ArrowRight, ShieldCheck, ShoppingCart, RefreshCw, Users, Gift, Store, Layers, User as UserIcon } from 'lucide-react';
+import { TrendingUp, Zap, ArrowRight, ShieldCheck, Users, Gift, Store, Layers, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
 import { Badge } from '../components/ui/badge';
+import { BkashLogo, LifiLogo } from '../components/ui/brand-logos';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
@@ -146,7 +147,7 @@ const Dashboard: React.FC = () => {
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-green-500 rounded-lg shrink-0">
+            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
               <Zap className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -158,7 +159,7 @@ const Dashboard: React.FC = () => {
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-blue-500 rounded-lg shrink-0">
+            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -170,7 +171,7 @@ const Dashboard: React.FC = () => {
 
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-yellow-500 rounded-lg shrink-0">
+            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
               <Layers className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -253,15 +254,17 @@ const Dashboard: React.FC = () => {
         </Card>
 
         {/* Buy Crypto */}
-        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg relative group transition-all hover:border-primary/30">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-125 transition-transform duration-500">
-            <ShoppingCart size={120} />
-          </div>
+        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg group transition-all hover:border-primary/30">
           <CardHeader>
-            <CardTitle className="text-2xl">{t('buy')}</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Purchase USDC or USDT using bKash instantly.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5">
+                <CardTitle className="text-2xl">{t('buy')}</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Purchase USDC or USDT using bKash instantly.
+                </CardDescription>
+              </div>
+              <BkashLogo className="shrink-0 mt-1" />
+            </div>
           </CardHeader>
           <CardContent>
             <Button asChild variant="secondary" className="w-full font-bold h-12 shadow-md">
@@ -273,15 +276,17 @@ const Dashboard: React.FC = () => {
         </Card>
 
         {/* Swap & Bridge */}
-        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg relative group transition-all hover:border-primary/30">
-           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-125 transition-transform duration-500">
-            <RefreshCw size={120} />
-          </div>
+        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg group transition-all hover:border-primary/30">
           <CardHeader>
-            <CardTitle className="text-2xl text-foreground">{t('swap')}</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Bridge assets between 20+ chains with LI.FI.
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5">
+                <CardTitle className="text-2xl text-foreground">{t('swap')}</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Bridge assets between 20+ chains with LI.FI.
+                </CardDescription>
+              </div>
+              <LifiLogo className="shrink-0 mt-1" />
+            </div>
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" className="w-full font-bold h-12 border-primary/30 hover:bg-primary/10">
