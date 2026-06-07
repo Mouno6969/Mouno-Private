@@ -61,6 +61,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const networks = NETWORK_LIST;
+  const isDemoMode = process.env.REACT_APP_DEMO_MODE === 'true';
 
   const formatActivityStatus = (status?: string) => {
     const map: Record<string, string> = {
@@ -92,11 +93,7 @@ const Dashboard: React.FC = () => {
               </span>
             ))
           ) : (
-            <>
-              <span className="text-muted-foreground">15 ETH swapped on Solana</span>
-              <span className="text-muted-foreground">•  500 USDT bought via bKash</span>
-              <span className="text-muted-foreground">•  Order #349 fulfilled</span>
-            </>
+            <span className="text-muted-foreground">Live activity will appear here.</span>
           )}
         </span>
       </Marquee>
@@ -110,7 +107,9 @@ const Dashboard: React.FC = () => {
         <span className="flex items-center gap-2">▸ LIVE</span>
         <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
         <span className="flex items-center gap-2">▸ SECURE P2P SETTLEMENT</span>
-        <span className="flex items-center gap-2">▸ {stats?.total_users || '42'} ONBOARDINGS ONLINE</span>
+        {stats?.total_users ? (
+          <span className="flex items-center gap-2">▸ {stats.total_users} ONBOARDINGS ONLINE</span>
+        ) : null}
         <span className="flex items-center gap-2">▸ LIFI PROTOCOL INTEGRATED</span>
         <span className="flex items-center gap-2">▸ 24/7 AUTOMATED DELIVERY</span>
         <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
@@ -334,6 +333,11 @@ const Dashboard: React.FC = () => {
             <CardTitle className="text-xs uppercase tracking-[0.2em] flex items-center gap-2">
               <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
               Live Activity
+              {isDemoMode && (
+                <Badge variant="outline" className="text-[8px] h-4 px-1.5 uppercase tracking-wider border-amber-500/30 bg-amber-500/10 text-amber-500">
+                  Demo data
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -352,8 +356,9 @@ const Dashboard: React.FC = () => {
                   </Badge>
                 </div>
               )) : (
-                <div className="p-6 text-center text-[10px] text-muted-foreground uppercase tracking-widest">
-                  Awaiting transactions...
+                <div className="p-6 flex flex-col items-center gap-1 text-center">
+                  <p className="text-xs font-medium text-foreground">No public activity yet</p>
+                  <p className="text-[10px] text-muted-foreground">Live activity will appear here.</p>
                 </div>
               )}
             </div>
