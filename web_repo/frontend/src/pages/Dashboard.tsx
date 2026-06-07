@@ -192,33 +192,58 @@ const Dashboard: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-muted/50">
-                  <TableHead className="w-[200px] pl-4 sm:pl-6 font-semibold uppercase text-[10px] tracking-wider">Network</TableHead>
-                  <TableHead className="font-semibold uppercase text-[10px] tracking-wider">Asset</TableHead>
-                  <TableHead className="text-right pr-4 sm:pr-6 font-semibold uppercase text-[10px] tracking-wider">Rate (1 USDT/USDC)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {networks.map((net) => (
-                  <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
-                    <TableCell className="py-4 pl-4 sm:pl-6 flex items-center gap-3">
-                      <NetworkLogo id={net.id} size={28} />
-                      <span className="font-semibold">{net.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-[10px]">USDT/USDC</Badge>
-                    </TableCell>
-                    <TableCell className="py-4 text-right pr-4 sm:pr-6">
-                       <span className="font-mono text-lg font-bold text-primary group-hover:scale-105 transition-transform inline-block">
-                         ৳{marketData?.rates?.[net.id] || '...'}
-                       </span>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-muted/50">
+                    <TableHead className="w-[160px] pl-4 sm:pl-6 font-semibold uppercase text-[10px] tracking-wider">Network</TableHead>
+                    <TableHead className="font-semibold uppercase text-[10px] tracking-wider">Asset</TableHead>
+                    <TableHead className="text-right font-semibold uppercase text-[10px] tracking-wider">Market Cap</TableHead>
+                    <TableHead className="text-right font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Rate (1 USDT/USDC)</TableHead>
+                    <TableHead className="text-right pr-4 sm:pr-6 font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Rate (1 USDT/USDC)</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {networks.map((net, idx) => {
+                    const rate = marketData?.rates?.[net.id];
+                    const change = marketData?.changes?.[net.id];
+                    const marketCap = marketData?.market_caps?.[net.id];
+                    const isUp = typeof change === 'number' ? change >= 0 : idx % 3 !== 1;
+                    return (
+                      <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
+                        <TableCell className="py-3.5 pl-4 sm:pl-6">
+                          <div className="flex items-center gap-2.5">
+                            <NetworkLogo id={net.id} size={24} />
+                            <span className="font-semibold text-sm">{net.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono text-[9px] px-1.5">USDT/USDC</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
+                          ৳{marketCap ? Number(marketCap).toLocaleString() : '...'}
+                        </TableCell>
+                        <TableCell className="py-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="font-mono text-sm font-bold text-foreground">৳{rate || '...'}</span>
+                            {change !== undefined && (
+                              <Badge
+                                className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'}`}
+                              >
+                                {isUp ? '▲' : '▼'} {Math.abs(change).toFixed(3)}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
+                          <span className="font-mono text-sm font-bold text-primary">৳{rate || '...'}</span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 

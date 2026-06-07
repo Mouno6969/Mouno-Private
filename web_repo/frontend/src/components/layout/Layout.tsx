@@ -195,7 +195,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-background md:hidden">
+        <div className="fixed inset-0 z-40 bg-background overflow-y-auto pb-24">
           <div className="container flex flex-col gap-6 pt-20">
             <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-lg font-medium">
               <LayoutDashboard className="h-5 w-5 text-primary" />
