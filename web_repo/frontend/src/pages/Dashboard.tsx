@@ -62,6 +62,18 @@ const Dashboard: React.FC = () => {
 
   const networks = NETWORK_LIST;
 
+  const formatActivityStatus = (status?: string) => {
+    const map: Record<string, string> = {
+      completed: 'fulfilled',
+      pending: 'pending',
+      processing: 'processing',
+      failed: 'failed',
+      cancelled: 'cancelled',
+    };
+    if (!status) return 'pending';
+    return map[status] || status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Top Marquee 1: Latest transactions / news ticker */}
@@ -75,7 +87,7 @@ const Dashboard: React.FC = () => {
           {recentActivity.length > 0 ? (
             recentActivity.slice(0, 6).map((act, i) => (
               <span key={i} className="text-muted-foreground">
-                {act.amount_crypto} {act.network?.toUpperCase()} {act.status === 'completed' ? 'fulfilled' : 'pending'}
+                {act.amount_crypto} {act.network?.toUpperCase()} {formatActivityStatus(act.status)}
                 {i < 5 ? '  •  ' : ''}
               </span>
             ))
@@ -214,7 +226,8 @@ const Dashboard: React.FC = () => {
                     const rate = marketData?.rates?.[net.id];
                     const change = marketData?.changes?.[net.id];
                     const marketCap = marketData?.market_caps?.[net.id];
-                    const isUp = typeof change === 'number' ? change >= 0 : idx % 3 !== 1;
+                    const hasNumericChange = typeof change === 'number' && Number.isFinite(change);
+                    const isUp = hasNumericChange ? change >= 0 : idx % 3 !== 1;
                     return (
                       <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
                         <TableCell className="py-3.5 pl-4 sm:pl-6">
@@ -232,7 +245,7 @@ const Dashboard: React.FC = () => {
                         <TableCell className="py-3.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-mono text-sm font-bold text-foreground">৳{rate || '...'}</span>
-                            {change !== undefined && (
+                            {hasNumericChange && (
                               <Badge
                                 className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'}`}
                               >

@@ -168,27 +168,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="container flex items-center justify-around h-16 px-4">
-          <Link to="/" className={`flex flex-col items-center gap-1 ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Link to="/" className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
             <Home className="h-5 w-5" />
             <span className="text-[10px] font-medium">Home</span>
           </Link>
           <Link
             to={token ? '/wallet' : '/login'}
-            className={`flex flex-col items-center gap-1 ${isActive('/wallet') || isActive('/login') ? 'text-primary' : 'text-muted-foreground'}`}
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/wallet') || isActive('/login') ? 'text-primary' : 'text-muted-foreground'}`}
           >
             <User className="h-5 w-5" />
             <span className="text-[10px] font-medium">Account</span>
           </Link>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`flex flex-col items-center gap-1 ${isMenuOpen ? 'text-primary' : 'text-muted-foreground'}`}
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isMenuOpen ? 'text-primary' : 'text-muted-foreground'}`}
           >
             <Menu className="h-5 w-5" />
             <span className="text-[10px] font-medium">Menu</span>
           </button>
-          <Link to="/support" className={`flex flex-col items-center gap-1 ${isActive('/support') ? 'text-primary' : 'text-muted-foreground'}`}>
+          <Link to="/support" className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/support') ? 'text-primary' : 'text-muted-foreground'}`}>
             <Sparkles className="h-5 w-5" />
-            <span className="sr-only">Support</span>
+            <span className="text-[10px] font-medium">Support</span>
           </Link>
         </div>
       </nav>
