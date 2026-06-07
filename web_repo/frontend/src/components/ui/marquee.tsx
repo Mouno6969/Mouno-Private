@@ -5,16 +5,18 @@ interface MarqueeProps {
   speed?: number;
   pauseOnHover?: boolean;
   className?: string;
+  containerClassName?: string;
 }
 
 const Marquee: React.FC<MarqueeProps> = ({
   children,
   speed = 20,
   pauseOnHover = true,
-  className = ""
+  className = "",
+  containerClassName = "bg-white/5 border-y border-white/10 py-1"
 }) => {
   return (
-    <div className={`overflow-hidden flex bg-white/5 border-y border-white/10 py-1 select-none ${className}`}>
+    <div className={`overflow-hidden flex select-none ${containerClassName} ${className}`}>
       <div
         className={`flex min-w-full shrink-0 items-center justify-around gap-4 animate-marquee ${pauseOnHover ? 'hover:[animation-play-state:paused]' : ''}`}
         style={{ animationDuration: `${speed}s` }}
