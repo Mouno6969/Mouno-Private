@@ -386,6 +386,19 @@ def _honcho_context(session_id, user_id, question):
     return ""
 
 
+@app.route('/api/ai/honcho-health', methods=['GET'])
+@token_required
+def ai_honcho_health(current_user):
+    """Admin-only diagnostic: shows whether Honcho memory is wired up correctly."""
+    telegram_id = current_user[3]
+    if not telegram_id or str(telegram_id) != str(config.ADMIN_ID):
+        return jsonify({'message': 'Forbidden'}), 403
+    try:
+        return jsonify(honcho_memory.health()), 200
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
 @app.route('/api/ai/sessions', methods=['GET'])
 @token_required
 def ai_list_sessions(current_user):
