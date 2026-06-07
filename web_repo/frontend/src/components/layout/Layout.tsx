@@ -11,7 +11,6 @@ import {
   MessageSquare,
   LogOut,
   Menu,
-  X,
   User,
   Store,
   Gift,
@@ -35,7 +34,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 
 interface LayoutProps {
   children: React.ReactNode;
