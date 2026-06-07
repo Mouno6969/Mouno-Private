@@ -22,9 +22,14 @@ const Orders: React.FC = () => {
         const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/orders`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        setOrderData(res.data);
+        const data = res.data || {};
+        setOrderData({
+          completed: Array.isArray(data.completed) ? data.completed : [],
+          pending: Array.isArray(data.pending) ? data.pending : [],
+        });
       } catch (err) {
         console.error(err);
+        setOrderData({ completed: [], pending: [] });
       } finally {
         setLoading(false);
       }
@@ -48,9 +53,12 @@ const Orders: React.FC = () => {
     }
   };
 
-  const filteredCompleted = orderData.completed.filter((order: any) =>
-    order.order_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.network.toLowerCase().includes(searchTerm.toLowerCase())
+  const completedOrders = Array.isArray(orderData?.completed) ? orderData.completed : [];
+  const pendingOrders = Array.isArray(orderData?.pending) ? orderData.pending : [];
+
+  const filteredCompleted = completedOrders.filter((order: any) =>
+    (order.order_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (order.network || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -74,13 +82,13 @@ const Orders: React.FC = () => {
       </section>
 
       {/* Pending Orders */}
-      {orderData.pending.length > 0 && (
+      {pendingOrders.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-xl font-bold flex items-center gap-2 text-yellow-500">
             <Clock className="h-5 w-5 animate-pulse" /> {t('pending_orders')}
           </h2>
           <div className="grid grid-cols-1 gap-4">
-            {orderData.pending.map((order: any) => (
+            {pendingOrders.map((order: any) => (
               <Card key={order.trx_id} className="border-yellow-500/20 bg-yellow-500/5 overflow-hidden transition-all hover:border-yellow-500/40">
                 <CardContent className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
