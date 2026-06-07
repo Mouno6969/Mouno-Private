@@ -46,7 +46,18 @@ const Dashboard: React.FC = () => {
       // Fetch recent activity (optional)
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal });
-        if (!controller.signal.aborted) setRecentActivity(res.data);
+        if (!controller.signal.aborted) {
+          // API সবসময় array নাও দিতে পারে (object/error response এলে .map ক্র্যাশ করে),
+          // তাই array হলে তবেই সেট করি, নইলে খালি array রাখি।
+          const data = res.data;
+          if (Array.isArray(data)) {
+            setRecentActivity(data);
+          } else if (data && Array.isArray(data.data)) {
+            setRecentActivity(data.data);
+          } else {
+            setRecentActivity([]);
+          }
+        }
       } catch (err) {
         if (!axios.isCancel(err)) console.error("Activity fetch failed", err);
       }
@@ -85,7 +96,7 @@ const Dashboard: React.FC = () => {
       >
         <span className="flex items-center gap-1.5 px-2">
           <span className="font-bold text-primary">Latest:</span>
-          {recentActivity.length > 0 ? (
+          {Array.isArray(recentActivity) && recentActivity.length > 0 ? (
             recentActivity.slice(0, 6).map((act, i) => (
               <span key={i} className="text-muted-foreground">
                 {act.amount_crypto} {act.network?.toUpperCase()} {formatActivityStatus(act.status)}
@@ -342,7 +353,7 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-white/5">
-              {recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
+                {Array.isArray(recentActivity) && recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
                 <div key={i} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
                   <div className="flex items-center gap-2">
                     <NetworkLogo id={act.network} size={16} />
