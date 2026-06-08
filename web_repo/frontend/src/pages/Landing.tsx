@@ -79,6 +79,7 @@ const Landing: React.FC = () => {
     <div className="space-y-16 md:space-y-24 animate-in fade-in duration-500 -mt-2">
       {/* Hero */}
       <section className="relative border border-white/15 bg-card/40 backdrop-blur overflow-hidden">
+        <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
         <div className="scanline" />
         <div className="relative z-10 px-5 py-12 sm:px-10 sm:py-16 lg:py-24 flex flex-col items-start gap-6">
           <span className="inline-flex items-center gap-2 border border-green-500/30 bg-green-500/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-green-500">
@@ -187,8 +188,9 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Stats */}
-      <section className="border border-white/10 bg-card/40">
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-white/10">
+      <section className="relative border border-white/10 bg-card/40 overflow-hidden">
+        <div className="absolute inset-0 dot-matrix-fine pointer-events-none" aria-hidden="true" />
+        <div className="relative grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-white/10">
           {STATS.map((stat) => (
             <div key={stat.label} className="p-6 sm:p-8 flex flex-col gap-1.5 items-center text-center">
               <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">{stat.value}</span>
@@ -253,14 +255,15 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Final CTA */}
-      <section className="border border-white/15 bg-card/40 px-5 py-12 sm:px-10 sm:py-16 text-center flex flex-col items-center gap-6">
-        <h2 className="max-w-2xl text-3xl sm:text-4xl font-extrabold uppercase tracking-tight text-balance">
+      <section className="relative border border-white/15 bg-card/40 overflow-hidden px-5 py-12 sm:px-10 sm:py-16 text-center flex flex-col items-center gap-6">
+        <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
+        <h2 className="relative max-w-2xl text-3xl sm:text-4xl font-extrabold uppercase tracking-tight text-balance">
           READY TO MOVE YOUR MONEY?
         </h2>
-        <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+        <p className="relative max-w-xl text-sm leading-relaxed text-muted-foreground">
           Join BGC Crypto today and experience bKash-native crypto trading built for Bangladesh.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <div className="relative flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button asChild size="lg" className="h-12 font-bold w-full sm:w-auto">
             <Link to="/register" className="flex items-center justify-center gap-2">
               GET STARTED — FREE <ArrowRight size={18} />

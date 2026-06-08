@@ -91,6 +91,26 @@
   animation: scanline 8s linear infinite;
 }
 
+/* Dot matrix texture — subtle industrial grid of dots */
+.dot-matrix {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: -1px -1px;
+}
+
+/* Denser, fainter variant for large feature surfaces */
+.dot-matrix-fine {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 10px 10px;
+  background-position: -1px -1px;
+}
+
+/* Fades the dot matrix toward the edges so it reads as texture, not a hard panel */
+.dot-matrix-fade {
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 35%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 35%, transparent 78%);
+}
+
 @keyframes marquee {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
