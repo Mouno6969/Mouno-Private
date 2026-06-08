@@ -150,7 +150,7 @@ const Support: React.FC = () => {
         <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • MEMORY: HONCHO</span>
       </Marquee>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:flex-1 md:min-h-0 md:overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-1 gap-4 md:flex-1 md:min-h-0 md:overflow-hidden">
         {/* Sidebar: Chat history + System status */}
         <div className="hidden md:flex flex-col gap-4 md:min-h-0">
           <Button
