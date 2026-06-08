@@ -34,7 +34,8 @@ const App: React.FC = () => {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={token ? <Dashboard /> : <Landing />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/welcome" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
