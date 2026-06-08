@@ -35,8 +35,9 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex justify-center items-center py-12 px-4">
-      <Card className="w-full max-w-md shadow-2xl">
+    <div className="relative flex justify-center items-center py-12 px-4 overflow-hidden">
+      <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
+      <Card className="relative w-full max-w-md shadow-2xl">
         <CardHeader className="space-y-1">
           <CardTitle className="text-3xl font-bold text-center">{t('login')}</CardTitle>
           <CardDescription className="text-center text-muted-foreground">

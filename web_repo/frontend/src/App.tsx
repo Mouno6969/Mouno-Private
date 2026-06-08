@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Landing from './pages/Landing';
 import Buy from './pages/Buy';
 import Swap from './pages/Swap';
 import MyWallet from './pages/Wallet';
@@ -31,32 +32,50 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/buy" element={token ? <Buy /> : <Navigate to="/login" />} />
-          <Route path="/swap" element={<Swap />} />
-          <Route path="/wallet" element={<MyWallet />} />
-          <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
-          <Route path="/referral" element={token ? <Referral /> : <Navigate to="/login" />} />
-          <Route path="/gift" element={token ? <GiftCode /> : <Navigate to="/login" />} />
-          <Route path="/support" element={token ? <Support /> : <Navigate to="/login" />} />
-          <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
-          <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
-          <Route path="/giveaway" element={<Giveaway />} />
-          <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/txlog" element={token ? <TxLog /> : <Navigate to="/login" />} />
-          <Route path="/order-status" element={token ? <OrderStatus /> : <Navigate to="/login" />} />
-          <Route path="/payout" element={token ? <Payout /> : <Navigate to="/login" />} />
-          <Route path="/guide" element={<Guide />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Standalone landing page (no app navigation chrome) */}
+        <Route path="/welcome" element={<Landing />} />
+        {!token && <Route path="/" element={<Landing />} />}
+
+        {/* Everything else renders inside the authenticated app Layout */}
+        <Route path="*" element={<AppShell token={token} />} />
+      </Routes>
       <Toaster richColors position="top-center" />
     </Router>
+  );
+};
+
+interface AppShellProps {
+  token: string | null;
+}
+
+const AppShell: React.FC<AppShellProps> = ({ token }) => {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/buy" element={token ? <Buy /> : <Navigate to="/login" />} />
+        <Route path="/swap" element={<Swap />} />
+        <Route path="/wallet" element={<MyWallet />} />
+        <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
+        <Route path="/referral" element={token ? <Referral /> : <Navigate to="/login" />} />
+        <Route path="/gift" element={token ? <GiftCode /> : <Navigate to="/login" />} />
+        <Route path="/support" element={token ? <Support /> : <Navigate to="/login" />} />
+        <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
+        <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
+        <Route path="/giveaway" element={<Giveaway />} />
+        <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/txlog" element={token ? <TxLog /> : <Navigate to="/login" />} />
+        <Route path="/order-status" element={token ? <OrderStatus /> : <Navigate to="/login" />} />
+        <Route path="/payout" element={token ? <Payout /> : <Navigate to="/login" />} />
+        <Route path="/guide" element={<Guide />} />
+      </Routes>
+    </Layout>
   );
 };
 
