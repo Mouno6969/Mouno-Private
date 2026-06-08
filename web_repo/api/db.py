@@ -399,6 +399,34 @@ def init_db():
         cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_enabled', 'off')")
         cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_percent', '0')")
         cur.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('referral_min_withdraw_usd', '1')")
+        # Website AI chat history (shared with the bot via mouno.db). These tables
+        # back the per-user conversation memory used by /api/ai/chat.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS web_chat_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                web_user_id INTEGER NOT NULL,
+                title TEXT DEFAULT 'New chat',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS web_chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_web_chat_sessions_user
+            ON web_chat_sessions(web_user_id, updated_at DESC)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_web_chat_messages_session
+            ON web_chat_messages(session_id, id)
+        """)
         con.commit()
 
 
@@ -2171,6 +2199,133 @@ def mark_seller_payout_status(ledger_id, status, admin_note=""):
     with closing(connect()) as con:
         con.execute("UPDATE seller_star_ledger SET status=?, admin_note=?, updated_at=CURRENT_TIMESTAMP WHERE ledger_id=?", (status, admin_note or "", ledger_id))
         con.commit()
+
+
+# ---------------------------------------------------------------------------
+# Website AI chat history (per logged-in web user)
+#
+# These functions are required by web_repo/api/app.py's /api/ai/chat endpoint
+# to persist conversation turns so the AI support assistant remembers earlier
+# messages within a session (short-term memory) and so Honcho record_turn is
+# reached (long-term memory). They mirror the implementation in the bot's
+# root db.py and operate on the same shared mouno.db.
+# ---------------------------------------------------------------------------
+
+def create_chat_session(web_user_id, title="New chat"):
+    """Create a new chat session for a web user and return its id."""
+    with closing(connect()) as con:
+        cur = con.execute(
+            "INSERT INTO web_chat_sessions (web_user_id, title) VALUES (?, ?)",
+            (int(web_user_id), (title or "New chat")[:120]),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_chat_sessions(web_user_id):
+    """Return all chat sessions for a web user, newest first."""
+    with closing(connect()) as con:
+        rows = con.execute(
+            """
+            SELECT id, title, created_at, updated_at
+            FROM web_chat_sessions
+            WHERE web_user_id=?
+            ORDER BY updated_at DESC, id DESC
+            """,
+            (int(web_user_id),),
+        ).fetchall()
+        return [
+            {"id": r[0], "title": r[1], "created_at": r[2], "updated_at": r[3]}
+            for r in rows
+        ]
+
+
+def _session_belongs_to(con, session_id, web_user_id):
+    row = con.execute(
+        "SELECT 1 FROM web_chat_sessions WHERE id=? AND web_user_id=?",
+        (int(session_id), int(web_user_id)),
+    ).fetchone()
+    return bool(row)
+
+
+def get_chat_messages(session_id, web_user_id):
+    """Return messages for a session, but only if it belongs to the user."""
+    with closing(connect()) as con:
+        if not _session_belongs_to(con, session_id, web_user_id):
+            return None
+        rows = con.execute(
+            """
+            SELECT role, content, created_at
+            FROM web_chat_messages
+            WHERE session_id=?
+            ORDER BY id ASC
+            """,
+            (int(session_id),),
+        ).fetchall()
+        return [
+            {"role": r[0], "content": r[1], "created_at": r[2]}
+            for r in rows
+        ]
+
+
+def add_chat_message(session_id, web_user_id, role, content):
+    """Append a message to a session (ownership-checked) and bump updated_at.
+
+    If the session has no title yet (still 'New chat') and this is the first
+    user message, derive a short title from it.
+    """
+    with closing(connect()) as con:
+        if not _session_belongs_to(con, session_id, web_user_id):
+            return False
+        con.execute(
+            "INSERT INTO web_chat_messages (session_id, role, content) VALUES (?, ?, ?)",
+            (int(session_id), role, content),
+        )
+        con.execute(
+            "UPDATE web_chat_sessions SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(session_id),),
+        )
+        if role == "user":
+            row = con.execute(
+                "SELECT title FROM web_chat_sessions WHERE id=?",
+                (int(session_id),),
+            ).fetchone()
+            if row and (not row[0] or row[0] == "New chat"):
+                title = " ".join((content or "").split())[:60] or "New chat"
+                con.execute(
+                    "UPDATE web_chat_sessions SET title=? WHERE id=?",
+                    (title, int(session_id)),
+                )
+        con.commit()
+        return True
+
+
+def get_recent_chat_messages(session_id, web_user_id, limit=10):
+    """Return the last `limit` messages (chronological) for context building."""
+    with closing(connect()) as con:
+        if not _session_belongs_to(con, session_id, web_user_id):
+            return []
+        rows = con.execute(
+            """
+            SELECT role, content FROM web_chat_messages
+            WHERE session_id=?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(session_id), int(limit)),
+        ).fetchall()
+        return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+
+
+def delete_chat_session(session_id, web_user_id):
+    """Delete a session and its messages (ownership-checked)."""
+    with closing(connect()) as con:
+        if not _session_belongs_to(con, session_id, web_user_id):
+            return False
+        con.execute("DELETE FROM web_chat_messages WHERE session_id=?", (int(session_id),))
+        con.execute("DELETE FROM web_chat_sessions WHERE id=?", (int(session_id),))
+        con.commit()
+        return True
 
 
 init_db()
