@@ -87,6 +87,7 @@ def close_refundable_atas(private_key):
     accounts = summary["refundable"]
     signatures = []
     successfully_closed = 0
+    closed_lamports = 0
     failed_batches = []
     
     for batch_idx, start in enumerate(range(0, len(accounts), MAX_CLOSE_INSTRUCTIONS)):
@@ -121,20 +122,21 @@ def close_refundable_atas(private_key):
             confirmed = False
             for attempt in range(max_retries):
                 try:
-                    status_resp = _rpc("getSignatureStatus", [[result]])
-                    if status_resp:
-                        status = status_resp[0]
-                        if status is None:
-                            import time
-                            time.sleep(0.5)
-                            continue
-                        if status.get("confirmationStatus") in ("confirmed", "finalized"):
-                            successfully_closed += len(batch)
-                            confirmed = True
-                            break
-                        elif status.get("err") is not None:
-                            failed_batches.append({"batch": batch_idx, "sig": result, "error": str(status.get("err"))})
-                            break
+                    status_resp = _rpc("getSignatureStatuses", [[result], {"searchTransactionHistory": True}])
+                    value = (status_resp or {}).get("value") or [None]
+                    status = value[0]
+                    if status is None:
+                        import time
+                        time.sleep(0.5)
+                        continue
+                    if status.get("confirmationStatus") in ("confirmed", "finalized") and status.get("err") is None:
+                        successfully_closed += len(batch)
+                        closed_lamports += sum(item["lamports"] for item in batch)
+                        confirmed = True
+                        break
+                    if status.get("err") is not None:
+                        failed_batches.append({"batch": batch_idx, "sig": result, "error": str(status.get("err"))})
+                        break
                 except Exception as status_exc:
                     pass
                 import time
@@ -146,7 +148,7 @@ def close_refundable_atas(private_key):
             failed_batches.append({"batch": batch_idx, "sig": batch_sig, "error": str(exc)})
     
     # Recalculate total refunded based on confirmed closes
-    total_refunded_lamports = sum(accounts[i]["lamports"] for i in range(min(successfully_closed, len(accounts))))
+    total_refunded_lamports = closed_lamports
     
     summary["signatures"] = signatures
     summary["successfully_closed"] = successfully_closed
