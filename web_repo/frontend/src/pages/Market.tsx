@@ -51,21 +51,35 @@ const Market: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<any>(null);
 
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchSellers = async () => {
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+      const res = await fetch(`${apiUrl}/api/sellers`);
+      const data = await res.json();
+      setSellers(Array.isArray(data) ? data : []);
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Initial load + periodic polling every 30 seconds
   useEffect(() => {
-    const fetchSellers = async () => {
-      try {
-        const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
-        const res = await fetch(`${apiUrl}/api/sellers`);
-        const data = await res.json();
-        setSellers(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchSellers();
+    const interval = setInterval(fetchSellers, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchSellers();
+  };
 
   const selectSeller = (seller: MarketSeller) => {
     setSelectedSeller(seller);
