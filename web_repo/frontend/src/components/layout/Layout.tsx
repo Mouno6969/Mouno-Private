@@ -23,7 +23,8 @@ import {
   BookOpen,
   Languages,
   Home,
-  Sparkles
+  Sparkles,
+  Wrench
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -62,7 +63,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: t('orders'), icon: <History className="h-4 w-4" />, path: '/orders' },
     { name: t('referral'), icon: <User className="h-4 w-4" />, path: '/referral' },
     { name: t('gift'), icon: <User className="h-4 w-4" />, path: '/gift' },
+    { name: t('market'), icon: <Store className="h-4 w-4" />, path: '/market' },
     { name: t('sellers'), icon: <Store className="h-4 w-4" />, path: '/seller' },
+    { name: t('free_tools'), icon: <Wrench className="h-4 w-4" />, path: '/tools' },
     { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
     { name: 'Giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
     { name: 'Balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },

@@ -50,6 +50,8 @@ const resources = {
       "seller_bkash": "Seller bKash Number",
       "seller_support": "Support Username",
       "sellers": "Sellers",
+      "market": "Marketplace",
+      "free_tools": "Free Tools",
     }
   },
   bn: {
@@ -99,6 +101,8 @@ const resources = {
       "seller_bkash": "সেলার বিকাশ নম্বর",
       "seller_support": "সাপোর্ট ইউজারনেম",
       "sellers": "সেলারগণ",
+      "market": "মার্কেটপ্লেস",
+      "free_tools": "ফ্রী টুলস",
     }
   }
 };

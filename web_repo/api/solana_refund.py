@@ -86,28 +86,72 @@ def close_refundable_atas(private_key):
     summary = find_refundable_atas(private_key)
     accounts = summary["refundable"]
     signatures = []
-    for start in range(0, len(accounts), MAX_CLOSE_INSTRUCTIONS):
+    successfully_closed = 0
+    failed_batches = []
+    
+    for batch_idx, start in enumerate(range(0, len(accounts), MAX_CLOSE_INSTRUCTIONS)):
         batch = accounts[start : start + MAX_CLOSE_INSTRUCTIONS]
-        blockhash_resp = _rpc("getLatestBlockhash", [{"commitment": "confirmed"}])
-        recent_blockhash = Hash.from_string(blockhash_resp["value"]["blockhash"])
-        instructions = [
-            close_account(
-                CloseAccountParams(
-                    program_id=TOKEN_PROGRAM_ID,
-                    account=Pubkey.from_string(item["pubkey"]),
-                    dest=owner,
-                    owner=owner,
-                    signers=[],
+        batch_sig = None
+        try:
+            blockhash_resp = _rpc("getLatestBlockhash", [{"commitment": "confirmed"}])
+            recent_blockhash = Hash.from_string(blockhash_resp["value"]["blockhash"])
+            instructions = [
+                close_account(
+                    CloseAccountParams(
+                        program_id=TOKEN_PROGRAM_ID,
+                        account=Pubkey.from_string(item["pubkey"]),
+                        dest=owner,
+                        owner=owner,
+                        signers=[],
+                    )
                 )
+                for item in batch
+            ]
+            msg = Message.new_with_blockhash(instructions, owner, recent_blockhash)
+            tx = Transaction([keypair], msg, recent_blockhash)
+            result = _rpc(
+                "sendTransaction",
+                [base64.b64encode(bytes(tx)).decode(), {"encoding": "base64", "preflightCommitment": "confirmed"}],
             )
-            for item in batch
-        ]
-        msg = Message.new_with_blockhash(instructions, owner, recent_blockhash)
-        tx = Transaction([keypair], msg, recent_blockhash)
-        result = _rpc(
-            "sendTransaction",
-            [base64.b64encode(bytes(tx)).decode(), {"encoding": "base64", "preflightCommitment": "confirmed"}],
-        )
-        signatures.append(result)
+            batch_sig = result
+            signatures.append(result)
+            
+            # Confirm the transaction to ensure it's finalized on-chain
+            max_retries = 20
+            confirmed = False
+            for attempt in range(max_retries):
+                try:
+                    status_resp = _rpc("getSignatureStatus", [[result]])
+                    if status_resp:
+                        status = status_resp[0]
+                        if status is None:
+                            import time
+                            time.sleep(0.5)
+                            continue
+                        if status.get("confirmationStatus") in ("confirmed", "finalized"):
+                            successfully_closed += len(batch)
+                            confirmed = True
+                            break
+                        elif status.get("err") is not None:
+                            failed_batches.append({"batch": batch_idx, "sig": result, "error": str(status.get("err"))})
+                            break
+                except Exception as status_exc:
+                    pass
+                import time
+                time.sleep(0.5)
+            
+            if not confirmed and batch_sig:
+                failed_batches.append({"batch": batch_idx, "sig": result, "error": "Could not confirm transaction (may succeed later)"})
+        except Exception as exc:
+            failed_batches.append({"batch": batch_idx, "sig": batch_sig, "error": str(exc)})
+    
+    # Recalculate total refunded based on confirmed closes
+    total_refunded_lamports = sum(accounts[i]["lamports"] for i in range(min(successfully_closed, len(accounts))))
+    
     summary["signatures"] = signatures
+    summary["successfully_closed"] = successfully_closed
+    summary["failed_batches"] = failed_batches
+    summary["refundable_count"] = successfully_closed  # Override with confirmed count
+    summary["total_lamports"] = total_refunded_lamports
+    summary["total_sol"] = total_refunded_lamports / LAMPORTS_PER_SOL
     return summary
