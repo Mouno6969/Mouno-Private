@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
+import { AnimatedText } from '../components/ui/animated-text';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const FEATURES = [
@@ -87,10 +88,13 @@ const Landing: React.FC = () => {
             NEW // BGC CRYPTO V2.0 IS LIVE
           </span>
 
-          <h1 className="max-w-4xl text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-balance">
-            BANGLADESH&apos;S CRYPTO GATEWAY.{' '}
-            <span className="text-muted-foreground">BUY. SWAP. SETTLE.</span>
-          </h1>
+          <div className="max-w-4xl">
+            <AnimatedText
+              text="BANGLADESH'S CRYPTO GATEWAY. BUY. SWAP. SETTLE."
+              speed={30}
+              className="text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-balance"
+            />
+          </div>
 
           <p className="max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground">
             The fastest way to buy USDT and USDC with bKash, bridge across 20+ chains, and manage
