@@ -146,7 +146,7 @@ const Support: React.FC = () => {
     <div className="max-w-5xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
       <div className="scanline" />
 
-      <Marquee speed={40} className="bg-primary text-black border-none py-0.5 font-bold">
+      <Marquee speed={40} className="bg-primary text-white border-none py-0.5 font-bold">
         <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • MEMORY: HONCHO</span>
       </Marquee>
 
