@@ -33,7 +33,10 @@ const Orders: React.FC = () => {
     else setLoading(false);
   }, [token]);
 
-  const StatusBadge = ({ status }: { status: string }) => {
+  const StatusBadge = ({ status }: { status: string | null | undefined }) => {
+    if (!status) {
+      return <Badge variant="outline">Unknown</Badge>;
+    }
     switch (status.toLowerCase()) {
       case 'completed':
         return <Badge className="bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20">Completed</Badge>;
@@ -49,8 +52,8 @@ const Orders: React.FC = () => {
   };
 
   const filteredCompleted = orderData.completed.filter((order: any) =>
-    order.order_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.network.toLowerCase().includes(searchTerm.toLowerCase())
+    (order.order_id?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (order.network?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
   );
 
   return (
