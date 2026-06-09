@@ -24,6 +24,8 @@ import TxLog from './pages/TxLog';
 import OrderStatus from './pages/OrderStatus';
 import Payout from './pages/Payout';
 import Guide from './pages/Guide';
+import Market from './pages/Market';
+import Tools from './pages/Tools';
 import { Toaster } from 'sonner';
 import { useAuth } from './context/AuthContext';
 
@@ -74,6 +76,8 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/order-status" element={token ? <OrderStatus /> : <Navigate to="/login" />} />
         <Route path="/payout" element={token ? <Payout /> : <Navigate to="/login" />} />
         <Route path="/guide" element={<Guide />} />
+        <Route path="/market" element={<Market />} />
+        <Route path="/tools" element={token ? <Tools /> : <Navigate to="/login" />} />
       </Routes>
     </Layout>
   );

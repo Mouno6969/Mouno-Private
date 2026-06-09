@@ -1,4 +1,7 @@
 import os
+import re
+import secrets
+import time
 import logging
 import jwt
 from pathlib import Path
@@ -885,6 +888,262 @@ def wallet_status(current_user):
         return jsonify({'has_wallet': False})
     except Exception:
         return jsonify({'has_wallet': False})
+
+# ─── Seller Marketplace (buyer side) ───
+@app.route('/api/sellers', methods=['GET'])
+def list_market_sellers():
+    """Public list of approved sellers with their enabled networks and effective rates."""
+    try:
+        sellers = db.list_sellers_by_status("approved", 30)
+        result = []
+        for s in sellers:
+            seller_id = s[0]
+            wallets = db.list_enabled_seller_wallets(seller_id)
+            networks = []
+            for w in wallets:
+                network = w[1]
+                rate = db.get_seller_rate(seller_id, network) or db.get_network_rate(network) or config.RATE
+                networks.append({'network': network, 'rate': rate})
+            if not networks:
+                continue
+            result.append({
+                'seller_id': str(seller_id),
+                'display_name': s[2],
+                'support_contact': s[4],
+                'bkash_number': s[3],
+                'networks': networks,
+            })
+        return jsonify(result)
+    except Exception as exc:
+        logger.error("Seller marketplace list failed: %s", exc)
+        return jsonify({'message': 'Failed to load sellers'}), 500
+
+
+@app.route('/api/seller/order', methods=['POST'])
+@token_required
+def place_seller_order(current_user):
+    """Place a bKash seller order from the web (mirrors the bot's seller buy flow)."""
+    data = request.get_json() or {}
+    seller_id = str(data.get('seller_id') or '').strip()
+    network = data.get('network')
+    wallet = (data.get('wallet') or '').strip()
+    trx_id = (data.get('trx_id') or '').strip().upper()
+    try:
+        amount_bdt = float(data.get('amount_bdt'))
+        if amount_bdt <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({'message': 'Valid amount_bdt required'}), 400
+    if not (seller_id and network and wallet and trx_id):
+        return jsonify({'message': 'seller_id, network, wallet and trx_id required'}), 400
+
+    seller = db.get_seller(seller_id)
+    if not seller or seller[5] != 'approved':
+        return jsonify({'message': 'Seller unavailable'}), 404
+    enabled_networks = [w[1] for w in db.list_enabled_seller_wallets(seller_id)]
+    if network not in enabled_networks:
+        return jsonify({'message': 'This seller has not enabled this network'}), 400
+
+    rate = db.get_seller_rate(seller_id, network) or db.get_network_rate(network) or config.RATE
+    if not rate or rate <= 0:
+        return jsonify({'message': 'Exchange rate configuration error. Please try again later.'}), 422
+    amount_crypto = round(amount_bdt / rate, 6)
+
+    buyer_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
+    order_id = f"SO_{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3).upper()}"
+
+    try:
+        db.create_seller_order(
+            order_id, seller_id, buyer_id, current_user[1], 'bkash',
+            network, wallet, amount_bdt, amount_crypto, None,
+            status='waiting_payment', trx_id=trx_id,
+        )
+    except db.sqlite3.IntegrityError:
+        return jsonify({'message': 'This TrxID has already been used for this seller. Use a different TrxID.'}), 409
+    
+    db.add_audit(buyer_id, "web_seller_order_created", "seller_order", order_id, f"seller={seller_id} network={network} amount={amount_bdt} BDT")
+
+    # Notify the seller (their seller_id is their Telegram ID) and the admin.
+    seller_msg = (
+        "\U0001f6CE New web seller order (bKash)\n\n"
+        f"\U0001f9FE Order: {order_id}\n"
+        f"\U0001f464 Buyer: {current_user[1]} ({buyer_id})\n"
+        f"\U0001f4B5 Amount: {amount_bdt} BDT \u2192 {amount_crypto}\n"
+        f"\U0001f310 Network: {network}\n"
+        f"\U0001f45B Wallet: {wallet}\n"
+        f"\U0001f511 TrxID: {trx_id}\n\n"
+        "Verify the bKash payment and approve from the bot."
+    )
+    if config.BOT_TOKEN:
+        try:
+            http_requests.post(
+                f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage",
+                json={"chat_id": seller_id, "text": seller_msg},
+                timeout=5,
+            )
+        except Exception as exc:
+            logger.warning("Seller order notification failed: %s", exc)
+    notify_admin_telegram(seller_msg)
+
+    return jsonify({
+        'status': 'waiting_payment',
+        'order_id': order_id,
+        'amount_crypto': amount_crypto,
+        'rate': rate,
+        'seller_bkash': seller[3],
+        'message': 'Seller order submitted! The seller will verify your bKash payment and deliver the crypto.'
+    })
+
+
+# ─── Free Tools (mirrors the bot's Free Service menu) ───
+def _normalize_telegram_target(value):
+    """Normalize @username / t.me link / numeric ID input (same rules as the bot)."""
+    raw = (value or '').strip().strip(',')
+    if not raw:
+        return None
+    raw = raw.split('?', 1)[0].rstrip('/')
+    match = re.match(r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/(.+)$", raw, re.IGNORECASE)
+    if match:
+        path = match.group(1).strip('/')
+        if path.startswith('+') or path.lower().startswith('joinchat/'):
+            return None
+        if path.startswith('c/'):
+            parts = path.split('/')
+            if len(parts) >= 2 and parts[1].isdigit():
+                return f"-100{parts[1]}"
+            return None
+        raw = path.split('/', 1)[0]
+    if re.fullmatch(r"-?\d+", raw):
+        return raw
+    raw = raw.lstrip('@')
+    if re.fullmatch(r"[A-Za-z0-9_]{5,32}", raw):
+        return f"@{raw}"
+    return None
+
+
+@app.route('/api/tools/telegram-id', methods=['GET'])
+@token_required
+def tool_telegram_id(current_user):
+    """Telegram ID Finder: resolve a public @username / t.me link to its numeric ID."""
+    if not config.BOT_TOKEN:
+        return jsonify({'message': 'Tool unavailable: bot token not configured'}), 503
+    target = _normalize_telegram_target(request.args.get('target', ''))
+    if not target:
+        return jsonify({'message': 'Send a public @username, t.me link or numeric ID. Private invite links cannot be resolved.'}), 400
+    try:
+        res = http_requests.get(
+            f"https://api.telegram.org/bot{config.BOT_TOKEN}/getChat",
+            params={'chat_id': target},
+            timeout=10,
+        ).json()
+        if not res.get('ok'):
+            return jsonify({'message': 'Could not resolve this target. Private chats usually require the bot to have access.'}), 404
+        chat = res.get('result', {})
+        return jsonify({
+            'id': chat.get('id'),
+            'type': chat.get('type'),
+            'title': chat.get('title') or ((chat.get('first_name') or '') + (' ' + chat.get('last_name') if chat.get('last_name') else '')).strip() or None,
+            'username': chat.get('username'),
+        })
+    except Exception as exc:
+        logger.error("Telegram ID finder failed: %s", exc)
+        return jsonify({'message': 'Lookup failed, please try again'}), 500
+
+
+@app.route('/api/tools/ata/check', methods=['POST'])
+@token_required
+def tool_ata_check(current_user):
+    """Solana ATA Refund: check empty Associated Token Accounts (key never stored)."""
+    data = request.get_json() or {}
+    private_key = (data.get('private_key') or '').strip()
+    if not private_key:
+        return jsonify({'message': 'Solana private key required'}), 400
+    try:
+        from solana_refund import find_refundable_atas
+        summary = find_refundable_atas(private_key)
+        return jsonify({
+            'wallet': summary['wallet'],
+            'refundable_count': summary['refundable_count'],
+            'total_sol': summary['total_sol'],
+            'non_empty_count': summary['non_empty_count'],
+            'token_account_count': summary['token_account_count'],
+        })
+    except Exception as exc:
+        logger.error("ATA check failed: %s", exc)
+        return jsonify({'message': 'Invalid key or RPC error. Make sure you sent a valid Solana private key.'}), 400
+
+
+@app.route('/api/tools/ata/refund', methods=['POST'])
+@token_required
+def tool_ata_refund(current_user):
+    """Solana ATA Refund: close empty ATAs and return rent SOL to the same wallet."""
+    data = request.get_json() or {}
+    private_key = (data.get('private_key') or '').strip()
+    if not private_key:
+        return jsonify({'message': 'Solana private key required'}), 400
+    try:
+        from solana_refund import close_refundable_atas
+        summary = close_refundable_atas(private_key)
+        # Return 200 even if some batches failed, so user can see partial results
+        return jsonify({
+            'wallet': summary['wallet'],
+            'refunded_count': summary.get('successfully_closed', summary.get('refundable_count', 0)),
+            'total_sol': summary.get('total_sol', 0),
+            'signatures': summary.get('signatures', []),
+            'failed_batches': summary.get('failed_batches', []),
+            'message': f"Closed {summary.get('successfully_closed', 0)} ATAs" + (f", {len(summary.get('failed_batches', []))} batch(es) failed" if summary.get('failed_batches') else "")
+        }), 200
+    except Exception as exc:
+        logger.error("ATA refund failed: %s", exc)
+        return jsonify({'message': 'Refund failed. Check the key, and make sure the wallet has a little SOL for fees.'}), 400
+
+
+@app.route('/api/tools/forward', methods=['POST'])
+@token_required
+def tool_telegram_forward(current_user):
+    """Telegram Message Forwarder: one-time send via the user's OWN bot token (never stored)."""
+    data = request.get_json() or {}
+    bot_token = (data.get('bot_token') or '').strip()
+    message = (data.get('message') or '').strip()
+    raw_chats = data.get('chat_ids') or []
+    if isinstance(raw_chats, str):
+        raw_chats = re.split(r"[\s,]+", raw_chats)
+    chat_ids = [c.strip() for c in raw_chats if c and c.strip()][:20]
+
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{30,}", bot_token):
+        return jsonify({'message': 'Invalid bot token format. Get one from @BotFather.'}), 400
+    if not message:
+        return jsonify({'message': 'Message text required'}), 400
+    if not chat_ids:
+        return jsonify({'message': 'At least one chat ID or @username required'}), 400
+
+    # Each individual request has a strict 5s timeout to prevent worker blocking
+    # Total request should timeout at the gateway/proxy level (~30s), not rely on this per-chat timeout
+    results = []
+    request_deadline = time.time() + 25  # Leave 5s buffer for response construction
+    for chat in chat_ids:
+        if time.time() > request_deadline:
+            results.append({'chat': chat, 'ok': False, 'error': 'Request timeout exceeded'})
+            continue
+        target = _normalize_telegram_target(chat) or chat
+        try:
+            res = http_requests.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={'chat_id': int(target) if re.fullmatch(r"-?\d+", str(target)) else target, 'text': message},
+                timeout=5,  # Per-request: strict 5s timeout to prevent blocking
+            ).json()
+            if res.get('ok'):
+                results.append({'chat': chat, 'ok': True})
+            else:
+                results.append({'chat': chat, 'ok': False, 'error': res.get('description', 'Failed')})
+        except http_requests.exceptions.Timeout:
+            results.append({'chat': chat, 'ok': False, 'error': 'Timeout'})
+        except Exception as exc:
+            results.append({'chat': chat, 'ok': False, 'error': str(exc)[:100]})
+
+    sent = sum(1 for r in results if r['ok'])
+    return jsonify({'sent': sent, 'failed': len(results) - sent, 'results': results})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)

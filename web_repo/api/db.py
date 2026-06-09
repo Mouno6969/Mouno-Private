@@ -306,7 +306,8 @@ def init_db():
                 tx_sig TEXT,
                 error TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(seller_id, trx_id)
             )
         """)
         cur.execute("""
