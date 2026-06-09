@@ -24,6 +24,14 @@ const Marquee: React.FC<MarqueeProps> = ({
         {children}
         {children}
       </div>
+      <div
+        aria-hidden="true"
+        className={`flex min-w-full shrink-0 items-center justify-around gap-4 animate-marquee ${pauseOnHover ? 'hover:[animation-play-state:paused]' : ''}`}
+        style={{ animationDuration: `${speed}s` }}
+      >
+        {children}
+        {children}
+      </div>
     </div>
   );
 };

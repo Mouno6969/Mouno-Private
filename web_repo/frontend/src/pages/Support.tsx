@@ -166,7 +166,7 @@ const Support: React.FC = () => {
                 <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'চ্যাট হিস্টোরি' : 'Chat History'}
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-2 pt-0 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <CardContent className="p-2 pt-0 flex-1 min-h-0 overflow-y-auto">
               {!token ? (
                 <p className="text-[10px] text-muted-foreground px-2">
                   {i18n.language === 'bn' ? 'হিস্টোরি দেখতে লগইন করুন।' : 'Log in to keep chat history.'}
@@ -235,7 +235,7 @@ const Support: React.FC = () => {
             </Button>
           </CardHeader>
           <CardContent className="flex-1 min-h-0 overflow-hidden p-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
-            <div ref={scrollRef} className="h-full overflow-y-auto overscroll-contain p-4">
+            <div ref={scrollRef} className="h-full overflow-y-auto p-4">
               <div className="space-y-4">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
