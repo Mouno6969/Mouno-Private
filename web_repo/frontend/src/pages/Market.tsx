@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { io, Socket } from 'socket.io-client';
 import {
   Store,
   CheckCircle,
@@ -69,11 +70,36 @@ const Market: React.FC = () => {
     }
   };
 
-  // Initial load + periodic polling every 30 seconds
+  // Initial load + WebSocket real-time updates
   useEffect(() => {
     fetchSellers();
-    const interval = setInterval(fetchSellers, 30000);
-    return () => clearInterval(interval);
+    
+    // Connect to WebSocket for real-time seller updates
+    const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+    const socket: Socket = io(apiUrl, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
+
+    socket.on('connect', () => {
+      console.log('[v0] WebSocket connected to marketplace');
+    });
+
+    socket.on('sellers_updated', (data: { sellers: MarketSeller[] }) => {
+      setSellers(Array.isArray(data.sellers) ? data.sellers : []);
+      setLastRefresh(new Date());
+      console.log('[v0] Sellers updated via WebSocket:', data.sellers.length);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[v0] WebSocket disconnected');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const handleManualRefresh = async () => {
