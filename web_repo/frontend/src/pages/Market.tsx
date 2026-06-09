@@ -75,7 +75,7 @@ const Market: React.FC = () => {
   };
 
   const currentRate = selectedSeller?.networks.find((n) => n.network === network)?.rate || 0;
-  const cryptoAmount = bdtAmount && currentRate ? (parseFloat(bdtAmount) / currentRate).toFixed(4) : '0';
+  const cryptoAmount = bdtAmount && currentRate ? (parseFloat(bdtAmount) / currentRate).toFixed(6) : '0';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
