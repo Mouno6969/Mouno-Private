@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
+import { ASCIIText } from '../components/ui/ascii-text';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const FEATURES = [
