@@ -54,7 +54,8 @@ const Market: React.FC = () => {
   useEffect(() => {
     const fetchSellers = async () => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/sellers`);
+        const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+        const res = await fetch(`${apiUrl}/api/sellers`);
         const data = await res.json();
         setSellers(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -82,7 +83,8 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/order`, {
+      const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+      const res = await fetch(`${apiUrl}/api/seller/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
