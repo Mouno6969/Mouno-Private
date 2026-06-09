@@ -945,6 +945,8 @@ def place_seller_order(current_user):
         return jsonify({'message': 'This seller has not enabled this network'}), 400
 
     rate = db.get_seller_rate(seller_id, network) or db.get_network_rate(network) or config.RATE
+    if not rate or rate <= 0:
+        return jsonify({'message': 'Exchange rate configuration error. Please try again later.'}), 422
     amount_crypto = round(amount_bdt / rate, 6)
 
     buyer_id = current_user[3] if current_user[3] else f"web_{current_user[0]}"
