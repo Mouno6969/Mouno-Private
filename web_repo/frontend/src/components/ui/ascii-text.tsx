@@ -7,6 +7,8 @@ interface ASCIITextProps {
   animationDelay?: number;
   blockSize?: number;
   glitch?: boolean;
+  /** Font size in rem that controls how large the ASCII art renders. Defaults to 0.5rem. */
+  size?: number;
 }
 
 const fontMap: Record<string, string[]> = {
@@ -213,7 +215,8 @@ export const ASCIIText: React.FC<ASCIITextProps> = ({
   className,
   animationDelay = 100,
   blockSize = 2,
-  glitch = false
+  glitch = false,
+  size = 0.5,
 }) => {
   const [displayText, setDisplayText] = useState('');
   const [isAnimating, setIsAnimating] = useState(true);
@@ -243,11 +246,12 @@ export const ASCIIText: React.FC<ASCIITextProps> = ({
           <div
             key={idx}
             className={cn(
-              'font-mono text-[0.5rem] leading-none tracking-tighter',
+              'font-mono leading-none tracking-tighter',
               glitch && isAnimating && 'animate-pulse',
               className
             )}
             style={{
+              fontSize: `${size}rem`,
               letterSpacing: '0.05em',
               lineHeight: '0.8',
             }}

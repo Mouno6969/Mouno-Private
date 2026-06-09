@@ -88,11 +88,12 @@ const Landing: React.FC = () => {
             NEW // BGC CRYPTO V2.0 IS LIVE
           </span>
 
-          <div className="max-w-4xl">
+          <div className="w-full flex justify-center py-6 sm:py-8">
             <ASCIIText 
               text="BGC" 
               className="text-primary"
               animationDelay={80}
+              size={1.4}
             />
           </div>
 
@@ -149,13 +150,11 @@ const Landing: React.FC = () => {
       {/* Features */}
       <section className="space-y-8">
         <div className="space-y-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-            [01] // EVERYTHING IN ONE PLACE
-          </span>
           <ASCIIText 
             text="FEATURES" 
             className="text-primary"
             animationDelay={60}
+            size={0.9}
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10 border border-white/10">
@@ -183,11 +182,9 @@ const Landing: React.FC = () => {
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             [02] // HOW IT WORKS
           </span>
-          <ASCIIText 
-            text="STEPS" 
-            className="text-primary"
-            animationDelay={60}
-          />
+          <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-balance">
+            THREE STEPS TO SETTLEMENT
+          </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {STEPS.map((s) => (
