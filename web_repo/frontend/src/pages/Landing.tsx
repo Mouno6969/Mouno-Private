@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
-import { AnimatedText } from '../components/ui/animated-text';
+import { ASCIIText } from '../components/ui/ascii-text';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const FEATURES = [
@@ -89,12 +89,17 @@ const Landing: React.FC = () => {
           </span>
 
           <div className="max-w-4xl">
-            <AnimatedText
-              text="BANGLADESH'S CRYPTO GATEWAY. BUY. SWAP. SETTLE."
-              speed={30}
-              className="text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-balance"
+            <ASCIIText 
+              text="BGC" 
+              className="text-primary"
+              animationDelay={80}
             />
           </div>
+
+          <h1 className="max-w-4xl text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-balance">
+            BANGLADESH&apos;S CRYPTO GATEWAY.{' '}
+            <span className="text-muted-foreground">BUY. SWAP. SETTLE.</span>
+          </h1>
 
           <p className="max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground">
             The fastest way to buy USDT and USDC with bKash, bridge across 20+ chains, and manage
@@ -147,9 +152,11 @@ const Landing: React.FC = () => {
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             [01] // EVERYTHING IN ONE PLACE
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-balance">
-            BUILT FOR PEOPLE WHO MOVE MONEY
-          </h2>
+          <ASCIIText 
+            text="FEATURES" 
+            className="text-primary"
+            animationDelay={60}
+          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10 border border-white/10">
           {FEATURES.map((f) => (
@@ -176,9 +183,11 @@ const Landing: React.FC = () => {
           <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             [02] // HOW IT WORKS
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-balance">
-            THREE STEPS TO SETTLEMENT
-          </h2>
+          <ASCIIText 
+            text="STEPS" 
+            className="text-primary"
+            animationDelay={60}
+          />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {STEPS.map((s) => (

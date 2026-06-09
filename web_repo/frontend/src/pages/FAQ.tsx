@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { HelpCircle } from 'lucide-react';
-import { AnimatedText } from '../components/ui/animated-text';
 
 const faqs = [
   {
@@ -44,11 +43,7 @@ const FAQ: React.FC = () => {
         <div className="p-2 bg-primary/10 rounded-lg">
           <HelpCircle className="h-6 w-6 text-primary" />
         </div>
-        <AnimatedText
-          text="FAQ"
-          speed={80}
-          className="text-3xl font-extrabold tracking-tight"
-        />
+        <h1 className="text-3xl font-extrabold tracking-tight">FAQ</h1>
       </div>
       <p className="text-muted-foreground">Frequently asked questions about our services.</p>
 

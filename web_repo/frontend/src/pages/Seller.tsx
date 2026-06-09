@@ -7,7 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { Store, CheckCircle2, Clock, XCircle, Package, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
-import { AnimatedText } from '../components/ui/animated-text';
 
 const Seller: React.FC = () => {
   const { t } = useTranslation();
@@ -114,11 +113,7 @@ const Seller: React.FC = () => {
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-8 w-8 text-primary" />
               <div>
-                <AnimatedText
-                  text="Seller Account Active"
-                  speed={50}
-                  className="font-bold text-lg"
-                />
+                <CardTitle>Seller Account Active</CardTitle>
                 <CardDescription>Welcome back, {status.display_name}!</CardDescription>
               </div>
             </div>
