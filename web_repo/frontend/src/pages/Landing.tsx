@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
-import { ASCIIText } from '../components/ui/ascii-text';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const FEATURES = [
@@ -87,15 +86,6 @@ const Landing: React.FC = () => {
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
             NEW // BGC CRYPTO V2.0 IS LIVE
           </span>
-
-          <div className="w-full flex justify-center py-6 sm:py-8">
-            <ASCIIText 
-              text="BGC" 
-              className="text-primary"
-              animationDelay={80}
-              size={1.4}
-            />
-          </div>
 
           <h1 className="max-w-4xl text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl text-balance">
             BANGLADESH&apos;S CRYPTO GATEWAY.{' '}
