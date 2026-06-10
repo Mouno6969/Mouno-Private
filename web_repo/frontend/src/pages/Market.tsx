@@ -23,6 +23,7 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { API_BASE, safeJson } from '../lib/api';
 
 interface SellerNetwork {
   network: string;
@@ -42,6 +43,7 @@ const Market: React.FC = () => {
   const { token } = useAuth();
   const [sellers, setSellers] = useState<MarketSeller[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedSeller, setSelectedSeller] = useState<MarketSeller | null>(null);
 
   // Order form state
@@ -69,19 +71,18 @@ const Market: React.FC = () => {
 
   const fetchSellers = async () => {
     try {
-      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
-      const res = await fetch(`${apiUrl}/api/sellers`);
+      const res = await fetch(`${API_BASE}/api/sellers`);
+      const data = await safeJson(res, '/api/sellers');
       if (!res.ok) {
-        console.error('Failed to fetch sellers:', res.status);
-        setLoading(false);
-        setRefreshing(false);
+        setLoadError(data?.message || `Failed to load sellers (HTTP ${res.status})`);
         return;
       }
-      const data = await res.json();
       setSellers(Array.isArray(data) ? data : []);
+      setLoadError(null);
       setLastRefresh(new Date());
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Failed to fetch sellers:', err);
+      setLoadError(err?.message || 'Failed to connect to the server.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,8 +94,7 @@ const Market: React.FC = () => {
     fetchSellers();
     
     // Connect to WebSocket for real-time seller updates
-    const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
-    const socket: Socket = io(apiUrl, {
+    const socket: Socket = io(API_BASE, {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -161,8 +161,7 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
-      const res = await fetch(`${apiUrl}/api/seller/order`, {
+      const res = await fetch(`${API_BASE}/api/seller/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,14 +175,14 @@ const Market: React.FC = () => {
           trx_id: trxId,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/seller/order');
       if (res.ok) {
         setSuccess(data);
       } else {
         toast.error(data.message || 'Failed to place order');
       }
-    } catch (err) {
-      toast.error('Failed to connect to server');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to server');
     } finally {
       setSubmitting(false);
     }
@@ -453,6 +452,18 @@ const Market: React.FC = () => {
         <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
           <Loader2 className="h-5 w-5 animate-spin" /> Loading sellers...
         </div>
+      ) : loadError ? (
+        <Card className="border-destructive/30">
+          <CardContent className="py-16 text-center space-y-4">
+            <Info className="h-10 w-10 text-destructive mx-auto" />
+            <p className="font-bold">Could not load the marketplace</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto text-pretty">{loadError}</p>
+            <Button variant="outline" onClick={handleManualRefresh} disabled={refreshing}>
+              {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
       ) : sellers.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center space-y-3">

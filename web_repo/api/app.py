@@ -9,7 +9,15 @@ import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO
+
+# flask_socketio is optional: if it is not installed on the server, the app
+# must still start so that all REST endpoints (marketplace, tools) keep working.
+try:
+    from flask_socketio import SocketIO
+    _SOCKETIO_AVAILABLE = True
+except ImportError:
+    SocketIO = None
+    _SOCKETIO_AVAILABLE = False
 from werkzeug.security import generate_password_hash, check_password_hash
 import sys
 import requests as http_requests
@@ -65,7 +73,35 @@ def broadcast_sellers_update():
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+
+class _NoopSocketIO:
+    """Fallback used when flask_socketio is not installed.
+
+    REST endpoints keep working; realtime broadcasts become no-ops and the
+    server runs with the plain Flask development/WSGI runner.
+    """
+
+    def emit(self, *args, **kwargs):
+        pass
+
+    def on(self, *args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    def run(self, flask_app, host="0.0.0.0", port=5001, **kwargs):
+        flask_app.run(host=host, port=port)
+
+
+if _SOCKETIO_AVAILABLE:
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+else:
+    logger.warning(
+        "flask_socketio is not installed - realtime updates disabled. "
+        "Run 'pip install -r requirements.txt' to enable WebSocket support."
+    )
+    socketio = _NoopSocketIO()
 _SECRET = os.getenv("WEB_SECRET_KEY")
 if not _SECRET:
     raise RuntimeError("WEB_SECRET_KEY must be set in the environment")
