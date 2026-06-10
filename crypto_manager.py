@@ -33,6 +33,10 @@ def init_user_wallets():
             """
         )
         con.commit()
+    # Ensure the multi-wallet tables exist and any legacy single wallet is
+    # migrated into them (idempotent, non-destructive).
+    init_user_wallets_v2()
+    migrate_legacy_wallets()
 
 
 def make_fernet(password: str, salt: bytes) -> Fernet:
@@ -61,57 +65,345 @@ def decrypt_seller_key(encrypted_key: str, salt: str) -> str:
     return decrypt_key(encrypted_key, salt, _seller_master_key())
 
 
-def save_user_wallet(user_id, encrypted_key, salt, network, wallet_address):
+# ===========================================================================
+# Multi-wallet support (user_wallets_v2 + wallet_master)
+# ---------------------------------------------------------------------------
+# A user may now connect MANY wallets across any network (and several wallets
+# on the same network). Every wallet's private key is encrypted with ONE
+# master password per user. The master password is validated against a stored
+# verifier (a known probe string encrypted with the same scheme). Balances are
+# read from public addresses and never need the master password; only sending
+# (which decrypts a key) requires it.
+# ===========================================================================
+
+_MASTER_PROBE = "mouno-master-ok"
+MIN_MASTER_PASSWORD_LEN = 8
+
+
+def init_user_wallets_v2():
     with closing(sqlite3.connect(DB_PATH)) as con:
         con.execute(
             """
-            INSERT OR REPLACE INTO user_wallets
-            (user_id, encrypted_key, salt, network, wallet_address)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (user_id, encrypted_key, salt, network, wallet_address),
+            CREATE TABLE IF NOT EXISTS user_wallets_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                network TEXT NOT NULL,
+                label TEXT,
+                wallet_address TEXT,
+                encrypted_key TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        con.execute("CREATE INDEX IF NOT EXISTS idx_user_wallets_v2_user ON user_wallets_v2(user_id)")
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wallet_master (
+                user_id TEXT PRIMARY KEY,
+                verifier TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        con.commit()
+
+
+def migrate_legacy_wallets():
+    """Idempotently copy single-wallet rows from the legacy user_wallets table
+    into user_wallets_v2. Never destroys legacy data so rollback stays safe."""
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        try:
+            legacy = con.execute(
+                "SELECT user_id, encrypted_key, salt, network, wallet_address FROM user_wallets"
+            ).fetchall()
+        except Exception:
+            legacy = []
+        for user_id, encrypted_key, salt, network, wallet_address in legacy:
+            if not encrypted_key or not salt:
+                continue
+            exists = con.execute(
+                "SELECT 1 FROM user_wallets_v2 WHERE user_id=? AND network=? AND IFNULL(wallet_address,'')=IFNULL(?,'')",
+                (str(user_id), network, wallet_address),
+            ).fetchone()
+            if exists:
+                continue
+            con.execute(
+                "INSERT INTO user_wallets_v2 (user_id, network, label, wallet_address, encrypted_key, salt) VALUES (?,?,?,?,?,?)",
+                (str(user_id), network, None, wallet_address, encrypted_key, salt),
+            )
+        con.commit()
+
+
+def _v2_rows(user_id):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        return con.execute(
+            "SELECT * FROM user_wallets_v2 WHERE user_id=? ORDER BY id ASC", (str(user_id),)
+        ).fetchall()
+
+
+def _get_v2_wallet(user_id, wallet_id):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        return con.execute(
+            "SELECT * FROM user_wallets_v2 WHERE id=? AND user_id=?",
+            (int(wallet_id), str(user_id)),
+        ).fetchone()
+
+
+# ─── Master password ───
+def get_master_record(user_id):
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        return con.execute(
+            "SELECT verifier, salt FROM wallet_master WHERE user_id=?", (str(user_id),)
+        ).fetchone()
+
+
+def set_master_password(user_id, password):
+    if not password or len(password) < MIN_MASTER_PASSWORD_LEN:
+        raise RuntimeError(f"Master password must be at least {MIN_MASTER_PASSWORD_LEN} characters.")
+    verifier, salt = encrypt_key(_MASTER_PROBE, password)
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.execute(
+            "INSERT OR REPLACE INTO wallet_master (user_id, verifier, salt) VALUES (?,?,?)",
+            (str(user_id), verifier, salt),
+        )
+        con.commit()
+
+
+def has_master_password(user_id):
+    """True if the user has a master password (explicit verifier OR migrated
+    wallets whose password is effectively the master password)."""
+    if get_master_record(user_id):
+        return True
+    return bool(_v2_rows(user_id))
+
+
+def verify_master_password(user_id, password):
+    rec = get_master_record(user_id)
+    if rec:
+        try:
+            return decrypt_key(rec[0], rec[1], password) == _MASTER_PROBE
+        except Exception:
+            return False
+    # Lazy-adopt: migrated/legacy user without a verifier yet. If the password
+    # decrypts any existing wallet, adopt it as the master password.
+    for row in _v2_rows(user_id):
+        try:
+            decrypt_key(row["encrypted_key"], row["salt"], password)
+            set_master_password(user_id, password)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+# ─── New-wallet key generation ───
+def create_private_key(network):
+    net = (network or "").lower()
+    if net.startswith("solana"):
+        import base58
+        from solders.keypair import Keypair
+
+        return base58.b58encode(bytes(Keypair())).decode()
+    if net == "trc20":
+        from tronpy.keys import PrivateKey
+
+        return PrivateKey.random().hex()
+    if net == "ton":
+        raise RuntimeError("Creating a new TON wallet is not supported yet. Please import an existing wallet.")
+    # Everything else (ethereum, ethereum_usdc, erc20, bsc, polygon, base, etc.)
+    # is an EVM chain. Mirror get_wallet_address's EVM fallthrough so token
+    # variants like "ethereum_usdc" are handled instead of being rejected.
+    from web3 import Web3
+
+    return Web3().eth.account.create().key.hex()
+
+
+# ─── Multi-wallet CRUD ───
+def add_user_wallet(user_id, network, private_key_or_create, master_password, label=None):
+    """Create or import a wallet for `network`, encrypt the key with the user's
+    master password and store it. Sets the master password on the very first
+    wallet; verifies it for every subsequent wallet."""
+    user_id = str(user_id)
+    if not master_password:
+        raise RuntimeError("Master password is required.")
+
+    is_first_wallet = not has_master_password(user_id)
+    if is_first_wallet:
+        if len(master_password) < MIN_MASTER_PASSWORD_LEN:
+            raise RuntimeError(f"Master password must be at least {MIN_MASTER_PASSWORD_LEN} characters.")
+    else:
+        if not verify_master_password(user_id, master_password):
+            raise RuntimeError("Wrong master password.")
+
+    if not private_key_or_create or private_key_or_create == "create":
+        private_key = create_private_key(network)
+    else:
+        private_key = str(private_key_or_create).strip()
+
+    wallet_address = get_wallet_address(network, private_key)
+    encrypted_key, salt = encrypt_key(private_key, master_password)
+    label = (label or "").strip() or None
+
+    # Persist the master-password verifier (on first wallet) and the wallet row
+    # inside a single transaction so we never end up with a verifier but no
+    # wallet (or vice-versa) if something fails midway.
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        try:
+            if is_first_wallet:
+                verifier, master_salt = encrypt_key(_MASTER_PROBE, master_password)
+                con.execute(
+                    "INSERT OR REPLACE INTO wallet_master (user_id, verifier, salt) VALUES (?,?,?)",
+                    (user_id, verifier, master_salt),
+                )
+            cur = con.execute(
+                "INSERT INTO user_wallets_v2 (user_id, network, label, wallet_address, encrypted_key, salt) VALUES (?,?,?,?,?,?)",
+                (user_id, network, label, wallet_address, encrypted_key, salt),
+            )
+            con.commit()
+            wallet_id = cur.lastrowid
+        except Exception:
+            con.rollback()
+            raise
+    return {"id": wallet_id, "network": network, "label": label, "wallet_address": wallet_address}
+
+
+def list_user_wallets(user_id):
+    """All wallets for a user WITHOUT decrypting keys."""
+    return [
+        {
+            "id": r["id"],
+            "network": r["network"],
+            "label": r["label"],
+            "wallet_address": r["wallet_address"],
+            "created_at": r["created_at"],
+        }
+        for r in _v2_rows(user_id)
+    ]
+
+
+def get_user_wallets_by_network(user_id, network):
+    return [w for w in list_user_wallets(user_id) if w["network"] == network]
+
+
+def delete_user_wallet_by_id(user_id, wallet_id, master_password=None):
+    user_id = str(user_id)
+    if has_master_password(user_id):
+        if not verify_master_password(user_id, master_password or ""):
+            raise RuntimeError("Wrong master password.")
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        cur = con.execute(
+            "DELETE FROM user_wallets_v2 WHERE id=? AND user_id=?", (int(wallet_id), user_id)
+        )
+        con.commit()
+        deleted = cur.rowcount
+    # If no wallets remain, drop the master verifier so the user can start fresh.
+    if not _v2_rows(user_id):
+        with closing(sqlite3.connect(DB_PATH)) as con:
+            con.execute("DELETE FROM wallet_master WHERE user_id=?", (user_id,))
+            con.commit()
+    return deleted > 0
+
+
+def send_from_wallet(user_id, wallet_id, master_password, to_address, amount, asset=None):
+    """Decrypt the chosen wallet's key (transiently) and send, reusing the
+    existing per-network transfer logic."""
+    user_id = str(user_id)
+    row = _get_v2_wallet(user_id, wallet_id)
+    if not row:
+        raise RuntimeError("Wallet not found.")
+    if not verify_master_password(user_id, master_password):
+        raise RuntimeError("Wrong master password.")
+    private_key = decrypt_key(row["encrypted_key"], row["salt"], master_password)
+    return send_with_private_key(row["network"], private_key, to_address, amount)
+
+
+def list_wallet_balances(user_id):
+    """Balances for ALL of the user's wallets, fetched from public addresses
+    (no master password needed)."""
+    wallets = list_user_wallets(user_id)
+    from balance import get_wallet_balances
+
+    items = [{"network": w["network"], "address": w["wallet_address"]} for w in wallets]
+    balances = get_wallet_balances(items)
+    out = []
+    for w, b in zip(wallets, balances):
+        entry = dict(w)
+        entry["balance"] = b.get("balance")
+        entry["native_balance"] = b.get("native")
+        entry["asset"] = b.get("asset")
+        out.append(entry)
+    return out
+
+
+# ===========================================================================
+# Legacy single-wallet API — kept working as thin wrappers over the v2 table
+# so existing call sites in bot.py / app.py keep functioning. These operate on
+# the user's PRIMARY (first) wallet.
+# ===========================================================================
+def save_user_wallet(user_id, encrypted_key, salt, network, wallet_address):
+    """Legacy save. Stores the wallet in user_wallets_v2 (de-duplicated by
+    address) so there is a single source of truth."""
+    user_id = str(user_id)
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.execute(
+            "DELETE FROM user_wallets_v2 WHERE user_id=? AND network=? AND IFNULL(wallet_address,'')=IFNULL(?,'')",
+            (user_id, network, wallet_address),
+        )
+        con.execute(
+            "INSERT INTO user_wallets_v2 (user_id, network, label, wallet_address, encrypted_key, salt) VALUES (?,?,?,?,?,?)",
+            (user_id, network, None, wallet_address, encrypted_key, salt),
         )
         con.commit()
 
 
 def get_user_wallet(user_id):
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        return con.execute(
-            "SELECT encrypted_key, salt, network, wallet_address FROM user_wallets WHERE user_id=?",
-            (user_id,),
-        ).fetchone()
+    rows = _v2_rows(user_id)
+    if not rows:
+        return None
+    r = rows[0]
+    return (r["encrypted_key"], r["salt"], r["network"], r["wallet_address"])
 
 
 def get_user_evm_wallet(user_id):
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        return con.execute(
-            "SELECT encrypted_key, salt, network, wallet_address FROM user_wallets WHERE user_id=? AND network NOT LIKE 'solana%' AND network != 'trc20' AND network != 'ton'",
-            (user_id,),
-        ).fetchone()
+    for r in _v2_rows(user_id):
+        net = r["network"]
+        if not net.startswith("solana") and net not in ("trc20", "ton"):
+            return (r["encrypted_key"], r["salt"], net, r["wallet_address"])
+    return None
 
 
 def get_user_solana_wallet(user_id):
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        return con.execute(
-            "SELECT encrypted_key, salt, network, wallet_address FROM user_wallets WHERE user_id=? AND network LIKE 'solana%'",
-            (user_id,),
-        ).fetchone()
+    for r in _v2_rows(user_id):
+        if r["network"].startswith("solana"):
+            return (r["encrypted_key"], r["salt"], r["network"], r["wallet_address"])
+    return None
 
 
 def delete_user_wallet(user_id):
+    """Legacy: delete ALL wallets for the user plus the master verifier."""
+    user_id = str(user_id)
     with closing(sqlite3.connect(DB_PATH)) as con:
-        con.execute("DELETE FROM user_wallets WHERE user_id=?", (user_id,))
+        con.execute("DELETE FROM user_wallets_v2 WHERE user_id=?", (user_id,))
+        con.execute("DELETE FROM wallet_master WHERE user_id=?", (user_id,))
         con.commit()
 
 
 def get_wallet_address(network, private_key):
     try:
-        if network == "solana":
+        if network.startswith("solana"):
             import base58
             from solders.keypair import Keypair
 
             keypair = Keypair.from_bytes(base58.b58decode(private_key))
             return str(keypair.pubkey())
+        if network == "ton":
+            # TON keys/addresses are managed externally; the import flow stores
+            # the address the user provides, so derivation is best-effort.
+            return None
         if network == "trc20":
             from tron_utils import tron_private_key
 
@@ -151,7 +443,7 @@ def get_user_balance(user_id, password):
 def send_from_user_wallet(user_id, password, dest_wallet, amount):
     row = get_user_wallet(user_id)
     if not row:
-        raise RuntimeError("Wallet setup করা নেই!")
+        raise RuntimeError("Wallet setup করা ন��ই!")
 
     encrypted_key, salt, network, _wallet_address = row
     try:
