@@ -1,6 +1,6 @@
 import os
 from flask import send_from_directory
-from app import app as api_app
+from app import app as api_app, socketio
 
 frontend_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "build"))
 
@@ -17,4 +17,4 @@ def serve(path):
     return f"Not Found: {path}", 404
 
 if __name__ == '__main__':
-    api_app.run(host='0.0.0.0', port=5001)
+    socketio.run(api_app, host='0.0.0.0', port=5001)

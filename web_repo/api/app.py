@@ -9,7 +9,7 @@ import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit, broadcast
+from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 import sys
 import requests as http_requests
@@ -59,7 +59,7 @@ def broadcast_sellers_update():
                 'bkash_number': s[3],
                 'networks': networks,
             })
-        socketio.emit('sellers_updated', {'sellers': result}, broadcast=True)
+        socketio.emit('sellers_updated', {'sellers': result})
     except Exception as exc:
         logger.error("Broadcast sellers update failed: %s", exc)
 
@@ -1178,4 +1178,4 @@ def tool_telegram_forward(current_user):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    socketio.run(app, host='0.0.0.0', port=5001)
