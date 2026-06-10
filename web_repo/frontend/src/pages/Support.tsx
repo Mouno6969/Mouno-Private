@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
-import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare } from 'lucide-react';
+import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare, X } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -28,6 +28,7 @@ const Support: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const welcomeMessages = useMemo<Message[]>(() => {
@@ -62,6 +63,7 @@ const Support: React.FC = () => {
   // Load messages for a specific session.
   const openSession = useCallback(async (sessionId: number) => {
     setActiveSessionId(sessionId);
+    setHistoryOpen(false);
     if (!token) return;
     try {
       const res = await fetch(`${API}/api/ai/sessions/${sessionId}/messages`, { headers: authHeaders });
@@ -83,6 +85,7 @@ const Support: React.FC = () => {
     setActiveSessionId(null);
     setMessages(welcomeMessages);
     setInput('');
+    setHistoryOpen(false);
   }, [welcomeMessages]);
 
   const deleteSession = useCallback(async (sessionId: number, e: React.MouseEvent) => {
@@ -233,6 +236,24 @@ const Support: React.FC = () => {
             >
               <Plus className="h-3 w-3" /> {i18n.language === 'bn' ? 'নতুন' : 'New'}
             </Button>
+            <div className="md:hidden flex items-center gap-1">
+              <Button
+                onClick={() => setHistoryOpen(true)}
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] uppercase tracking-widest gap-1 text-white"
+              >
+                <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'হিস্টোরি' : 'History'}
+              </Button>
+              <Button
+                onClick={startNewChat}
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[10px] uppercase tracking-widest gap-1 text-primary"
+              >
+                <Plus className="h-3 w-3" /> {i18n.language === 'bn' ? 'নতুন' : 'New'}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 min-h-0 overflow-hidden p-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px]">
             <div ref={scrollRef} className="h-full overflow-y-auto p-4">
@@ -286,6 +307,74 @@ const Support: React.FC = () => {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Mobile chat history panel */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setHistoryOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute left-0 top-0 h-full w-[80%] max-w-xs bg-black border-r border-white/20 flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <span className="text-xs uppercase tracking-tighter flex items-center gap-2 text-white">
+                <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'চ্যাট হিস্টোরি' : 'Chat History'}
+              </span>
+              <Button
+                onClick={() => setHistoryOpen(false)}
+                size="icon"
+                variant="ghost"
+                aria-label="close history"
+                className="h-7 w-7 text-white"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-3 border-b border-white/10">
+              <Button
+                onClick={startNewChat}
+                className="w-full bg-white text-black hover:bg-white/90 uppercase text-xs tracking-widest gap-2 h-9"
+              >
+                <Plus className="h-4 w-4" /> {i18n.language === 'bn' ? 'নতুন চ্যাট' : 'New Chat'}
+              </Button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-2">
+              {!token ? (
+                <p className="text-[10px] text-muted-foreground px-2">
+                  {i18n.language === 'bn' ? 'হিস্টোরি দেখতে লগইন করুন।' : 'Log in to keep chat history.'}
+                </p>
+              ) : sessions.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground px-2">
+                  {i18n.language === 'bn' ? 'এখনো কোনো চ্যাট নেই।' : 'No conversations yet.'}
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => openSession(s.id)}
+                      className={`group w-full flex items-center justify-between gap-2 px-2 py-2 text-left text-[11px] border transition-colors ${
+                        activeSessionId === s.id
+                          ? 'border-white/40 bg-white/10 text-white'
+                          : 'border-transparent hover:border-white/20 hover:bg-white/5 text-muted-foreground'
+                      }`}
+                    >
+                      <span className="truncate flex-1">{s.title || 'New chat'}</span>
+                      <Trash2
+                        className="h-3 w-3 shrink-0 opacity-60 hover:!opacity-100 hover:text-red-400"
+                        onClick={(e) => deleteSession(s.id, e)}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
