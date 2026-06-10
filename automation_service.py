@@ -14,7 +14,6 @@ This module is intentionally Telegram-agnostic. The actual transaction signing /
 broadcasting executor lives in bot.py (where all wallet + chain helpers exist).
 """
 
-import calendar
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timedelta
@@ -27,6 +26,7 @@ from db import DB_PATH, gen_order_id
 INTERVAL_SECONDS = {
     "daily": 24 * 60 * 60,
     "weekly": 7 * 24 * 60 * 60,
+    "monthly": 30 * 24 * 60 * 60,
 }
 
 LIMIT_DIRECTIONS = {"below", "above"}
@@ -95,7 +95,7 @@ def init_automation_tables():
             """
         )
         con.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_buys_user ON scheduled_buys(user_id)")
-        con.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_buys_status_next_run ON scheduled_buys(status, next_run)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_buys_status ON scheduled_buys(status)")
         con.commit()
 
 
@@ -120,12 +120,6 @@ def create_limit_order(user_id, intent, watch_symbol, direction, target_price, p
     direction = str(direction).lower()
     if direction not in LIMIT_DIRECTIONS:
         raise ValueError("direction must be 'below' or 'above'")
-    try:
-        target_price = Decimal(str(target_price))
-        if target_price <= 0:
-            raise ValueError("target_price must be positive")
-    except (InvalidOperation, ValueError) as exc:
-        raise ValueError(f"Invalid target price: {exc}") from exc
     enc_password, pw_salt = seal_password(password)
     order_id = gen_order_id("LMT")
     with closing(sqlite3.connect(DB_PATH)) as con:
@@ -218,19 +212,13 @@ def limit_should_trigger(direction, target_price, current_price):
 # ---------------------------------------------------------------------------
 def _next_run_from(interval_key, start=None):
     start = start or datetime.utcnow()
-    if interval_key == "monthly":
-        month = start.month
-        year = start.year + (month // 12)
-        month = (month % 12) + 1
-        day = min(start.day, calendar.monthrange(year, month)[1])
-        return start.replace(year=year, month=month, day=day)
     seconds = INTERVAL_SECONDS.get(interval_key, INTERVAL_SECONDS["weekly"])
     return start + timedelta(seconds=seconds)
 
 
 def create_scheduled_buy(user_id, intent, interval_key, password):
     interval_key = str(interval_key).lower()
-    if interval_key not in INTERVAL_SECONDS and interval_key != "monthly":
+    if interval_key not in INTERVAL_SECONDS:
         raise ValueError("interval must be daily, weekly, or monthly")
     enc_password, pw_salt = seal_password(password)
     schedule_id = gen_order_id("SCH")
@@ -308,16 +296,9 @@ def set_scheduled_status(schedule_id, user_id, status):
     if status not in {"active", "paused", "cancelled"}:
         raise ValueError("invalid status")
     with closing(sqlite3.connect(DB_PATH)) as con:
-        con.row_factory = sqlite3.Row
         if status == "active":
             # Re-arm the next run when resuming.
-            row = con.execute(
-                "SELECT interval_key FROM scheduled_buys WHERE schedule_id=? AND user_id=?",
-                (schedule_id, str(user_id)),
-            ).fetchone()
-            if not row:
-                return False
-            next_run = _next_run_from(row["interval_key"]).isoformat()
+            next_run = _next_run_from("daily").isoformat()
             cur = con.execute(
                 "UPDATE scheduled_buys SET status='active', next_run=? WHERE schedule_id=? AND user_id=?",
                 (next_run, schedule_id, str(user_id)),

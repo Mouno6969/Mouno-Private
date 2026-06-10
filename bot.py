@@ -1311,7 +1311,7 @@ def ask_ai_support(question, lang="bn", context=None):
             for f in futures:
                 f.cancel()
     elif fast_batch:
-        #• Only one fast provider, call directly
+        # Only one fast provider, call directly
         provider = fast_batch[0]
         tried.append(AI_PROVIDER_LABELS[provider])
         try:
@@ -1586,7 +1586,7 @@ def swap_setup_keyboard(lang="bn"):
 
 def swap_setup_provider_prompt(provider, lang="bn"):
     label = SWAP_PROVIDER_LABELS[provider]
-    return panel("🔑 Swap API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।"))
+    return panel("🔑 Swap API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করত��� /cancel, cancel, অথবা বাতিল লিখুন।"))
 
 
 def swap_chains(context):
@@ -1640,8 +1640,6 @@ def swap_chain_keyboard(chains, target="from", page=0, lang="bn"):
     if nav:
         rows.append(nav)
     rows.append([InlineKeyboardButton("🔎 Search" if lang == "en" else "🔎 সার্চ", callback_data=f"swap_{target}_search")])
-    if target == "from":
-        rows.append([InlineKeyboardButton("⚙️ Smart Trading" if lang == "en" else "⚙️ স্মার্ট ট্রেডিং", callback_data="auto_menu")])
     rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")])
     return InlineKeyboardMarkup(rows)
 
@@ -1919,7 +1917,7 @@ def free_service_text(lang):
     body = ltext(
         lang,
         "Choose a free tool below.\n\nTelegram Message Forwarder sends one message to approved Telegram groups/channels. Solana ATA Refund checks empty Associated Token Accounts and can close them to return refundable rent SOL to the same wallet. Telegram ID Finder helps find user/group/channel IDs from usernames, public links, forwarded messages, or the current chat.",
-        "নিচের free tool বেছে নিন।\n\nTelegram Message Forwarder দিয়ে approved Telegram group/channel-এএ message পাঠানো যায়। Solana ATA Refund empty Associated Token Account check করে closable rent SOL একই wallet-এ ফেরত দিতে পারে। Telegram ID Finder username, public link, forwarded message অথবা current chat থেকে user/group/channel ID বের করতে সাহায্য করে।",
+        "নিচের free tool বেছে নিন।\n\nTelegram Message Forwarder দিয়ে approved Telegram group/channel-এ message পাঠানো যায়। Solana ATA Refund empty Associated Token Account check করে closable rent SOL একই wallet-এ ফেরত দিতে পারে। Telegram ID Finder username, public link, forwarded message অথবা current chat থেকে user/group/channel ID বের করতে সাহায্য করে।",
     )
     return panel(tr("free_service", lang), body)
 
@@ -1939,7 +1937,7 @@ def telegram_id_finder_text(lang):
         ltext(
             lang,
             "This tool helps you find Telegram user, group, or channel IDs.\n\nHow to use\n1. Tap Start ID Finder.\n2. Send a public @username or public t.me/telegram.me link.\n3. Or forward a message from the user/group/channel.\n4. Or use it inside a group/channel where the bot can read messages to see the current chat ID.\n\nNotes\n• Public usernames/links can be resolved directly.\n• Private group/channel IDs usually require the bot/account to have access, or a forwarded message with visible origin.\n• If Telegram hides the forward sender for privacy, the bot cannot reveal that hidden ID.",
-            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-এ���� ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে ��া।",
+            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-���� ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে ��া।",
         ),
     )
 
@@ -2081,7 +2079,7 @@ def solana_refund_text(lang, wallet=None, summary=None):
         ),
         "",
         ltext(lang, "Important:", "গুরুত্বপূর্ণ:"),
-        ltext(lang, "��• Only your own Solana wallet should be connected.", "• শুধু নিজের Solana wallet connect করবেন।"),
+        ltext(lang, "�� Only your own Solana wallet should be connected.", "• শুধু নিজের Solana wallet connect করবেন।"),
         ltext(lang, "• ATAs with token balances will not be closed.", "• Token balance থাকা ATA close করা হবে না।"),
         ltext(lang, "• Solana network fee applies when refunding.", "• Refund করার সময় Solana network fee লাগবে।"),
     ]
@@ -2222,15 +2220,15 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "• Use Stop scheduled forward to stop repeats, and Disconnect token to remove the connected token from this session.\n\n"
         f"Bot token: {status}\nPersonal account: {personal_status}\nScheduled forward: {schedule}",
         "এটা কী?\n"
-        "নিজের connected Telegram bot token অথবা নিজের personal Telegram account session দিয়ে approved group/channel-এএ একই message পাঠানোর সার্ভিস।\n\n"
+        "নিজের connected Telegram bot token অথবা নিজের personal Telegram account session দিয়ে approved group/channel-এ একই message পাঠানোর সার্ভিস।\n\n"
         "সুবিধাসমূহ\n"
-        "• Bot-token mode সহজ—যেসব group/channel-এএ আপনার bot add করা আছে সেখানে ব্যবহার করা যায়।\n"
-        "• Personal-account mode-এ আপনার নিজের account দিয়ে সেই group/channel-এএ post করা যায় যেখানে account member এবং permission আছে।\n"
+        "• Bot-token mode সহজ—যেসব group/channel-এ আপনার bot add করা আছে সেখানে ব্যবহার করা যায়।\n"
+        "• Personal-account mode-এ আপনার নিজের account দিয়ে সেই group/channel-এ post করা যায় যেখানে account member এবং permission আছে।\n"
         "• একবার forward এবং নির্দিষ্ট সময় পরপর forward—দুটিই supported; spam/account-risk কমাতে rate-limit আছে।\n\n"
         "কীভাবে ব্যবহার করবেন\n"
         "১. Free Service খুলে Telegram Message Forwarder চাপুন।\n"
         "২. @BotFather থেকে bot token তৈরি/copy করুন।\n"
-        "৩. যেসব group/channel-এএ পাঠাতে চান, সেসব জায়গায় ওই bot add করুন। Channel বা restricted group হলে bot-কে admin করুন অথবা post করার permission দিন।\n"
+        "৩. যেসব group/channel-এ পাঠাতে চান, সেসব জায়গায় ওই bot add করুন। Channel বা restricted group হলে bot-কে admin করুন অথবা post করার permission দিন।\n"
         "৪. Connect Telegram token চাপুন এবং token পাঠান। Check করার পর token message delete করা হবে।\n"
         "৫. অথবা Connect personal account চাপুন এবং secure web login link খুলুন। Telegram API ID, API hash, phone number, login code এবং Telegram চাইলে 2FA password সেখানে দিন। Telegram chat-এ login code কখনো পাঠাবেন না। Session শুধু bot memory-তে থাকবে।\n"
         "৬. Forward with bot token অথবা Forward with personal account চাপুন।\n"
@@ -2246,7 +2244,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "গুরুত্বপূর্ণ\n"
         "• Private invite link সরাসরি কাজ করে না; bot member হওয়ার পর chat ID ব্যবহার করুন।\n"
         "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
-        "• Personal account forwarding শুধু সেই group/channel-এএর জন্য যেখানে আপনার account member এবং post করার permission/consent আছে। Spam/account-risk কমাতে rate-limit আছে।\n"
+        "• Personal account forwarding শুধু সেই group/channel-এর জন্য যেখানে আপনার account member এবং post করার permission/consent আছে। Spam/account-risk কমাতে rate-limit আছে।\n"
         "• বারবার forward বন্ধ করতে Stop scheduled forward, token/session সরাতে Disconnect ব্যবহার করুন।\n\n"
         f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট সময়ের forward: {schedule}",
     )
@@ -4391,7 +4389,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ltext(
                 lang,
                 "👤 Personal account login\n\nOnly connect your own Telegram account. Use this only for groups/channels where you have permission to post.\n\nOpen the secure web login link below. Enter the Telegram login code only on that web page—never in Telegram chat. The link expires in 10 minutes.",
-                "👤 Personal account login\n\nশুধু নিজের Telegram account connect করুন। শুধু সেই group/channel-এএ ব্যবহার করুন যেখানে post করার permission আছে।\n\nনিচের secure web login link খুলুন। Telegram login code শুধু ওই web page-এ দিন—Telegram chat-এ কখনো নয়। Link ১০ মিনিট পর expire হবে।",
+                "👤 Personal account login\n\nশুধু নিজের Telegram account connect করুন। শুধু সেই group/channel-এ ব্যবহার করুন যেখানে post করার permission আছে।\n\nনিচের secure web login link খুলুন। Telegram login code শুধু ওই web page-এ দিন—Telegram chat-এ কখনো নয়। Link ১০ মিনিট পর expire হবে।",
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -4826,7 +4824,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ Order not found.")
             return ConversationHandler.END
         if str(order[1]) != user_id:
-            await query.edit_message_text("🚫• Only the assigned seller can approve this order.")
+            await query.edit_message_text("🚫 Only the assigned seller can approve this order.")
             return ConversationHandler.END
         if query.data.startswith("sorderr_"):
             update_seller_order(order_id, status="rejected")
@@ -4963,7 +4961,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ltext(
                 lang,
                 "🧠 Send the Honcho API key (from app.honcho.dev) in the next message.\n\nThe message will be deleted automatically for security. Send /cancel to abort.",
-                "🧠 পরবর্তী মেসেজে Honcho API key (app.honcho.dev থেকে) পাঠান।\n\nনিরাপত্তার জন্য মেসেজটি স্বয়ংক্রিয়ভাবে মুছে ফেলা হবে���। বাতিল করতে /cancel লিখুন।",
+                "🧠 পরবর্তী মেসেজে Honcho API key (app.honcho.dev থেকে) পাঠান।\n\nনিরাপত্তার জন্য মেসেজটি স্বয়ংক্রিয়ভাবে মুছে ফেলা হব���। বাতিল করতে /cancel লিখুন।",
             ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="honcho_setup")]]),
         )
@@ -5036,7 +5034,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_swap_flow(query, context, lang)
 
     elif query.data == "swap_cancel":
-        _clear_auto(context)
         context.user_data.clear()
         await query.edit_message_text(ltext(lang, "✅ Swap flow cancelled.", "✅ Swap flow বাতিল হয়েছে।"), reply_markup=main_menu(user_id, lang))
 
@@ -5642,7 +5639,6 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Swap API Setup cancelled." if lang == "en" else "✅ Swap API Setup বাতিল হয়েছে।", reply_markup=swap_setup_keyboard(lang))
         return ConversationHandler.END
     if context.user_data.get("swap_step"):
-        _clear_auto(context)
         context.user_data.clear()
         await update.message.reply_text("✅ Swap flow cancelled." if lang == "en" else "✅ Swap flow বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
         return ConversationHandler.END
@@ -7516,7 +7512,6 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         return False
     text = incoming_text.strip()
     if text.lower() in {"/cancel", "cancel", "close", "stop", "বন্ধ", "বাতিল"}:
-        _clear_auto(context)
         context.user_data.clear()
         await update.message.reply_text(ltext(lang, "✅ Swap flow cancelled.", "✅ Swap flow বাতিল হয়েছে।"), reply_markup=main_menu(user_id, lang))
         return True
@@ -7651,15 +7646,10 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Try again.", "❌ ভুল পাসওয়ার্ড। আবার দিন।"), reply_markup=swap_cancel_keyboard(lang))
             return True
         try:
-            # Resolve to_token symbol to address for reliable price polling later
-            loop = asyncio.get_running_loop()
-            token_info = await loop.run_in_executor(None, lambda: fetch_token(intent["to_chain_id"], intent["to_token"], api_key=swap_provider_key("lifi")))
-            intent["to_token"] = token_info["address"]
-
             order_id = create_limit_order(
                 user_id,
                 intent,
-                watch_symbol=token_info.get("symbol") or intent.get("to_token"),
+                watch_symbol=intent.get("to_token"),
                 direction=context.user_data.get("auto_direction", "below"),
                 target_price=context.user_data.get("auto_target_price"),
                 password=password,
@@ -7974,21 +7964,7 @@ async def execute_automation_swap(bot, app, user_id, intent, password, lang):
                 None,
                 lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0), rpc_url=rpc_url),
             )
-
-        # 3. Wait for confirmation and cross-chain settlement
-        await asyncio.sleep(20)
-        for _ in range(12):  # Wait up to 6 minutes (12 * 30s)
-            try:
-                status = await loop.run_in_executor(None, lambda: get_lifi_status(from_chain_id, swap_hash, api_key=swap_provider_key("lifi")))
-                if status["status"] == "DONE":
-                    return True, swap_hash
-                if status["status"] == "FAILED":
-                    return False, f"On-chain execution failed. Hash: {swap_hash}"
-            except Exception:
-                pass
-            await asyncio.sleep(30)
-
-        return True, swap_hash  # Fallback: assume success if it takes too long
+        return True, swap_hash
     except Exception as exc:
         logger.error("Automation swap failed for %s: %s", user_id, exc)
         return False, str(exc)
