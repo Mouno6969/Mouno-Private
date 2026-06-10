@@ -527,7 +527,7 @@ def failure_reason_text(error, network=None, lang="bn"):
         bn = "সম্ভবত payment amount/user mismatch. Admin-এর bKash/Stars receipt, exact amount, payer/order এবং TrxID manually verify করা উচিত।"
     elif any(word in text for word in ["duplicate", "already used", "trxid"]):
         en = "Likely duplicate or incorrect TrxID. Check whether the TrxID was already used or typed incorrectly."
-        bn = "সম্ভবত duplicate বা ভুল TrxID. TrxID আগে ব্যবহার হয়েছে কিনা বা ভুল টাইপ হয়েছে কিনা চেক কর���ন।"
+        bn = "সম্ভবত duplicate বা ভুল TrxID. TrxID আগে ব্যবহার হয়েছে কিনা বা ভুল টাইপ হয়েছে কিনা চেক ���র���ন।"
     elif any(word in text for word in ["seller not approved", "seller wallet", "not enabled"]):
         en = "Likely seller setup issue. The assigned seller may need approval, an enabled delivery wallet, stock, and gas."
         bn = "সম্ভবত seller setup issue. Assigned seller-এর approval, enabled delivery wallet, stock এবং gas দরকার হতে পারে।"
@@ -1404,7 +1404,7 @@ def ai_status_text(lang="bn"):
         "Admin diagnostic: /aiadmin why order failed ORD-XXXXXX",
     ]
     if not any(keys.values()):
-        lines.append(ltext(lang, "Add an API key from Admin Menu → ⚙️ AI Setup, or set a .env key and restart.", "Admin Menu → ⚙️ AI Setup থেকে key দিন, অথবা .env key সেট করে restart করুন।"))
+        lines.append(ltext(lang, "Add an API key from Admin Menu → ⚙️ AI Setup, or set a .env key and restart.", "Admin Menu → ⚙️ AI Setup থেকে key দিন, অথবা .env key সেট ক��ে restart করুন।"))
     return panel("🤖 AI Status", "\n".join(lines))
 
 
@@ -2786,7 +2786,7 @@ tail -50 bot.out"""
     return (
         "♻️ Safe Restart Guide\n"
         f"{DIVIDER}\n"
-        "⚠️ Bot থেকে restart command execute করা হবে না; safety guide only.\n"
+        "���️ Bot থেকে restart command execute করা হবে না; safety guide only.\n"
         "✅ Restart করার আগে অবশ্যই `git pull origin main` চালান।\n"
         "❌ `py_compile` fail করলে bot start করবেন না; আগে error fix করুন।\n"
         "✅ Start এর পর `bot.out` এ `Bot started!` বা polling/webhook logs দেখা উচিত।\n\n"
@@ -3500,6 +3500,7 @@ def network_menu(prefix, lang="bn"):
     cancel_callback = {
         "network": "cancel",
         "uw": "uw_cancel",
+        "mwu": "mwu_cancel",
         "setrate": "back",
         "gencode": "back",
         "giveaway": "cancel",
@@ -3520,6 +3521,10 @@ def network_menu(prefix, lang="bn"):
 
 def user_network_menu(lang="bn"):
     return network_menu("uw", lang)
+
+
+def mw_user_network_menu(lang="bn"):
+    return network_menu("mwu", lang)
 
 
 def rates_text(title=None, lang="bn"):
@@ -3950,7 +3955,7 @@ async def show_seller_rates(query, seller_id, lang):
 async def show_seller_pending(query, seller_id, lang):
     rows = list_pending_seller_orders(seller_id, 10)
     if not rows:
-        await query.edit_message_text("✅ Pending/manual seller order নে���।", reply_markup=back_keyboard(lang))
+        await query.edit_message_text("✅ Pending/manual seller order ���ে���।", reply_markup=back_keyboard(lang))
         return
     for row in rows:
         order_id = row[0]
@@ -8221,7 +8226,7 @@ async def setup_key_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         wallet_address = get_wallet_address(network, private_key)
     except Exception as exc:
-        await update.message.reply_text(ltext(lang, f"❌ Invalid private key.\n\n{exc}\n\nPlease try again:", f"❌ Invalid Private Key!\n\n{exc}\n\nআবার চেষ্টা করুন:"))
+        await update.message.reply_text(ltext(lang, f"❌ Invalid private key.\n\n{exc}\n\nPlease try again:", f"❌ Invalid Private Key!\n\n{exc}\n\nআবার চেষ্টা ক��ুন:"))
         return SETUP_KEY
     context.user_data["uw_private_key"] = private_key
     context.user_data["uw_wallet_address"] = wallet_address
@@ -8273,7 +8278,7 @@ async def send_wallet_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     network = row[2]
     net_info = NETWORKS.get(network, {"name": network})
-    await update.message.reply_text(ltext(lang, f"💸 Send Crypto\n\n🌐 {net_info['name']}\n👛 {row[3]}\n\nEnter the destination wallet address:\n\n📋 Example: {wallet_hint(network)}", f"💸 Crypto পাঠানো\n\n🌐 {net_info['name']}\n👛 {row[3]}\n\nDestination wallet address দিন:\n\n📋 উদাহরণ: {wallet_hint(network)}"))
+    await update.message.reply_text(ltext(lang, f"💸 Send Crypto\n\n🌐 {net_info['name']}\n👛 {row[3]}\n\nEnter the destination wallet address:\n\n📋 Example: {wallet_hint(network)}", f"💸 Crypto প��ঠানো\n\n🌐 {net_info['name']}\n👛 {row[3]}\n\nDestination wallet address দিন:\n\n📋 উদাহরণ: {wallet_hint(network)}"))
     return SEND_W_DEST
 
 
@@ -8545,7 +8550,7 @@ async def addwallet_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(ltext(lang, "🛠️ Under maintenance. Please try later.", "🛠️ রক্ষণাবেক্ষণ চলছে। পরে চেষ্টা করুন।"))
         return ConversationHandler.END
     context.user_data["mw_mode"] = "add"
-    await msg.reply_text(ltext(lang, "➕ Add Wallet\n\nSelect the network:\n\n⚠️ Private keys are encrypted with your master password.", "➕ Wallet যোগ\n\nNetwork বেছে নিন:\n\n⚠️ Private Key আপনার master password দিয়ে encrypt হবে।"), reply_markup=user_network_menu(lang))
+    await msg.reply_text(ltext(lang, "➕ Add Wallet\n\nSelect the network:\n\n⚠️ Private keys are encrypted with your master password.", "➕ Wallet যোগ\n\nNetwork বেছে নিন:\n\n⚠️ Private Key আপনার master password দিয়ে encrypt হবে।"), reply_markup=mw_user_network_menu(lang))
     return SETUP_NETWORK
 
 
@@ -8553,10 +8558,10 @@ async def mw_network_selected(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     lang = user_lang(query.from_user.id)
-    if query.data == "uw_cancel":
+    if query.data == "mwu_cancel":
         await query.edit_message_text(ltext(lang, "❌ Cancelled.", "❌ বাতিল হয়েছে।"))
         return ConversationHandler.END
-    network = query.data.replace("uw_", "")
+    network = query.data.replace("mwu_", "")
     context.user_data["mw_network"] = network
     net_info = NETWORKS.get(network, {"name": network, "symbol": "?"})
     keyboard = [[
@@ -8855,7 +8860,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     delete_user_wallet(str(update.effective_user.id))
-    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দেয়া হয়েছে!\n\nনতুন wallet setup করুন:"))
+    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 প���রনো key মুছে দেয়া হয়েছে!\n\nনতুন wallet setup করুন:"))
     return await setup_cmd(update, context)
 
 
@@ -8982,7 +8987,7 @@ async def complete_pending_order_from_sms(app, pending, sms_amount_bdt):
                     int(user_id),
                     f"✅ Payment verified, but crypto delivery failed. Admin has been notified.\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}"
                     if target_lang == "en"
-                    else f"✅ Payment verified, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জানানো হয়েছে।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}",
+                    else f"✅ Payment verified, কিন্তু crypto পাঠাতে সমস্যা হয়েছে। Admin-কে জা��ানো হয়েছে।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {failure_reason_text(exc, network, target_lang)}\n📞 @{SUPPORT_USERNAME.lstrip('@')}",
                     reply_markup=track_order_keyboard(order_id or trx_id, user_id, target_lang),
                 )
         except Exception:
@@ -9046,7 +9051,7 @@ async def main():
     mw_add_conv = ConversationHandler(
         entry_points=[CommandHandler("addwallet", addwallet_cmd), CallbackQueryHandler(addwallet_cmd, pattern="^mw_add$")],
         states={
-            SETUP_NETWORK: [CallbackQueryHandler(mw_network_selected, pattern="^uw_")],
+            SETUP_NETWORK: [CallbackQueryHandler(mw_network_selected, pattern="^mwu_")],
             MW_ADD_KEY: [CallbackQueryHandler(mw_create_or_import, pattern="^mwc_(create|import)$"), MessageHandler(filters.TEXT & ~filters.COMMAND, mw_key_received)],
             MW_ADD_LABEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, mw_label_received)],
             MW_ADD_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, mw_password_received)],
