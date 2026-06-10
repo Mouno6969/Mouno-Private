@@ -235,6 +235,187 @@ def check_gas_sufficient(network):
     return True, None, threshold, symbol
 
 
+# ===========================================================================
+# Address-based balance lookups (no private key required).
+# Used by the multi-wallet dashboard so balances render without the master
+# password. Each helper takes a public address + network.
+# ===========================================================================
+def get_evm_balance_by_address(network, address):
+    try:
+        rpc = RPCS.get(network)
+        contract_info = CONTRACTS.get(network)
+        if not address or not rpc or not contract_info:
+            return None
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 8}))
+        account = Web3.to_checksum_address(address)
+        contract = w3.eth.contract(address=Web3.to_checksum_address(contract_info["address"]), abi=ERC20_ABI)
+        balance = contract.functions.balanceOf(account).call()
+        return round(balance / 10 ** contract_info["decimals"], 4)
+    except Exception:
+        return None
+
+
+def get_evm_native_by_address(network, address):
+    try:
+        rpc = RPCS.get(network)
+        if not address or not rpc:
+            return None
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 8}))
+        account = Web3.to_checksum_address(address)
+        return round(float(w3.from_wei(w3.eth.get_balance(account), "ether")), 6)
+    except Exception:
+        return None
+
+
+def _solana_token_balance_by_address(address, mint):
+    try:
+        if not address:
+            return None
+        response = requests.post(
+            "https://api.mainnet-beta.solana.com",
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getTokenAccountsByOwner",
+                "params": [address, {"mint": mint}, {"encoding": "jsonParsed"}],
+            },
+            timeout=10,
+        ).json()
+        accounts = response.get("result", {}).get("value", [])
+        if accounts:
+            amount = accounts[0]["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
+            return round(float(amount), 4)
+        return 0.0
+    except Exception:
+        return None
+
+
+def get_solana_balance_by_address(address):
+    # USDC mint by default (matches NETWORK_MAP asset for solana).
+    return _solana_token_balance_by_address(address, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+
+
+def get_solana_usdt_balance_by_address(address):
+    return _solana_token_balance_by_address(address, "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")
+
+
+def get_solana_native_by_address(address):
+    try:
+        if not address:
+            return None
+        response = requests.post(
+            "https://api.mainnet-beta.solana.com",
+            json={"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [address]},
+            timeout=10,
+        ).json()
+        value = response.get("result", {}).get("value")
+        return round(value / 10**9, 6) if value is not None else None
+    except Exception:
+        return None
+
+
+def get_tron_balance_by_address(address):
+    try:
+        if not address:
+            return None
+        client = tron_client()
+        contract = client.get_contract("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
+        balance = contract.functions.balanceOf(address)
+        return round(balance / 10**6, 4)
+    except Exception:
+        return None
+
+
+def get_tron_native_by_address(address):
+    try:
+        if not address:
+            return None
+        client = tron_client()
+        return round(float(client.get_account_balance(address)), 6)
+    except Exception:
+        return None
+
+
+def get_balance_by_address(network, address):
+    """Token (asset) balance for a single {network, address}."""
+    if not address:
+        return None
+    if network == "solana":
+        return get_solana_balance_by_address(address)
+    if network == "solana_usdt":
+        return get_solana_usdt_balance_by_address(address)
+    if network == "trc20":
+        return get_tron_balance_by_address(address)
+    if network == "ton":
+        return get_ton_balance(address)
+    return get_evm_balance_by_address(network, address)
+
+
+def get_native_by_address(network, address):
+    """Native/gas balance for a single {network, address}."""
+    if not address:
+        return None
+    if network.startswith("solana"):
+        return get_solana_native_by_address(address)
+    if network == "trc20":
+        return get_tron_native_by_address(address)
+    if network == "ton":
+        return get_ton_balance(address)
+    return get_evm_native_by_address(network, address)
+
+
+def get_wallet_balances(items):
+    """Fetch balances for a list of {network, address} dicts in parallel.
+    Returns a list (same order) of {network, address, balance, native, asset}.
+    """
+    asset_map = {
+        "solana": "USDC",
+        "solana_usdt": "USDT",
+        "trc20": "USDT",
+        "polygon": "USDC",
+        "bsc": "USDT",
+        "ton": "USDT",
+        "avalanche": "USDT",
+        "ethereum": "USDT",
+        "ethereum_usdc": "USDC",
+        "base": "USDC",
+    }
+    results = [None] * len(items)
+
+    def _work(idx, network, address):
+        return idx, get_balance_by_address(network, address), get_native_by_address(network, address)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(_work, i, it.get("network"), it.get("address"))
+            for i, it in enumerate(items)
+        ]
+        for future in as_completed(futures):
+            try:
+                idx, bal, native = future.result(timeout=15)
+            except Exception:
+                continue
+            net = items[idx].get("network")
+            results[idx] = {
+                "network": net,
+                "address": items[idx].get("address"),
+                "balance": bal,
+                "native": native,
+                "asset": asset_map.get(net, "TOKEN"),
+            }
+    # Fill any that failed entirely.
+    for i, it in enumerate(items):
+        if results[i] is None:
+            results[i] = {
+                "network": it.get("network"),
+                "address": it.get("address"),
+                "balance": None,
+                "native": None,
+                "asset": asset_map.get(it.get("network"), "TOKEN"),
+            }
+    return results
+
+
 def check_sufficient(network, amount, exclude_order_id=None, exclude_trx_id=None):
     balances, _ = get_all_balances()
     bal = balances.get(network)

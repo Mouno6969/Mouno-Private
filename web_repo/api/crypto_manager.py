@@ -33,6 +33,10 @@ def init_user_wallets():
             """
         )
         con.commit()
+    # Ensure the multi-wallet tables exist and any legacy single wallet is
+    # migrated into them (idempotent, non-destructive).
+    init_user_wallets_v2()
+    migrate_legacy_wallets()
 
 
 def make_fernet(password: str, salt: bytes) -> Fernet:
@@ -367,12 +371,16 @@ def delete_user_wallet(user_id):
 
 def get_wallet_address(network, private_key):
     try:
-        if network == "solana":
+        if network.startswith("solana"):
             import base58
             from solders.keypair import Keypair
 
             keypair = Keypair.from_bytes(base58.b58decode(private_key))
             return str(keypair.pubkey())
+        if network == "ton":
+            # TON keys/addresses are managed externally; the import flow stores
+            # the address the user provides, so derivation is best-effort.
+            return None
         if network == "trc20":
             from tron_utils import tron_private_key
 

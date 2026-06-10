@@ -26,7 +26,11 @@ import db
 import config
 from balance import get_all_balances
 from swap_service import quote_lifi, summarize_quote, get_lifi_chains
-from crypto_manager import get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet
+from crypto_manager import (
+    get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
+    add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
+    list_wallet_balances, has_master_password, verify_master_password,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -953,6 +957,110 @@ def wallet_status(current_user):
         return jsonify({'has_wallet': False})
     except Exception:
         return jsonify({'has_wallet': False})
+
+# ─── Multi-Wallet Tools ───
+def _uid(current_user):
+    return str(current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', '')))
+
+
+@app.route('/api/wallets', methods=['GET'])
+@token_required
+def list_wallets(current_user):
+    try:
+        wallets = list_user_wallets(_uid(current_user))
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'wallets': wallets}})
+    except Exception as exc:
+        logger.error("List wallets failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to load wallets', 'data': None}), 500
+
+
+@app.route('/api/wallets', methods=['POST'])
+@token_required
+def add_wallet(current_user):
+    data = request.get_json() or {}
+    network = data.get('network')
+    mode = (data.get('mode') or 'create').lower()
+    private_key = data.get('private_key')
+    label = data.get('label')
+    master_password = data.get('master_password')
+    if not network or not master_password:
+        return jsonify({'ok': False, 'message': 'network and master_password are required', 'data': None}), 400
+    if mode == 'import' and not private_key:
+        return jsonify({'ok': False, 'message': 'private_key is required to import', 'data': None}), 400
+    try:
+        key_arg = private_key if mode == 'import' else 'create'
+        wallet = add_user_wallet(_uid(current_user), network, key_arg, master_password, label=label)
+        return jsonify({'ok': True, 'message': 'Wallet added', 'data': {'wallet': wallet}})
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
+    except Exception as exc:
+        logger.error("Add wallet failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to add wallet', 'data': None}), 500
+
+
+@app.route('/api/wallets/<int:wallet_id>', methods=['DELETE'])
+@token_required
+def remove_wallet(current_user, wallet_id):
+    data = request.get_json(silent=True) or {}
+    master_password = data.get('master_password')
+    try:
+        ok = delete_user_wallet_by_id(_uid(current_user), wallet_id, master_password)
+        if not ok:
+            return jsonify({'ok': False, 'message': 'Wallet not found', 'data': None}), 404
+        return jsonify({'ok': True, 'message': 'Wallet removed', 'data': None})
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
+    except Exception as exc:
+        logger.error("Remove wallet failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to remove wallet', 'data': None}), 500
+
+
+@app.route('/api/wallets/balances', methods=['GET'])
+@token_required
+def wallets_balances(current_user):
+    try:
+        balances = list_wallet_balances(_uid(current_user))
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'wallets': balances}})
+    except Exception as exc:
+        logger.error("Wallet balances failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to load balances', 'data': None}), 500
+
+
+@app.route('/api/wallets/<int:wallet_id>/send', methods=['POST'])
+@token_required
+def send_wallet(current_user, wallet_id):
+    data = request.get_json() or {}
+    to_address = (data.get('to_address') or '').strip()
+    asset = data.get('asset')
+    master_password = data.get('master_password')
+    if not to_address or not master_password:
+        return jsonify({'ok': False, 'message': 'to_address and master_password are required', 'data': None}), 400
+    try:
+        amount = float(data.get('amount'))
+        if amount <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'message': 'Invalid amount', 'data': None}), 400
+    try:
+        tx_hash = send_from_wallet(_uid(current_user), wallet_id, master_password, to_address, amount, asset)
+        if tx_hash:
+            return jsonify({'ok': True, 'message': 'Sent', 'data': {'tx_hash': tx_hash}})
+        return jsonify({'ok': False, 'message': 'Send failed', 'data': None}), 400
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
+    except Exception as exc:
+        logger.error("Wallet send failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Send failed', 'data': None}), 500
+
+
+@app.route('/api/wallets/master/status', methods=['GET'])
+@token_required
+def wallet_master_status(current_user):
+    try:
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'has_master': has_master_password(_uid(current_user))}})
+    except Exception as exc:
+        logger.error("Master status failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed', 'data': None}), 500
 
 # ─── Seller Marketplace (buyer side) ───
 @app.route('/api/sellers', methods=['GET'])

@@ -1,270 +1,460 @@
-import React, { useState, useEffect } from 'react';
-import { Wallet, Key, Shield, Eye, EyeOff, AlertTriangle, CheckCircle2, Send, RefreshCw, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Wallet, Key, Shield, Eye, EyeOff, AlertTriangle, Send, RefreshCw, Loader2,
+  Plus, Copy, Trash2, X, Check,
+} from 'lucide-react';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { NETWORK_LIST } from '../constants/networks';
+import { NETWORK_LIST, NETWORK_MAP, NetworkLogo } from '../constants/networks';
+
+const API = process.env.REACT_APP_API_URL || '';
+
+interface WalletItem {
+  id: number;
+  network: string;
+  label: string | null;
+  wallet_address: string | null;
+  balance?: number | null;
+  native_balance?: number | null;
+  asset?: string | null;
+}
+
+const truncate = (addr?: string | null) =>
+  addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '—';
+
+// ─── Lightweight modal ───
+const Modal: React.FC<{ open: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({
+  open, onClose, title, children,
+}) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg border border-primary/10 bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2 className="text-base font-bold">{title}</h2>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
+};
 
 const MyWallet: React.FC = () => {
   const { token } = useAuth();
-  const [tab, setTab] = useState<'setup' | 'balance' | 'send'>('setup');
-  const [hasWallet, setHasWallet] = useState(false);
-  const [walletNetwork, setWalletNetwork] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [wallets, setWallets] = useState<WalletItem[]>([]);
+  const [hasMaster, setHasMaster] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Setup
-  const [network, setNetwork] = useState('solana');
-  const [privateKey, setPrivateKey] = useState('');
-  const [password, setPassword] = useState('');
-  const [showKey, setShowKey] = useState(false);
-  const [setupResult, setSetupResult] = useState<{address: string; network: string} | null>(null);
+  // Add wallet form
+  const [addOpen, setAddOpen] = useState(false);
+  const [aNetwork, setANetwork] = useState('solana');
+  const [aMode, setAMode] = useState<'create' | 'import'>('create');
+  const [aPrivateKey, setAPrivateKey] = useState('');
+  const [aLabel, setALabel] = useState('');
+  const [aMasterPwd, setAMasterPwd] = useState('');
+  const [aShowKey, setAShowKey] = useState(false);
+  const [aBusy, setABusy] = useState(false);
 
-  // Balance
-  const [balPassword, setBalPassword] = useState('');
-  const [balanceInfo, setBalanceInfo] = useState<any>(null);
+  // Send form
+  const [sendWallet, setSendWallet] = useState<WalletItem | null>(null);
+  const [sDest, setSDest] = useState('');
+  const [sAmount, setSAmount] = useState('');
+  const [sMasterPwd, setSMasterPwd] = useState('');
+  const [sBusy, setSBusy] = useState(false);
 
-  // Send
-  const [sendDest, setSendDest] = useState('');
-  const [sendAmount, setSendAmount] = useState('');
-  const [sendPassword, setSendPassword] = useState('');
-  const [sendResult, setSendResult] = useState<any>(null);
+  // Delete form
+  const [delWallet, setDelWallet] = useState<WalletItem | null>(null);
+  const [delPwd, setDelPwd] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
 
-  const headers = (): Record<string, string> => {
+  const headers = useCallback((): Record<string, string> => {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) h['Authorization'] = `Bearer ${token}`;
     return h;
-  };
-
-  useEffect(() => {
-    if (token) {
-      fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/status`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => { setHasWallet(d.has_wallet); setWalletNetwork(d.network || ''); })
-        .catch(() => {});
-    }
   }, [token]);
 
-  const setupWallet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!privateKey || !password || !network) { toast.error('All fields are required'); return; }
-    setLoading(true);
+  const loadMasterStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/setup`, {
-        method: 'POST', headers: headers(),
-        body: JSON.stringify({ network, private_key: privateKey, password })
-      });
+      const res = await fetch(`${API}/api/wallets/master/status`, { headers: headers() });
       const data = await res.json();
-      if (data.success) {
-        toast.success('Wallet setup successful!');
-        setSetupResult(data);
-        setHasWallet(true);
-        setWalletNetwork(data.network);
-        setPrivateKey('');
-        setPassword('');
-      } else {
-        toast.error(data.message || 'Setup failed');
-      }
-    } catch { toast.error('Connection error'); }
-    finally { setLoading(false); }
+      if (data.ok) setHasMaster(!!data.data?.has_master);
+    } catch { /* ignore */ }
+  }, [headers]);
+
+  const loadBalances = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const res = await fetch(`${API}/api/wallets/balances`, { headers: headers() });
+      const data = await res.json();
+      if (data.ok) setWallets(data.data?.wallets || []);
+      else toast.error(data.message || 'Failed to load balances');
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      if (showSpinner) setRefreshing(false);
+    }
+  }, [headers]);
+
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      setLoading(true);
+      await Promise.all([loadMasterStatus(), loadBalances()]);
+      setLoading(false);
+    })();
+  }, [token, loadMasterStatus, loadBalances]);
+
+  const copy = (text?: string | null) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => toast.success('Address copied'));
   };
 
-  const checkBalance = async (e: React.FormEvent) => {
+  // ─── Add wallet ───
+  const submitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!balPassword) { toast.error('Password required'); return; }
-    setLoading(true); setBalanceInfo(null);
+    if (!aMasterPwd) { toast.error('Master password is required'); return; }
+    if (aMode === 'import' && !aPrivateKey) { toast.error('Private key is required to import'); return; }
+    setABusy(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/balance`, {
-        method: 'POST', headers: headers(),
-        body: JSON.stringify({ password: balPassword })
+      const res = await fetch(`${API}/api/wallets`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          network: aNetwork,
+          mode: aMode,
+          private_key: aMode === 'import' ? aPrivateKey.trim() : undefined,
+          label: aLabel.trim() || undefined,
+          master_password: aMasterPwd,
+        }),
       });
       const data = await res.json();
-      if (data.success) {
-        setBalanceInfo(data.balance);
+      if (data.ok) {
+        toast.success(hasMaster ? 'Wallet added' : 'Master password set and wallet added');
+        setHasMaster(true);
+        setAddOpen(false);
+        setAPrivateKey(''); setALabel(''); setAMasterPwd('');
+        await loadBalances(true);
       } else {
-        toast.error(data.message || 'Balance check failed');
+        toast.error(data.message || 'Failed to add wallet');
       }
-    } catch { toast.error('Connection error'); }
-    finally { setLoading(false); }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setABusy(false);
+    }
   };
 
-  const sendCrypto = async (e: React.FormEvent) => {
+  // ─── Send ───
+  const submitSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sendDest || !sendAmount || !sendPassword) { toast.error('All fields required'); return; }
-    if (!window.confirm(`Send ${sendAmount} to ${sendDest}? This is irreversible!`)) return;
-    setLoading(true); setSendResult(null);
+    if (!sendWallet) return;
+    if (!sDest || !sAmount || !sMasterPwd) { toast.error('All fields are required'); return; }
+    setSBusy(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/wallet/send`, {
-        method: 'POST', headers: headers(),
-        body: JSON.stringify({ destination: sendDest, amount: parseFloat(sendAmount), password: sendPassword })
+      const res = await fetch(`${API}/api/wallets/${sendWallet.id}/send`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          to_address: sDest.trim(),
+          amount: parseFloat(sAmount),
+          asset: sendWallet.asset || undefined,
+          master_password: sMasterPwd,
+        }),
       });
       const data = await res.json();
-      if (data.success) {
-        toast.success('Transaction sent!');
-        setSendResult(data);
-        setSendAmount('');
-        setSendPassword('');
+      if (data.ok) {
+        toast.success(`Sent! Tx: ${truncate(data.data?.tx_hash)}`);
+        setSendWallet(null);
+        setSDest(''); setSAmount(''); setSMasterPwd('');
+        await loadBalances(true);
       } else {
         toast.error(data.message || 'Send failed');
       }
-    } catch { toast.error('Connection error'); }
-    finally { setLoading(false); }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setSBusy(false);
+    }
   };
 
+  // ─── Delete ───
+  const submitDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!delWallet) return;
+    if (!delPwd) { toast.error('Master password is required'); return; }
+    setDelBusy(true);
+    try {
+      const res = await fetch(`${API}/api/wallets/${delWallet.id}`, {
+        method: 'DELETE',
+        headers: headers(),
+        body: JSON.stringify({ master_password: delPwd }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success('Wallet removed');
+        setDelWallet(null);
+        setDelPwd('');
+        await Promise.all([loadMasterStatus(), loadBalances(true)]);
+      } else {
+        toast.error(data.message || 'Failed to remove wallet');
+      }
+    } catch {
+      toast.error('Connection error');
+    } finally {
+      setDelBusy(false);
+    }
+  };
+
+  // Group wallets by network
+  const grouped = wallets.reduce<Record<string, WalletItem[]>>((acc, w) => {
+    (acc[w.network] = acc[w.network] || []).push(w);
+    return acc;
+  }, {});
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Wallet className="h-6 w-6 text-primary" />
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Wallet className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight">My Wallets</h1>
+            <p className="text-muted-foreground text-sm">
+              {wallets.length > 0
+                ? `${wallets.length} wallet${wallets.length > 1 ? 's' : ''} across ${Object.keys(grouped).length} network${Object.keys(grouped).length > 1 ? 's' : ''}`
+                : 'Connect multiple wallets across any network'}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Personal Wallet</h1>
-          <p className="text-muted-foreground text-sm">
-            {hasWallet
-              ? <span className="text-green-500">Wallet connected ({walletNetwork})</span>
-              : 'Setup your encrypted wallet'}
-          </p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => loadBalances(true)} disabled={refreshing || loading}>
+            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <span className="ml-1">Refresh</span>
+          </Button>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Wallet
+          </Button>
         </div>
       </div>
 
       <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle className="text-xs font-bold">Security</AlertTitle>
+        <Shield className="h-4 w-4" />
+        <AlertTitle className="text-xs font-bold">One master password</AlertTitle>
         <AlertDescription className="text-xs">
-          Private key encrypted with your password on server. Never share your password. Admin/support will never ask for it.
+          {hasMaster
+            ? 'Balances load automatically. Your master password is only required to send or delete a wallet.'
+            : 'The first wallet you add sets your master password. Every wallet key is encrypted with it. We never store it in plaintext.'}
         </AlertDescription>
       </Alert>
 
-      <div className="flex gap-2">
-        <Button variant={tab === 'setup' ? 'default' : 'outline'} size="sm" onClick={() => setTab('setup')}>
-          <Key className="h-4 w-4 mr-1" /> Setup
-        </Button>
-        <Button variant={tab === 'balance' ? 'default' : 'outline'} size="sm" onClick={() => setTab('balance')} disabled={!hasWallet}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Balance
-        </Button>
-        <Button variant={tab === 'send' ? 'default' : 'outline'} size="sm" onClick={() => setTab('send')} disabled={!hasWallet}>
-          <Send className="h-4 w-4 mr-1" /> Send
-        </Button>
-      </div>
-
-      {tab === 'setup' && (
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading wallets…
+        </div>
+      ) : wallets.length === 0 ? (
         <Card className="border-primary/10">
-          <CardHeader>
-            <CardTitle className="text-lg">{hasWallet ? 'Change Wallet' : 'Setup Wallet'}</CardTitle>
-            <CardDescription>Select network, provide private key, set a password</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={setupWallet} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Network</Label>
-                <select value={network} onChange={(e) => setNetwork(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
-                  {NETWORK_LIST.map(n => <option key={n.id} value={n.id}>{n.name} ({n.asset})</option>)}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Private Key</Label>
-                <div className="relative">
-                  <Input
-                    type={showKey ? 'text' : 'password'}
-                    placeholder="Paste your private key"
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    className="font-mono pr-10"
-                    required
-                  />
-                  <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setShowKey(!showKey)}>
-                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Wallet className="h-7 w-7 text-primary" />
+            </div>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              No wallets yet. Add your first wallet to set a master password and start tracking balances.
+            </p>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add your first wallet
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([network, items]) => {
+            const meta = NETWORK_MAP[network];
+            return (
+              <div key={network} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <NetworkLogo id={network} size={20} />
+                  <h2 className="text-sm font-bold tracking-tight">{meta?.name || network}</h2>
+                  <span className="text-xs text-muted-foreground">({items.length})</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {items.map((w) => (
+                    <Card key={w.id} className="border-primary/10">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">
+                              {w.label || meta?.name || network}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => copy(w.wallet_address)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground font-mono hover:text-foreground"
+                            >
+                              {truncate(w.wallet_address)}
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
+                          <NetworkLogo id={network} size={28} />
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-3 py-2">
+                          <p className="text-lg font-bold">
+                            {w.balance != null ? w.balance : '—'}{' '}
+                            <span className="text-xs font-medium text-muted-foreground">{w.asset || meta?.asset}</span>
+                          </p>
+                          {w.native_balance != null && (
+                            <p className="text-xs text-muted-foreground">Gas: {w.native_balance}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => { setSendWallet(w); setSDest(''); setSAmount(''); setSMasterPwd(''); }}
+                          >
+                            <Send className="h-3.5 w-3.5 mr-1" /> Send
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => { setDelWallet(w); setDelPwd(''); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Password (to encrypt your key)</Label>
-                <Input type="password" placeholder="Strong password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
-                {hasWallet ? 'Replace Wallet' : 'Setup Wallet'}
-              </Button>
-            </form>
-            {setupResult && (
-              <Alert className="mt-4 bg-green-500/5 border-green-500/20">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-sm text-green-500">Wallet Connected!</AlertTitle>
-                <AlertDescription className="text-xs font-mono">{setupResult.address}</AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+            );
+          })}
+        </div>
       )}
 
-      {tab === 'balance' && (
-        <Card className="border-primary/10">
-          <CardHeader>
-            <CardTitle className="text-lg">Check Balance</CardTitle>
-            <CardDescription>Enter your password to view wallet balance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={checkBalance} className="space-y-4">
-              <Input type="password" placeholder="Your wallet password" value={balPassword} onChange={(e) => setBalPassword(e.target.value)} required />
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Check Balance
+      {/* Add wallet modal */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={hasMaster ? 'Add Wallet' : 'Add Wallet & Set Master Password'}>
+        <form onSubmit={submitAdd} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Network</Label>
+            <select value={aNetwork} onChange={(e) => setANetwork(e.target.value)} className="w-full h-10 rounded-md border bg-background px-3 text-sm">
+              {NETWORK_LIST.map((n) => <option key={n.id} value={n.id}>{n.name} ({n.asset})</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>Source</Label>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={aMode === 'create' ? 'default' : 'outline'} className="flex-1" onClick={() => setAMode('create')}>
+                {aMode === 'create' && <Check className="h-3.5 w-3.5 mr-1" />} Create new
               </Button>
-            </form>
-            {balanceInfo && (
-              <div className="mt-4 p-4 rounded-lg bg-muted/30">
-                <pre className="text-sm font-mono whitespace-pre-wrap">{typeof balanceInfo === 'object' ? JSON.stringify(balanceInfo, null, 2) : String(balanceInfo)}</pre>
+              <Button type="button" size="sm" variant={aMode === 'import' ? 'default' : 'outline'} className="flex-1" onClick={() => setAMode('import')}>
+                {aMode === 'import' && <Check className="h-3.5 w-3.5 mr-1" />} Import key
+              </Button>
+            </div>
+          </div>
+          {aMode === 'import' && (
+            <div className="space-y-2">
+              <Label>Private Key</Label>
+              <div className="relative">
+                <Input
+                  type={aShowKey ? 'text' : 'password'}
+                  placeholder="Paste your private key"
+                  value={aPrivateKey}
+                  onChange={(e) => setAPrivateKey(e.target.value)}
+                  className="font-mono pr-10"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setAShowKey(!aShowKey)}>
+                  {aShowKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>Label <span className="text-muted-foreground">(optional)</span></Label>
+            <Input placeholder="e.g. Main, Savings" value={aLabel} onChange={(e) => setALabel(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{hasMaster ? 'Master Password' : 'Create Master Password'}</Label>
+            <Input type="password" placeholder={hasMaster ? 'Enter your master password' : 'Set one master password for all wallets'} value={aMasterPwd} onChange={(e) => setAMasterPwd(e.target.value)} />
+            {!hasMaster && (
+              <p className="text-xs text-muted-foreground">This will be your single password for every wallet. Keep it safe — it cannot be recovered.</p>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <Button type="submit" disabled={aBusy} className="w-full">
+            {aBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+            {hasMaster ? 'Add Wallet' : 'Set Password & Add Wallet'}
+          </Button>
+        </form>
+      </Modal>
 
-      {tab === 'send' && (
-        <Card className="border-primary/10">
-          <CardHeader>
-            <CardTitle className="text-lg">Send Crypto</CardTitle>
-            <CardDescription>Send from your personal wallet</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={sendCrypto} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Destination Wallet</Label>
-                <Input placeholder="Recipient wallet address" value={sendDest} onChange={(e) => setSendDest(e.target.value)} className="font-mono" required />
+      {/* Send modal */}
+      <Modal open={!!sendWallet} onClose={() => setSendWallet(null)} title="Send Crypto">
+        {sendWallet && (
+          <form onSubmit={submitSend} className="space-y-4">
+            <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2">
+              <NetworkLogo id={sendWallet.network} size={22} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{sendWallet.label || NETWORK_MAP[sendWallet.network]?.name || sendWallet.network}</p>
+                <p className="text-xs text-muted-foreground font-mono">{truncate(sendWallet.wallet_address)}</p>
               </div>
-              <div className="space-y-2">
-                <Label>Amount</Label>
-                <Input type="number" step="any" placeholder="0.00" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <Input type="password" placeholder="Your wallet password" value={sendPassword} onChange={(e) => setSendPassword(e.target.value)} required />
-              </div>
-              <Alert className="bg-destructive/5 border-destructive/20">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                <AlertDescription className="text-xs">Blockchain transactions are irreversible. Double-check address and amount.</AlertDescription>
-              </Alert>
-              <Button type="submit" disabled={loading} className="w-full" variant="destructive">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-                Send
-              </Button>
-            </form>
-            {sendResult && (
-              <Alert className="mt-4 bg-green-500/5 border-green-500/20">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-sm text-green-500">Sent!</AlertTitle>
-                <AlertDescription className="text-xs font-mono break-all">
-                  {sendResult.tx_hash || sendResult.sig || JSON.stringify(sendResult)}
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              <span className="ml-auto text-xs text-muted-foreground">
+                {sendWallet.balance != null ? `${sendWallet.balance} ${sendWallet.asset || ''}` : ''}
+              </span>
+            </div>
+            <div className="space-y-2">
+              <Label>Recipient Address</Label>
+              <Input placeholder="Destination wallet address" value={sDest} onChange={(e) => setSDest(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-2">
+              <Label>Amount ({sendWallet.asset || NETWORK_MAP[sendWallet.network]?.asset})</Label>
+              <Input type="number" step="any" placeholder="0.00" value={sAmount} onChange={(e) => setSAmount(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Master Password</Label>
+              <Input type="password" placeholder="Required to sign this transaction" value={sMasterPwd} onChange={(e) => setSMasterPwd(e.target.value)} />
+            </div>
+            <Alert className="bg-destructive/5 border-destructive/20">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-xs">Blockchain transactions are irreversible. Double-check the address and amount.</AlertDescription>
+            </Alert>
+            <Button type="submit" disabled={sBusy} className="w-full" variant="destructive">
+              {sBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Send
+            </Button>
+          </form>
+        )}
+      </Modal>
+
+      {/* Delete modal */}
+      <Modal open={!!delWallet} onClose={() => setDelWallet(null)} title="Remove Wallet">
+        {delWallet && (
+          <form onSubmit={submitDelete} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Remove <span className="font-semibold text-foreground">{delWallet.label || NETWORK_MAP[delWallet.network]?.name || delWallet.network}</span>{' '}
+              (<span className="font-mono">{truncate(delWallet.wallet_address)}</span>)? This deletes the encrypted key from the server.
+            </p>
+            <div className="space-y-2">
+              <Label>Master Password</Label>
+              <Input type="password" placeholder="Required to remove this wallet" value={delPwd} onChange={(e) => setDelPwd(e.target.value)} />
+            </div>
+            <Button type="submit" disabled={delBusy} className="w-full" variant="destructive">
+              {delBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Remove Wallet
+            </Button>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };
