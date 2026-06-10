@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { NETWORK_LIST, NETWORK_MAP, NetworkLogo } from '../constants/networks';
+import { safeJson, ApiUnavailableError } from '../lib/api';
 
 const API = process.env.REACT_APP_API_URL || '';
 
@@ -60,6 +61,7 @@ const MyWallet: React.FC = () => {
   const [hasMaster, setHasMaster] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [backendStale, setBackendStale] = useState(false);
 
   // Add wallet form
   const [addOpen, setAddOpen] = useState(false);
@@ -92,20 +94,31 @@ const MyWallet: React.FC = () => {
   const loadMasterStatus = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/wallets/master/status`, { headers: headers() });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/wallets/master/status');
       if (data.ok) setHasMaster(!!data.data?.has_master);
-    } catch { /* ignore */ }
+    } catch (err) {
+      if (err instanceof ApiUnavailableError) setBackendStale(true);
+      /* otherwise ignore - balances loader surfaces connection errors */
+    }
   }, [headers]);
 
   const loadBalances = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
       const res = await fetch(`${API}/api/wallets/balances`, { headers: headers() });
-      const data = await res.json();
-      if (data.ok) setWallets(data.data?.wallets || []);
-      else toast.error(data.message || 'Failed to load balances');
-    } catch {
-      toast.error('Connection error');
+      const data = await safeJson(res, '/api/wallets/balances');
+      if (data.ok) {
+        setWallets(data.data?.wallets || []);
+        setBackendStale(false);
+      } else {
+        toast.error(data.message || 'Failed to load balances');
+      }
+    } catch (err) {
+      if (err instanceof ApiUnavailableError) {
+        setBackendStale(true);
+      } else {
+        toast.error('Connection error');
+      }
     } finally {
       if (showSpinner) setRefreshing(false);
     }
@@ -143,7 +156,7 @@ const MyWallet: React.FC = () => {
           master_password: aMasterPwd,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/wallets');
       if (data.ok) {
         toast.success(hasMaster ? 'Wallet added' : 'Master password set and wallet added');
         setHasMaster(true);
@@ -153,8 +166,9 @@ const MyWallet: React.FC = () => {
       } else {
         toast.error(data.message || 'Failed to add wallet');
       }
-    } catch {
-      toast.error('Connection error');
+    } catch (err) {
+      if (err instanceof ApiUnavailableError) toast.error(err.message);
+      else toast.error('Connection error');
     } finally {
       setABusy(false);
     }
@@ -179,7 +193,7 @@ const MyWallet: React.FC = () => {
           master_password: sMasterPwd,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, `/api/wallets/${sendWallet.id}/send`);
       if (data.ok) {
         toast.success(`Sent! Tx: ${truncate(data.data?.tx_hash)}`);
         setSendWallet(null);
@@ -188,8 +202,9 @@ const MyWallet: React.FC = () => {
       } else {
         toast.error(data.message || 'Send failed');
       }
-    } catch {
-      toast.error('Connection error');
+    } catch (err) {
+      if (err instanceof ApiUnavailableError) toast.error(err.message);
+      else toast.error('Connection error');
     } finally {
       setSBusy(false);
     }
@@ -207,7 +222,7 @@ const MyWallet: React.FC = () => {
         headers: headers(),
         body: JSON.stringify({ master_password: delPwd }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, `/api/wallets/${delWallet.id}`);
       if (data.ok) {
         toast.success('Wallet removed');
         setDelWallet(null);
@@ -216,8 +231,9 @@ const MyWallet: React.FC = () => {
       } else {
         toast.error(data.message || 'Failed to remove wallet');
       }
-    } catch {
-      toast.error('Connection error');
+    } catch (err) {
+      if (err instanceof ApiUnavailableError) toast.error(err.message);
+      else toast.error('Connection error');
     } finally {
       setDelBusy(false);
     }
@@ -266,11 +282,26 @@ const MyWallet: React.FC = () => {
         </AlertDescription>
       </Alert>
 
+      {backendStale && (
+        <Alert className="bg-destructive/5 border-destructive/20">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <AlertTitle className="text-xs font-bold text-destructive">Wallet service unavailable</AlertTitle>
+          <AlertDescription className="text-xs">
+            The server is running an older version that does not include the wallet endpoints yet.
+            Restart or redeploy the backend, then press Refresh.
+            <Button variant="outline" size="sm" className="mt-2 h-7" onClick={() => loadBalances(true)} disabled={refreshing}>
+              {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              <span className="ml-1">Retry</span>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading wallets…
         </div>
-      ) : wallets.length === 0 ? (
+      ) : backendStale ? null : wallets.length === 0 ? (
         <Card className="border-primary/10">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <div className="p-3 bg-primary/10 rounded-full">
