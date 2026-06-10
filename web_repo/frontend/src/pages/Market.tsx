@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
@@ -54,6 +54,12 @@ const Market: React.FC = () => {
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Ref to keep selectedSeller up-to-date for the WebSocket handler
+  const selectedSellerRef = useRef<MarketSeller | null>(null);
+  useEffect(() => {
+    selectedSellerRef.current = selectedSeller;
+  }, [selectedSeller]);
 
   const fetchSellers = async () => {
     try {
@@ -92,15 +98,11 @@ const Market: React.FC = () => {
       setSellers(newSellers);
       setLastRefresh(new Date());
       
-      // Keep selectedSeller in sync: lookup by seller_id in new data
-      if (selectedSeller) {
-        const updatedSeller = newSellers.find(s => s.seller_id === selectedSeller.seller_id);
-        if (updatedSeller) {
-          setSelectedSeller(updatedSeller);
-        } else {
-          // Seller no longer available, clear selection
-          setSelectedSeller(null);
-        }
+      // Keep selectedSeller in sync using ref to avoid stale closure
+      const current = selectedSellerRef.current;
+      if (current) {
+        const updatedSeller = newSellers.find(s => s.seller_id === current.seller_id);
+        setSelectedSeller(updatedSeller ?? null);
       }
       
       console.log('[v0] Sellers updated via WebSocket:', newSellers.length);
