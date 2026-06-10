@@ -296,9 +296,16 @@ def set_scheduled_status(schedule_id, user_id, status):
     if status not in {"active", "paused", "cancelled"}:
         raise ValueError("invalid status")
     with closing(sqlite3.connect(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
         if status == "active":
             # Re-arm the next run when resuming.
-            next_run = _next_run_from("daily").isoformat()
+            row = con.execute(
+                "SELECT interval_key FROM scheduled_buys WHERE schedule_id=? AND user_id=?",
+                (schedule_id, str(user_id)),
+            ).fetchone()
+            if not row:
+                return False
+            next_run = _next_run_from(row["interval_key"]).isoformat()
             cur = con.execute(
                 "UPDATE scheduled_buys SET status='active', next_run=? WHERE schedule_id=? AND user_id=?",
                 (next_run, schedule_id, str(user_id)),

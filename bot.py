@@ -1640,6 +1640,8 @@ def swap_chain_keyboard(chains, target="from", page=0, lang="bn"):
     if nav:
         rows.append(nav)
     rows.append([InlineKeyboardButton("🔎 Search" if lang == "en" else "🔎 সার্চ", callback_data=f"swap_{target}_search")])
+    if target == "from":
+        rows.append([InlineKeyboardButton("⚙️ Smart Trading" if lang == "en" else "⚙️ স্মার্ট ট্রেডিং", callback_data="auto_menu")])
     rows.append([InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")])
     return InlineKeyboardMarkup(rows)
 

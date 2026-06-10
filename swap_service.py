@@ -161,6 +161,7 @@ def quote_lifi(intent, api_key=None, timeout=35):
         # multi-step (chained) swaps so any asset can convert to any other
         # (e.g. BTC -> ETH) in a single quote.
         "allowSwitchChain": "true",
+        "integrator": "MounoBot",
     }
     response = requests.get(f"{LIFI_BASE_URL}/quote", params=params, headers=_headers(api_key), timeout=timeout)
     response.raise_for_status()
