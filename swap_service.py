@@ -157,6 +157,10 @@ def quote_lifi(intent, api_key=None, timeout=35):
         "toAddress": wallet,
         "slippage": str(intent.get("slippage") or 0.005),
         "order": order,
+        # Enable true multi-leg routing: allow mid-route chain switches and
+        # multi-step (chained) swaps so any asset can convert to any other
+        # (e.g. BTC -> ETH) in a single quote.
+        "allowSwitchChain": "true",
     }
     response = requests.get(f"{LIFI_BASE_URL}/quote", params=params, headers=_headers(api_key), timeout=timeout)
     response.raise_for_status()
