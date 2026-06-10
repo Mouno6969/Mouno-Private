@@ -20,10 +20,9 @@ import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { API_BASE as API, safeJson } from '../lib/api';
 
 type ToolId = 'id-finder' | 'ata-refund' | 'forwarder';
-
-const API = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
 
 const Tools: React.FC = () => {
   const { t } = useTranslation();
@@ -108,14 +107,14 @@ const IdFinderTool: React.FC<{ token: string | null }> = ({ token }) => {
       const res = await fetch(`${API}/api/tools/telegram-id?target=${encodeURIComponent(target.trim())}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/tools/telegram-id');
       if (res.ok) {
         setResult(data);
       } else {
         toast.error(data.message || 'Lookup failed');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to server');
     } finally {
       setLoading(false);
     }
@@ -235,14 +234,14 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ private_key: privateKey.trim() }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/tools/ata/check');
       if (res.ok) {
         setSummary(data);
       } else {
         toast.error(data.message || 'Check failed');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to server');
     } finally {
       setChecking(false);
     }
@@ -256,7 +255,7 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ private_key: privateKey.trim() }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/tools/ata/refund');
       if (res.ok) {
         setRefundResult(data);
         setPrivateKey('');
@@ -265,8 +264,8 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
       } else {
         toast.error(data.message || 'Refund failed');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to server');
     } finally {
       setRefunding(false);
     }
@@ -410,15 +409,15 @@ const ForwarderTool: React.FC<{ token: string | null }> = ({ token }) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ bot_token: botToken.trim(), chat_ids: chatIds, message }),
       });
-      const data = await res.json();
+      const data = await safeJson(res, '/api/tools/forward');
       if (res.ok) {
         setResults(data);
         toast.success(`Sent to ${data.sent} chat${data.sent === 1 ? '' : 's'}`);
       } else {
         toast.error(data.message || 'Send failed');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to connect to server');
     } finally {
       setSending(false);
     }
