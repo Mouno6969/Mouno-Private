@@ -65,6 +65,12 @@ const Market: React.FC = () => {
     try {
       const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
       const res = await fetch(`${apiUrl}/api/sellers`);
+      if (!res.ok) {
+        console.error('Failed to fetch sellers:', res.status);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       const data = await res.json();
       setSellers(Array.isArray(data) ? data : []);
       setLastRefresh(new Date());
@@ -86,7 +92,6 @@ const Market: React.FC = () => {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
     });
 
     socket.on('connect', () => {
@@ -98,11 +103,23 @@ const Market: React.FC = () => {
       setSellers(newSellers);
       setLastRefresh(new Date());
       
-      // Keep selectedSeller in sync using ref to avoid stale closure
+      // Keep selectedSeller and network in sync using ref to avoid stale closure
       const current = selectedSellerRef.current;
       if (current) {
         const updatedSeller = newSellers.find(s => s.seller_id === current.seller_id);
-        setSelectedSeller(updatedSeller ?? null);
+        if (updatedSeller) {
+          setSelectedSeller(updatedSeller);
+          // Check if current network is still available in updated seller's networks
+          const networkStillExists = updatedSeller.networks.some(n => n.network === network);
+          if (!networkStillExists) {
+            // Reset network to first available or empty
+            setNetwork(updatedSeller.networks[0]?.network || '');
+          }
+        } else {
+          // Seller no longer available, clear selection and network
+          setSelectedSeller(null);
+          setNetwork('');
+        }
       }
       
       console.log('[v0] Sellers updated via WebSocket:', newSellers.length);
