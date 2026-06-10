@@ -57,7 +57,7 @@ const Market: React.FC = () => {
 
   const fetchSellers = async () => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
       const res = await fetch(`${apiUrl}/api/sellers`);
       const data = await res.json();
       setSellers(Array.isArray(data) ? data : []);
@@ -75,7 +75,7 @@ const Market: React.FC = () => {
     fetchSellers();
     
     // Connect to WebSocket for real-time seller updates
-    const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+    const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
     const socket: Socket = io(apiUrl, {
       reconnection: true,
       reconnectionDelay: 1000,
@@ -88,9 +88,22 @@ const Market: React.FC = () => {
     });
 
     socket.on('sellers_updated', (data: { sellers: MarketSeller[] }) => {
-      setSellers(Array.isArray(data.sellers) ? data.sellers : []);
+      const newSellers = Array.isArray(data.sellers) ? data.sellers : [];
+      setSellers(newSellers);
       setLastRefresh(new Date());
-      console.log('[v0] Sellers updated via WebSocket:', data.sellers.length);
+      
+      // Keep selectedSeller in sync: lookup by seller_id in new data
+      if (selectedSeller) {
+        const updatedSeller = newSellers.find(s => s.seller_id === selectedSeller.seller_id);
+        if (updatedSeller) {
+          setSelectedSeller(updatedSeller);
+        } else {
+          // Seller no longer available, clear selection
+          setSelectedSeller(null);
+        }
+      }
+      
+      console.log('[v0] Sellers updated via WebSocket:', newSellers.length);
     });
 
     socket.on('disconnect', () => {
@@ -123,7 +136,7 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || window.location.origin.replace(/\/$/, '');
+      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
       const res = await fetch(`${apiUrl}/api/seller/order`, {
         method: 'POST',
         headers: {
