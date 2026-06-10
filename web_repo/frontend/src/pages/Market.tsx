@@ -61,6 +61,7 @@ const Market: React.FC = () => {
     selectedSellerRef.current = selectedSeller;
   }, [selectedSeller]);
 
+  // Ref to keep network up-to-date for the WebSocket handler
   const networkRef = useRef<string>('');
   useEffect(() => {
     networkRef.current = network;
