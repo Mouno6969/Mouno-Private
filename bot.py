@@ -9526,6 +9526,8 @@ async def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is not configured")
 
+    init_automation_tables()
+
     request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
     app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
 
@@ -9697,6 +9699,8 @@ async def main():
     set_callback(lambda txt, sndr, meta=None: sms_handler(app, loop, txt, sndr, meta))
     threading.Thread(target=run_webhook, daemon=True).start()
     asyncio.create_task(daily_admin_jobs(app))
+    asyncio.create_task(limit_order_monitor(app))
+    asyncio.create_task(scheduled_buy_runner(app))
     logger.info("Bot started!")
 
     try:
