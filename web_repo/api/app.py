@@ -1037,7 +1037,32 @@ def wallets_balances(current_user):
         return jsonify({'ok': False, 'message': 'Failed to load balances', 'data': None}), 500
 
 
-@app.route('/api/wallets/<int:wallet_id>/send', methods=['POST'])
+@app.route('/api/wallets/<int:wallet_id>', methods=['DELETE'])
+@token_required
+def remove_wallet(current_user, wallet_id):
+    data = request.get_json(silent=True) or {}
+    master_password = data.get('master_password')
+    try:
+        ok = delete_user_wallet_by_id(_uid(current_user), wallet_id, master_password)
+        if not ok:
+            return jsonify({'ok': False, 'message': 'Wallet not found', 'data': None}), 404
+        return jsonify({'ok': True, 'message': 'Wallet removed', 'data': None})
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
+    except Exception as exc:
+        logger.error("Remove wallet failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to remove wallet', 'data': None}), 500
+
+
+@app.route('/api/wallets/balances', methods=['GET'])
+@token_required
+def wallets_balances(current_user):
+    try:
+        balances = list_wallet_balances(_uid(current_user))
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'wallets': balances}})
+    except Exception as exc:
+        logger.error("Wallet balances failed: %s", exc)
+        return jsonify({'ok': False, 'message': 'Failed to load balances', 'data': None}), 500
 @token_required
 def send_wallet(current_user, wallet_id):
     data = request.get_json() or {}
