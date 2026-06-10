@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import sqlite3
 from contextlib import closing
@@ -8,6 +9,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from db import DB_PATH  # single source of truth
+
+logger = logging.getLogger(__name__)
 
 
 def _seller_master_key():
@@ -414,7 +417,7 @@ def get_wallet_address(network, private_key):
 
         return Web3().eth.account.from_key(private_key).address
     except Exception as exc:
-        raise RuntimeError(f"Invalid private key: {exc}") from exc
+        raise RuntimeError("That private key doesn't look valid. Please double-check it and try again.") from exc
 
 
 def get_user_balance(user_id, password):
@@ -443,13 +446,13 @@ def get_user_balance(user_id, password):
 def send_from_user_wallet(user_id, password, dest_wallet, amount):
     row = get_user_wallet(user_id)
     if not row:
-        raise RuntimeError("Wallet setup করা নেই!")
+        raise RuntimeError("You don't have a wallet set up yet. Please add a wallet first.")
 
     encrypted_key, salt, network, _wallet_address = row
     try:
         private_key = decrypt_key(encrypted_key, salt, password)
     except Exception as exc:
-        raise RuntimeError("ভুল password!") from exc
+        raise RuntimeError("Incorrect master password. Please try again.") from exc
 
     if network == "solana":
         return _send_solana_token(private_key, dest_wallet, amount)
@@ -552,7 +555,8 @@ def _send_solana_token(private_key, dest_wallet, amount, mint="EPjFWdd5AufqSSqeM
         timeout=30,
     ).json()
     if "error" in result:
-        raise RuntimeError(result["error"])
+        logger.error("Solana transfer failed: %s", result["error"])
+        raise RuntimeError("The Solana transaction could not be sent. Please check your SOL (for fees) and token balance, then try again.")
     return result["result"]
 
 
@@ -572,7 +576,8 @@ def _send_trc20_usdt(private_key, dest_wallet, amount):
     )
     result = txn.broadcast().wait()
     if result.get("receipt", {}).get("result") != "SUCCESS":
-        raise RuntimeError(f"TRC20 failed: {result}")
+        logger.error("TRC20 transfer failed: %s", result)
+        raise RuntimeError("The TRON (TRC20) transaction failed to confirm. Please check your USDT and TRX (for fees) balance and try again.")
     return result["id"]
 
 
@@ -586,7 +591,7 @@ def _send_evm_token(private_key, network, dest_wallet, amount):
     rpc = RPCS.get(network)
     contract_info = CONTRACTS.get(network)
     if not rpc or not contract_info:
-        raise RuntimeError(f"Unsupported network: {network}")
+        raise RuntimeError(f"The {network} network isn't supported for sending yet.")
 
     w3 = Web3(Web3.HTTPProvider(rpc))
     account = w3.eth.account.from_key(private_key)
@@ -606,7 +611,8 @@ def _send_evm_token(private_key, network, dest_wallet, amount):
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
     if receipt.status != 1:
-        raise RuntimeError("Transaction failed!")
+        logger.error("EVM transfer reverted on %s, tx=%s", network, tx_hash.hex())
+        raise RuntimeError("The transaction was rejected by the network. Please check your token and gas (native coin) balance, then try again.")
     return tx_hash.hex()
 
 
@@ -622,7 +628,7 @@ def send_raw_evm_transaction(network, private_key, to_address, data, value=0, ga
 
     rpc = rpc_url or RPCS.get(network)
     if not rpc:
-        raise RuntimeError(f"Unsupported network: {network}")
+        raise RuntimeError(f"The {network} network isn't supported yet.")
     w3 = Web3(Web3.HTTPProvider(rpc))
     account = w3.eth.account.from_key(private_key)
     tx = {
@@ -698,7 +704,8 @@ def send_raw_solana_transaction(private_key, base64_tx, rpc_url=None):
         timeout=30,
     ).json()
     if "error" in result:
-        raise RuntimeError(result["error"])
+        logger.error("Solana raw transaction failed: %s", result["error"])
+        raise RuntimeError("The Solana transaction could not be broadcast. Please try again in a moment.")
     return result["result"]
 
 

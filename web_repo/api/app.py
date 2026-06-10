@@ -968,7 +968,7 @@ def _uid(current_user):
         uid = current_user
     uid = str(uid).strip() if uid is not None else ''
     if not uid:
-        raise RuntimeError("Could not determine the authenticated user.")
+        raise RuntimeError("We couldn't verify your session. Please sign in again.")
     return uid
 
 
@@ -980,7 +980,7 @@ def list_wallets(current_user):
         return jsonify({'ok': True, 'message': 'ok', 'data': {'wallets': wallets}})
     except Exception as exc:
         logger.error("List wallets failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Failed to load wallets', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'We couldn\'t load your wallets right now. Please try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets', methods=['POST'])
@@ -993,11 +993,11 @@ def add_wallet(current_user):
     label = data.get('label')
     master_password = data.get('master_password')
     if not network or not master_password:
-        return jsonify({'ok': False, 'message': 'network and master_password are required', 'data': None}), 400
+        return jsonify({'ok': False, 'message': 'Please choose a network and enter your master password.', 'data': None}), 400
     if mode not in ('create', 'import'):
-        return jsonify({'ok': False, 'message': "mode must be either 'create' or 'import'", 'data': None}), 400
+        return jsonify({'ok': False, 'message': "Please choose whether to create a new wallet or import an existing one.", 'data': None}), 400
     if mode == 'import' and not private_key:
-        return jsonify({'ok': False, 'message': 'private_key is required to import', 'data': None}), 400
+        return jsonify({'ok': False, 'message': 'Please paste the private key of the wallet you want to import.', 'data': None}), 400
     try:
         key_arg = private_key if mode == 'import' else 'create'
         wallet = add_user_wallet(_uid(current_user), network, key_arg, master_password, label=label)
@@ -1006,7 +1006,7 @@ def add_wallet(current_user):
         return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
     except Exception as exc:
         logger.error("Add wallet failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Failed to add wallet', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'We couldn\'t add that wallet. Please check your details and try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets/<int:wallet_id>', methods=['DELETE'])
@@ -1017,13 +1017,13 @@ def remove_wallet(current_user, wallet_id):
     try:
         ok = delete_user_wallet_by_id(_uid(current_user), wallet_id, master_password)
         if not ok:
-            return jsonify({'ok': False, 'message': 'Wallet not found', 'data': None}), 404
+            return jsonify({'ok': False, 'message': 'We couldn\'t find that wallet. It may have already been removed.', 'data': None}), 404
         return jsonify({'ok': True, 'message': 'Wallet removed', 'data': None})
     except RuntimeError as exc:
         return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
     except Exception as exc:
         logger.error("Remove wallet failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Failed to remove wallet', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'We couldn\'t remove that wallet right now. Please try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets/balances', methods=['GET'])
@@ -1034,7 +1034,7 @@ def wallets_balances(current_user):
         return jsonify({'ok': True, 'message': 'ok', 'data': {'wallets': balances}})
     except Exception as exc:
         logger.error("Wallet balances failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Failed to load balances', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'We couldn\'t load your balances right now. Please try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets/<int:wallet_id>/send', methods=['POST'])
@@ -1044,24 +1044,26 @@ def send_wallet(current_user, wallet_id):
     to_address = (data.get('to_address') or '').strip()
     asset = data.get('asset')
     master_password = data.get('master_password')
-    if not to_address or not master_password:
-        return jsonify({'ok': False, 'message': 'to_address and master_password are required', 'data': None}), 400
+    if not to_address:
+        return jsonify({'ok': False, 'message': 'Please enter a destination address.', 'data': None}), 400
+    if not master_password:
+        return jsonify({'ok': False, 'message': 'Please enter your master password to authorize this transfer.', 'data': None}), 400
     try:
         amount = float(data.get('amount'))
         if amount <= 0:
             raise ValueError
     except (TypeError, ValueError):
-        return jsonify({'ok': False, 'message': 'Invalid amount', 'data': None}), 400
+        return jsonify({'ok': False, 'message': 'Please enter a valid amount greater than zero.', 'data': None}), 400
     try:
         tx_hash = send_from_wallet(_uid(current_user), wallet_id, master_password, to_address, amount, asset)
         if tx_hash:
-            return jsonify({'ok': True, 'message': 'Sent', 'data': {'tx_hash': tx_hash}})
-        return jsonify({'ok': False, 'message': 'Send failed', 'data': None}), 400
+            return jsonify({'ok': True, 'message': 'Transfer sent successfully.', 'data': {'tx_hash': tx_hash}})
+        return jsonify({'ok': False, 'message': 'The transfer could not be completed. Please try again.', 'data': None}), 400
     except RuntimeError as exc:
         return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
     except Exception as exc:
         logger.error("Wallet send failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Send failed', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'Something went wrong while sending. Please check your balance and try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets/master/status', methods=['GET'])
@@ -1071,7 +1073,7 @@ def wallet_master_status(current_user):
         return jsonify({'ok': True, 'message': 'ok', 'data': {'has_master': has_master_password(_uid(current_user))}})
     except Exception as exc:
         logger.error("Master status failed: %s", exc)
-        return jsonify({'ok': False, 'message': 'Failed', 'data': None}), 500
+        return jsonify({'ok': False, 'message': 'We couldn\'t check your wallet status right now. Please try again.', 'data': None}), 500
 
 # ─── Seller Marketplace (buyer side) ───
 @app.route('/api/sellers', methods=['GET'])
