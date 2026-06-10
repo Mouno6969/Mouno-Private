@@ -87,6 +87,18 @@ def fetch_token(chain_id, token, api_key=None, timeout=20):
     return response.json()
 
 
+def fetch_token_price_usd(chain_id, token, api_key=None, timeout=20):
+    """Return the live USD price of a token as a Decimal (LI.FI /token priceUSD)."""
+    info = fetch_token(chain_id, token, api_key=api_key, timeout=timeout)
+    price = info.get("priceUSD")
+    if price in (None, ""):
+        raise ValueError("priceUSD not available for this token")
+    try:
+        return Decimal(str(price))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError("Invalid priceUSD value") from exc
+
+
 def decimal_amount_to_raw(amount, decimals):
     try:
         value = Decimal(str(amount).strip())
