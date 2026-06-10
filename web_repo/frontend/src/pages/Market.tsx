@@ -61,6 +61,11 @@ const Market: React.FC = () => {
     selectedSellerRef.current = selectedSeller;
   }, [selectedSeller]);
 
+  const networkRef = useRef<string>('');
+  useEffect(() => {
+    networkRef.current = network;
+  }, [network]);
+
   const fetchSellers = async () => {
     try {
       const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
@@ -110,7 +115,7 @@ const Market: React.FC = () => {
         if (updatedSeller) {
           setSelectedSeller(updatedSeller);
           // Check if current network is still available in updated seller's networks
-          const networkStillExists = updatedSeller.networks.some(n => n.network === network);
+          const networkStillExists = updatedSeller.networks.some(n => n.network === networkRef.current);
           if (!networkStillExists) {
             // Reset network to first available or empty
             setNetwork(updatedSeller.networks[0]?.network || '');
