@@ -9,7 +9,7 @@ import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO
 from werkzeug.security import generate_password_hash, check_password_hash
 import sys
 import requests as http_requests
