@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { io, Socket } from 'socket.io-client';
 import {
   Store,
   CheckCircle,
@@ -51,20 +52,98 @@ const Market: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<any>(null);
 
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Ref to keep selectedSeller up-to-date for the WebSocket handler
+  const selectedSellerRef = useRef<MarketSeller | null>(null);
   useEffect(() => {
-    const fetchSellers = async () => {
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/sellers`);
-        const data = await res.json();
-        setSellers(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-      } finally {
+    selectedSellerRef.current = selectedSeller;
+  }, [selectedSeller]);
+
+  // Ref to keep network up-to-date for the WebSocket handler
+  const networkRef = useRef<string>('');
+  useEffect(() => {
+    networkRef.current = network;
+  }, [network]);
+
+  const fetchSellers = async () => {
+    try {
+      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
+      const res = await fetch(`${apiUrl}/api/sellers`);
+      if (!res.ok) {
+        console.error('Failed to fetch sellers:', res.status);
         setLoading(false);
+        setRefreshing(false);
+        return;
       }
-    };
+      const data = await res.json();
+      setSellers(Array.isArray(data) ? data : []);
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Initial load + WebSocket real-time updates
+  useEffect(() => {
     fetchSellers();
+    
+    // Connect to WebSocket for real-time seller updates
+    const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
+    const socket: Socket = io(apiUrl, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.on('connect', () => {
+      console.log('[v0] WebSocket connected to marketplace');
+    });
+
+    socket.on('sellers_updated', (data: { sellers: MarketSeller[] }) => {
+      const newSellers = Array.isArray(data.sellers) ? data.sellers : [];
+      setSellers(newSellers);
+      setLastRefresh(new Date());
+      
+      // Keep selectedSeller and network in sync using ref to avoid stale closure
+      const current = selectedSellerRef.current;
+      if (current) {
+        const updatedSeller = newSellers.find(s => s.seller_id === current.seller_id);
+        if (updatedSeller) {
+          setSelectedSeller(updatedSeller);
+          // Check if current network is still available in updated seller's networks
+          const networkStillExists = updatedSeller.networks.some(n => n.network === networkRef.current);
+          if (!networkStillExists) {
+            // Reset network to first available or empty
+            setNetwork(updatedSeller.networks[0]?.network || '');
+          }
+        } else {
+          // Seller no longer available, clear selection and network
+          setSelectedSeller(null);
+          setNetwork('');
+        }
+      }
+      
+      console.log('[v0] Sellers updated via WebSocket:', newSellers.length);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[v0] WebSocket disconnected');
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchSellers();
+  };
 
   const selectSeller = (seller: MarketSeller) => {
     setSelectedSeller(seller);
@@ -82,7 +161,8 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/order`, {
+      const apiUrl = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
+      const res = await fetch(`${apiUrl}/api/seller/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 
 type ToolId = 'id-finder' | 'ata-refund' | 'forwarder';
 
-const API = process.env.REACT_APP_API_URL || '';
+const API = (process.env.REACT_APP_API_URL || window.location.origin).replace(/\/$/, '');
 
 const Tools: React.FC = () => {
   const { t } = useTranslation();

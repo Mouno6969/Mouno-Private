@@ -9,6 +9,7 @@ import datetime
 from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from werkzeug.security import generate_password_hash, check_password_hash
 import sys
 import requests as http_requests
@@ -35,8 +36,36 @@ def notify_admin_telegram(message):
     except Exception as exc:
         logger.warning("Admin Telegram notification failed: %s", exc)
 
+
+def broadcast_sellers_update():
+    """Broadcast updated sellers list to all connected clients via WebSocket."""
+    try:
+        sellers = db.list_sellers_by_status("approved", 30)
+        result = []
+        for s in sellers:
+            seller_id = s[0]
+            wallets = db.list_enabled_seller_wallets(seller_id)
+            networks = []
+            for w in wallets:
+                network = w[1]
+                rate = db.get_seller_rate(seller_id, network) or db.get_network_rate(network) or config.RATE
+                networks.append({'network': network, 'rate': rate})
+            if not networks:
+                continue
+            result.append({
+                'seller_id': str(seller_id),
+                'display_name': s[2],
+                'support_contact': s[4],
+                'bkash_number': s[3],
+                'networks': networks,
+            })
+        socketio.emit('sellers_updated', {'sellers': result})
+    except Exception as exc:
+        logger.error("Broadcast sellers update failed: %s", exc)
+
 app = Flask(__name__, static_folder=None)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 _SECRET = os.getenv("WEB_SECRET_KEY")
 if not _SECRET:
     raise RuntimeError("WEB_SECRET_KEY must be set in the environment")
@@ -984,6 +1013,9 @@ def place_seller_order(current_user):
         except Exception as exc:
             logger.warning("Seller order notification failed: %s", exc)
     notify_admin_telegram(seller_msg)
+    
+    # Broadcast updated sellers list to all connected clients
+    broadcast_sellers_update()
 
     return jsonify({
         'status': 'waiting_payment',
@@ -1146,4 +1178,4 @@ def tool_telegram_forward(current_user):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    socketio.run(app, host='0.0.0.0', port=5001)
