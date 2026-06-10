@@ -77,6 +77,7 @@ def decrypt_seller_key(encrypted_key: str, salt: str) -> str:
 # ===========================================================================
 
 _MASTER_PROBE = "mouno-master-ok"
+MIN_MASTER_PASSWORD_LEN = 8
 
 
 def init_user_wallets_v2():
@@ -161,6 +162,8 @@ def get_master_record(user_id):
 
 
 def set_master_password(user_id, password):
+    if not password or len(password) < MIN_MASTER_PASSWORD_LEN:
+        raise RuntimeError(f"Master password must be at least {MIN_MASTER_PASSWORD_LEN} characters.")
     verifier, salt = encrypt_key(_MASTER_PROBE, password)
     with closing(sqlite3.connect(DB_PATH)) as con:
         con.execute(
@@ -211,11 +214,12 @@ def create_private_key(network):
         return PrivateKey.random().hex()
     if net == "ton":
         raise RuntimeError("Creating a new TON wallet is not supported yet. Please import an existing wallet.")
-    if net in ("evm", "eth", "ethereum", "erc20", "bsc", "bep20", "polygon", "matic", "arbitrum", "optimism", "base", "avalanche", "avax"):
-        from web3 import Web3
+    # Everything else (ethereum, ethereum_usdc, erc20, bsc, polygon, base, etc.)
+    # is an EVM chain. Mirror get_wallet_address's EVM fallthrough so token
+    # variants like "ethereum_usdc" are handled instead of being rejected.
+    from web3 import Web3
 
-        return Web3().eth.account.create().key.hex()
-    raise RuntimeError(f"Unsupported network for wallet creation: {network}")
+    return Web3().eth.account.create().key.hex()
 
 
 # ─── Multi-wallet CRUD ───
@@ -228,7 +232,10 @@ def add_user_wallet(user_id, network, private_key_or_create, master_password, la
         raise RuntimeError("Master password is required.")
 
     is_first_wallet = not has_master_password(user_id)
-    if not is_first_wallet:
+    if is_first_wallet:
+        if len(master_password) < MIN_MASTER_PASSWORD_LEN:
+            raise RuntimeError(f"Master password must be at least {MIN_MASTER_PASSWORD_LEN} characters.")
+    else:
         if not verify_master_password(user_id, master_password):
             raise RuntimeError("Wrong master password.")
 
