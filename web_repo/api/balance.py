@@ -116,8 +116,15 @@ def get_solana_balance(private_key=None):
         ).json()
         accounts = response.get("result", {}).get("value", [])
         if accounts:
-            amount = accounts[0]["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
-            return round(float(amount), 4)
+            total = 0.0
+            for account in accounts:
+                try:
+                    ui_amount = account["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
+                    if ui_amount is not None:
+                        total += float(ui_amount)
+                except (KeyError, TypeError, ValueError):
+                    continue
+            return round(total, 4)
         return 0.0
     except Exception:
         return None
@@ -283,8 +290,15 @@ def _solana_token_balance_by_address(address, mint):
         ).json()
         accounts = response.get("result", {}).get("value", [])
         if accounts:
-            amount = accounts[0]["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
-            return round(float(amount), 4)
+            total = 0.0
+            for account in accounts:
+                try:
+                    ui_amount = account["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
+                    if ui_amount is not None:
+                        total += float(ui_amount)
+                except (KeyError, TypeError, ValueError):
+                    continue
+            return round(total, 4)
         return 0.0
     except Exception:
         return None

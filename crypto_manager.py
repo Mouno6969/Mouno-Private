@@ -199,20 +199,23 @@ def verify_master_password(user_id, password):
 
 # ─── New-wallet key generation ───
 def create_private_key(network):
-    if network.startswith("solana"):
+    net = (network or "").lower()
+    if net.startswith("solana"):
         import base58
         from solders.keypair import Keypair
 
         return base58.b58encode(bytes(Keypair())).decode()
-    if network == "trc20":
+    if net == "trc20":
         from tronpy.keys import PrivateKey
 
         return PrivateKey.random().hex()
-    if network == "ton":
+    if net == "ton":
         raise RuntimeError("Creating a new TON wallet is not supported yet. Please import an existing wallet.")
-    from web3 import Web3
+    if net in ("evm", "eth", "ethereum", "erc20", "bsc", "bep20", "polygon", "matic", "arbitrum", "optimism", "base", "avalanche", "avax"):
+        from web3 import Web3
 
-    return Web3().eth.account.create().key.hex()
+        return Web3().eth.account.create().key.hex()
+    raise RuntimeError(f"Unsupported network for wallet creation: {network}")
 
 
 # ─── Multi-wallet CRUD ───
@@ -224,11 +227,10 @@ def add_user_wallet(user_id, network, private_key_or_create, master_password, la
     if not master_password:
         raise RuntimeError("Master password is required.")
 
-    if has_master_password(user_id):
+    is_first_wallet = not has_master_password(user_id)
+    if not is_first_wallet:
         if not verify_master_password(user_id, master_password):
             raise RuntimeError("Wrong master password.")
-    else:
-        set_master_password(user_id, master_password)
 
     if not private_key_or_create or private_key_or_create == "create":
         private_key = create_private_key(network)
@@ -238,13 +240,27 @@ def add_user_wallet(user_id, network, private_key_or_create, master_password, la
     wallet_address = get_wallet_address(network, private_key)
     encrypted_key, salt = encrypt_key(private_key, master_password)
     label = (label or "").strip() or None
+
+    # Persist the master-password verifier (on first wallet) and the wallet row
+    # inside a single transaction so we never end up with a verifier but no
+    # wallet (or vice-versa) if something fails midway.
     with closing(sqlite3.connect(DB_PATH)) as con:
-        cur = con.execute(
-            "INSERT INTO user_wallets_v2 (user_id, network, label, wallet_address, encrypted_key, salt) VALUES (?,?,?,?,?,?)",
-            (user_id, network, label, wallet_address, encrypted_key, salt),
-        )
-        con.commit()
-        wallet_id = cur.lastrowid
+        try:
+            if is_first_wallet:
+                verifier, master_salt = encrypt_key(_MASTER_PROBE, master_password)
+                con.execute(
+                    "INSERT OR REPLACE INTO wallet_master (user_id, verifier, salt) VALUES (?,?,?)",
+                    (user_id, verifier, master_salt),
+                )
+            cur = con.execute(
+                "INSERT INTO user_wallets_v2 (user_id, network, label, wallet_address, encrypted_key, salt) VALUES (?,?,?,?,?,?)",
+                (user_id, network, label, wallet_address, encrypted_key, salt),
+            )
+            con.commit()
+            wallet_id = cur.lastrowid
+        except Exception:
+            con.rollback()
+            raise
     return {"id": wallet_id, "network": network, "label": label, "wallet_address": wallet_address}
 
 
@@ -420,7 +436,7 @@ def get_user_balance(user_id, password):
 def send_from_user_wallet(user_id, password, dest_wallet, amount):
     row = get_user_wallet(user_id)
     if not row:
-        raise RuntimeError("Wallet setup করা নেই!")
+        raise RuntimeError("Wallet setup করা ন��ই!")
 
     encrypted_key, salt, network, _wallet_address = row
     try:

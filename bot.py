@@ -434,13 +434,13 @@ TEXT = {
     "invalid_wallet": {"bn": "❌ ভুল wallet address!", "en": "❌ Invalid wallet address!"},
     "invalid_amount": {"bn": "❌ ভুল পরিমাণ! সংখ্যা লিখুন।", "en": "❌ Invalid amount. Send a number."},
     "confirm": {"bn": "✅ কনফার্ম", "en": "✅ Confirm"},
-    "order_summary": {"bn": "📊 অর্ডার সারসংক্ষেপ", "en": "📊 Order Summary"},
+    "order_summary": {"bn": "📊 অর্ডার সারসংক্��েপ", "en": "📊 Order Summary"},
     "send_bdt": {"bn": "পাঠাবেন", "en": "You pay"},
     "receive_crypto": {"bn": "পাবেন", "en": "You receive"},
     "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
-    "code_select_network": {"bn": "🎟️ গিফট ক���ড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
+    "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে ��িন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
     "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
-    "code_select_duration": {"bn": "৩/৩: ���োডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
+    "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
     "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
     "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
     "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
@@ -515,7 +515,7 @@ def failure_reason_text(error, network=None, lang="bn"):
         bn = "সম্ভবত token stock/balance পর্যাপ্ত নেই। Retry করার আগে admin-এর available stock ও reserved amount চেক করা উচিত।"
     elif any(word in text for word in ["rpc", "timeout", "timed out", "connection", "network", "temporarily", "503", "502", "504"]):
         en = "Likely temporary RPC/network issue. Check RPC health/explorer and retry after confirming the payment and no duplicate send occurred."
-        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়ন�� নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
+        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়নি নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
     elif any(word in text for word in ["invalid", "address", "wallet", "checksum", "wrong network"]):
         en = "Likely invalid wallet address or network mismatch. Confirm the destination wallet matches the selected network before retrying."
         bn = "সম্ভবত wallet address ভুল বা network mismatch. Retry করার আগে destination wallet নির্বাচিত network-এর কিনা নিশ্চিত করুন।"
@@ -527,7 +527,7 @@ def failure_reason_text(error, network=None, lang="bn"):
         bn = "সম্ভবত payment amount/user mismatch. Admin-এর bKash/Stars receipt, exact amount, payer/order এবং TrxID manually verify করা উচিত।"
     elif any(word in text for word in ["duplicate", "already used", "trxid"]):
         en = "Likely duplicate or incorrect TrxID. Check whether the TrxID was already used or typed incorrectly."
-        bn = "সম্ভবত duplicate বা ভুল TrxID. TrxID আগে ব্যবহার হয়েছে কিনা বা ভুল টাইপ হয়েছে কিনা চেক করুন।"
+        bn = "সম্ভবত duplicate বা ভুল TrxID. TrxID আগে ব্যবহার হয়েছে কিনা বা ভুল টাইপ হয়েছে কিনা চেক কর���ন।"
     elif any(word in text for word in ["seller not approved", "seller wallet", "not enabled"]):
         en = "Likely seller setup issue. The assigned seller may need approval, an enabled delivery wallet, stock, and gas."
         bn = "সম্ভবত seller setup issue. Assigned seller-এর approval, enabled delivery wallet, stock এবং gas দরকার হতে পারে।"
@@ -1411,7 +1411,7 @@ def ai_status_text(lang="bn"):
 def ai_setup_text(lang="bn"):
     order = ai_provider_order()
     lines = [
-        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তা���প��� শুধু API key পাঠান।"),
+        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তারপর শুধু API key পাঠান।"),
         ltext(lang, "Bot setup keys are saved to SQLite immediately; no restart is required.", "Bot setup key সাথে সাথে SQLite-এ save হবে; restart লাগবে না।"),
         ltext(lang, ".env keys still work; a bot setup key takes priority when present.", ".env key এখনও কাজ করবে; Bot setup key থাকলে সেটাই আগে ব্যবহার হবে।"),
         ltext(lang, "Full keys are never shown in status.", "Full key কখনো status-এ দেখানো হবে না।"),
@@ -1774,6 +1774,9 @@ def command_help_text(user_id=None):
         ("/deletekey", "saved wallet key delete"),
         ("/mybalance", "personal wallet balance দেখুন"),
         ("/send_wallet", "personal wallet থেকে crypto send"),
+        ("/wallets", "সব multi-wallet ও balance দেখুন"),
+        ("/addwallet", "নতুন wallet যোগ/import করুন"),
+        ("/sendfrom", "নির্দিষ্ট wallet থেকে crypto send"),
         ("/payout", "payout request flow শুরু"),
     ]
     lines = ["Normal User Commands"] + [f"{cmd} — {desc}" for cmd, desc in user_commands]
@@ -1787,7 +1790,7 @@ def command_help_text(user_id=None):
             ("/balances", "admin stock balances দেখুন"),
             ("/maintenance [on|off]", "maintenance mode on/off"),
             ("/backup", "DB backup পাঠান"),
-            ("/report [weekly]", "sales/order report দেখুন"),
+            ("/report [weekly]", "sales/order report দেখ���ন"),
             ("/profit [daily|weekly]", "profit summary দেখুন"),
             ("/costrate [NETWORK RATE]", "cost rates set/list"),
             ("/gas", "native gas monitor দেখুন"),
@@ -2068,7 +2071,7 @@ def solana_refund_text(lang, wallet=None, summary=None):
                 "",
                 ltext(lang, "ATA check result:", "ATA check result:"),
                 ltext(lang, f"• Refundable empty ATA: {summary.get('refundable_count', 0)}", f"• Refund করা যাবে এমন empty ATA: {summary.get('refundable_count', 0)}"),
-                ltext(lang, f"• Estimated refundable SOL: {summary.get('total_sol', 0):.6f}", f"• আনুমান��ক refundable SOL: {summary.get('total_sol', 0):.6f}"),
+                ltext(lang, f"• Estimated refundable SOL: {summary.get('total_sol', 0):.6f}", f"• আনুমানিক refundable SOL: {summary.get('total_sol', 0):.6f}"),
                 ltext(lang, f"• Non-empty token accounts skipped: {summary.get('non_empty_count', 0)}", f"• Token balance থাকায় skip: {summary.get('non_empty_count', 0)}"),
             ]
         )
@@ -2223,9 +2226,9 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
         "• Personal account forwarding শুধু সেই group/channel-এর জন্য যেখানে আপনার account member এবং post করার permission/consent আছে। Spam/account-risk কমাতে rate-limit আছে।\n"
         "• বারবার forward বন্ধ করতে Stop scheduled forward, token/session সরাতে Disconnect ব্যবহার করুন।\n\n"
-        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দি��্ট স���য়ের forward: {schedule}",
+        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট সময়ের forward: {schedule}",
     )
-    return panel(ltext(lang, "📨 Telegram Message Forwarder", "���� Telegram Message Forwarder"), body)
+    return panel(ltext(lang, "📨 Telegram Message Forwarder", "📨 Telegram Message Forwarder"), body)
 
 
 def normalize_free_forward_target(value):
@@ -2809,7 +2812,7 @@ def bot_health_text():
     lines.extend([
         f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
         f"☁️ Backup upload: {'✅ yes' if BACKUP_UPLOAD_URL else '❌ no'}",
-        f"🔐 Seller master key: {'��� yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
+        f"🔐 Seller master key: {'✅ yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
         DIVIDER,
     ])
     try:
@@ -3440,9 +3443,9 @@ def faq_text(lang="bn"):
 
     body = (
         "১. Crypto কীভাবে কিনব?\n"
-        "Buy চাপুন, network বেছে নিন, receiving wallet দিন, BDT amount লিখুন, exact bKash amount pay করুন, তারপর TrxID submit করুন।\n\n"
+        "Buy চাপুন, network বেছে নিন, receiving wallet দিন, BDT amount লিখুন, exact bKash amount pay করুন, ত��রপর TrxID submit করুন।\n\n"
         "২. কোন network support করে?\n"
-        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়�� সঠিক wallet দিন।\n\n"
+        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়ী সঠিক wallet দিন।\n\n"
         "৩. Delivery কত সময় লাগে?\n"
         "Payment verify হলে সাধারণত কয়েক মিনিটের মধ্যে delivery হয়। bKash notice delay, ভুল TrxID, stock কম, অথবা network/RPC busy থাকলে সময় বেশি লাগতে পারে।\n\n"
         "৪. Payment করার আগে কী check করব?\n"
@@ -3852,7 +3855,7 @@ def seller_guide_text(seller=None, lang="bn"):
 
 def seller_approval_text(seller=None, lang="bn"):
     if lang == "en":
-        return "���� Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
+        return "✅ Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
     return "🎉 আপনার seller account approved হয়েছে।\n\n" + seller_guide_text(seller, lang)
 
 
@@ -4275,7 +4278,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ltext(
                 lang,
                 f"♻️ Refund {summary.get('total_sol', 0):.6f} SOL by closing {summary.get('refundable_count', 0)} empty ATA account(s)?\n\nNetwork fee will be paid from the same wallet.",
-                f"♻️ {summary.get('refundable_count', 0)}টি empty ATA close করে {summary.get('total_sol', 0):.6f} SOL refund করবেন?\n\nNetwork fee একই wallet থেকে কাটবে।",
+                f"��️ {summary.get('refundable_count', 0)}টি empty ATA close করে {summary.get('total_sol', 0):.6f} SOL refund করবেন?\n\nNetwork fee একই wallet থেকে কাটবে।",
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -6184,6 +6187,7 @@ async def show_my_wallet_menu(query, user_id):
         keyboard = [
             [InlineKeyboardButton(ltext(lang, "💰 My Balance", "💰 আমার Balance"), callback_data="check_mybal"), InlineKeyboardButton(ltext(lang, "💸 Send Crypto", "💸 Crypto পাঠাও"), callback_data="mw_send")],
             [InlineKeyboardButton(ltext(lang, "🔄 Change Wallet", "🔄 Wallet পরিবর্তন"), callback_data="mw_change"), InlineKeyboardButton(ltext(lang, "🗑️ Delete Wallet", "🗑️ Wallet মুছো"), callback_data="mw_delete")],
+            [InlineKeyboardButton(ltext(lang, "👛 My Wallets (multi)", "👛 আমার Wallets (multi)"), callback_data="mw_list")],
             [InlineKeyboardButton(ltext(lang, "📖 User Guide", "📖 ব্যবহার গাইড"), callback_data="show_guide")],
             [InlineKeyboardButton(tr("back", lang), callback_data="back")],
         ]
@@ -6192,7 +6196,7 @@ async def show_my_wallet_menu(query, user_id):
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
     else:
-        keyboard = [[InlineKeyboardButton(ltext(lang, "🔐 Connect Wallet", "🔐 Wallet সংযুক্ত করুন"), callback_data="mw_setup")], [InlineKeyboardButton(ltext(lang, "📖 User Guide", "📖 ব্যবহার গাইড"), callback_data="show_guide")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]
+        keyboard = [[InlineKeyboardButton(ltext(lang, "🔐 Connect Wallet", "🔐 Wallet সংযুক্ত করুন"), callback_data="mw_setup")], [InlineKeyboardButton(ltext(lang, "👛 My Wallets (multi)", "👛 আমার Wallets (multi)"), callback_data="mw_list")], [InlineKeyboardButton(ltext(lang, "📖 User Guide", "📖 ব্যবহার গাইড"), callback_data="show_guide")], [InlineKeyboardButton(tr("back", lang), callback_data="back")]]
         await query.edit_message_text(panel("🔐 My Wallet", ltext(lang, "❌ No wallet connected yet.\n\nConnect a wallet to check balance and send crypto securely.", "❌ এখনো wallet connected নেই।\n\nBalance check ও crypto send করতে wallet connect করুন।")), reply_markup=InlineKeyboardMarkup(keyboard))
 
 
@@ -6536,7 +6540,7 @@ async def approve_order(query, user_id):
             target_uid,
             f"✅ Your payment was manually verified by admin.\n\n⚠️ Crypto delivery hit a temporary issue. Admin will retry or contact you.\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {user_reason}\n📞 Support: @{SUPPORT_USERNAME.lstrip('@')}"
             if target_lang == "en"
-            else f"✅ আপনার payment admin manually verified করেছেন।\n\n⚠️ Crypto পাঠাতে temporary সমস্যা হয়েছে। Admin retry করবেন বা support contact করবেন।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n💡 {user_reason}\n📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
+            else f"✅ আপনার payment admin manually verified করেছেন।\n\n⚠️ Crypto পাঠাতে temporary সমস্যা হয়েছে। Admin retry করবেন বা support contact করবেন।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n�� {user_reason}\n📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
         )
         logger.error("Admin approve send failed: %s", exc)
 
@@ -6555,7 +6559,7 @@ async def reject_order(query, user_id):
     release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_reject", actor_id=user_id)
     add_audit(user_id, "order_rejected", "pending_order", trx_id, f"order={order_id}")
     await query.edit_message_text(f"❌ Rejected!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, wallet, 'rejected/manual verify failed')}")
-    await send_order_user_message(query.get_bot(), target_uid, f"❌ আপনার পেমেন্��� verify করা যায়নি।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
+    await send_order_user_message(query.get_bot(), target_uid, f"❌ আপনার পেমেন্ট verify করা যায়নি।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
 
 
 async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7441,7 +7445,7 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
     if step == "to_token":
         context.user_data["swap_to_token"] = text
         context.user_data["swap_step"] = "amount"
-        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন ��িখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
         return True
 
     if step == "amount":
@@ -7756,7 +7760,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_setting(AI_PROVIDER_SETTING_KEYS[setup_provider], api_key)
         context.user_data.pop("ai_setup_provider", None)
         add_audit(user_id, "ai_api_key_updated", "ai_provider", setup_provider, "configured via bot setup")
-        await update.message.reply_text(f"✅ {AI_PROVIDER_LABELS[setup_provider]} API key saved. {'No restart required.' if lang == 'en' else 'Restart লা��বে না।'}\n\n{ai_setup_text(lang)}", reply_markup=ai_setup_keyboard(lang))
+        await update.message.reply_text(f"✅ {AI_PROVIDER_LABELS[setup_provider]} API key saved. {'No restart required.' if lang == 'en' else 'Restart লাগবে না।'}\n\n{ai_setup_text(lang)}", reply_markup=ai_setup_keyboard(lang))
         return
 
     if context.user_data.get("ai_support"):
@@ -7892,7 +7896,10 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(ltext(lang, f"❌ Insufficient {net_info['symbol']} stock.\n\n🌐 {net_info['name']}\n💵 Requested: {crypto_amount}\n{stock_detail(network, crypto_amount, current_bal)}\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"❌ পর্যাপ্ত {net_info['symbol']} নেই!\n\n🌐 {net_info['name']}\n💵 চান: {crypto_amount}\n{stock_detail(network, crypto_amount, current_bal)}\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"))
         return
 
-    await update.message.reply_text(ltext(lang, f"✅ Payment verified!\n\n�� {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...", f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে..."))
+    await update.message.reply_text(ltext(lang, f"✅ Payment verified!
+
+🌐 {net_info['name']}
+💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...", f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে..."))
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
         mark_sms_used(trx_id)
@@ -8040,7 +8047,7 @@ async def handle_redeem(update, context, user_id, username):
             bonus_line = ltext(lang, "No early bonus.", "Early bonus নেই।")
             if int(session[6] or 0) > 0 and float(session[7] or 0) > 0:
                 bonus_line = ltext(lang, f"First {session[6]} successful claimers get +{session[7]} {net_info['symbol']} extra if still available.", f"প্রথম {session[6]} জন successful claimer +{session[7]} {net_info['symbol']} extra পাবে, slot থাকলে।")
-            await update.message.reply_text(ltext(lang, f"✅ Giveaway code verified!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Giveaway code যাচাই সফল!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n���� Network: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
+            await update.message.reply_text(ltext(lang, f"✅ Giveaway code verified!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Giveaway code যাচাই সফল!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
         else:
             await update.message.reply_text(ltext(lang, f"✅ Code verified!\n\n🎁 You receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
         return
@@ -8497,15 +8504,18 @@ async def mywallets_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List all of the user's wallets with live balances (no password needed)."""
     user_id = str(update.effective_user.id)
     lang = user_lang(user_id)
+    if update.callback_query:
+        await update.callback_query.answer()
+    msg = update.effective_message
     if is_maintenance_enabled() and not is_admin(user_id):
-        await update.message.reply_text(ltext(lang, "🛠️ Under maintenance. Please try later.", "🛠️ রক্ষণাবেক্ষণ চলছে। পরে চেষ্টা করুন।"))
+        await msg.reply_text(ltext(lang, "🛠️ Under maintenance. Please try later.", "🛠️ রক্ষণাবেক্ষণ চলছে। পরে চেষ্টা করুন।"))
         return
     wallets = list_user_wallets(user_id)
     if not wallets:
         keyboard = [[InlineKeyboardButton(ltext(lang, "➕ Add Wallet", "➕ Wallet যোগ করুন"), callback_data="mw_add")]]
-        await update.message.reply_text(ltext(lang, "👛 You have no wallets yet.\n\nAdd one with /addwallet", "👛 আপনার কোনো wallet নেই।\n\n/addwallet দিয়ে যোগ করুন"), reply_markup=InlineKeyboardMarkup(keyboard))
+        await msg.reply_text(ltext(lang, "👛 You have no wallets yet.\n\nAdd one with /addwallet", "👛 আপনার কোনো wallet নেই।\n\n/addwallet দিয়ে যোগ করুন"), reply_markup=InlineKeyboardMarkup(keyboard))
         return
-    await update.message.reply_text(ltext(lang, "⏳ Loading balances...", "⏳ Balance লোড হচ্ছে..."))
+    await msg.reply_text(ltext(lang, "⏳ Loading balances...", "⏳ Balance লোড হচ্ছে..."))
     try:
         balances = await asyncio.get_running_loop().run_in_executor(None, lambda: list_wallet_balances(user_id))
     except Exception:
@@ -8524,18 +8534,21 @@ async def mywallets_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(ltext(lang, "➕ Add Wallet", "➕ Wallet যোগ করুন"), callback_data="mw_add"), InlineKeyboardButton(ltext(lang, "💸 Send", "💸 পাঠান"), callback_data="mw_send_pick")],
         [InlineKeyboardButton(ltext(lang, "🗑️ Remove Wallet", "🗑️ Wallet সরান"), callback_data="mw_del_pick")],
     ]
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    await msg.reply_text("\n".join(lines), parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 # ─── Add wallet flow ───
 async def addwallet_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     lang = user_lang(user_id)
+    if update.callback_query:
+        await update.callback_query.answer()
+    msg = update.effective_message
     if is_maintenance_enabled() and not is_admin(user_id):
-        await update.message.reply_text(ltext(lang, "🛠️ Under maintenance. Please try later.", "🛠️ রক্ষণাবেক্ষণ চলছে। পরে চেষ্টা করুন।"))
+        await msg.reply_text(ltext(lang, "🛠️ Under maintenance. Please try later.", "🛠️ রক্ষণাবেক্ষণ চলছে। পরে চেষ্টা করুন।"))
         return ConversationHandler.END
     context.user_data["mw_mode"] = "add"
-    await update.message.reply_text(ltext(lang, "➕ Add Wallet\n\nSelect the network:\n\n⚠️ Private keys are encrypted with your master password.", "➕ Wallet যোগ\n\nNetwork বেছে নিন:\n\n⚠️ Private Key আপনার master password দিয়ে encrypt হবে।"), reply_markup=user_network_menu(lang))
+    await msg.reply_text(ltext(lang, "➕ Add Wallet\n\nSelect the network:\n\n⚠️ Private keys are encrypted with your master password.", "➕ Wallet যোগ\n\nNetwork বেছে নিন:\n\n⚠️ Private Key আপনার master password দিয়ে encrypt হবে।"), reply_markup=user_network_menu(lang))
     return SETUP_NETWORK
 
 
@@ -8845,7 +8858,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     delete_user_wallet(str(update.effective_user.id))
-    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দে��য়া হয়েছে!\n\nনতুন wallet setup করুন:"))
+    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দেয়া হয়েছে!\n\nনতুন wallet setup করুন:"))
     return await setup_cmd(update, context)
 
 
@@ -8863,7 +8876,7 @@ async def notify_admin_parsed_bkash(app, parsed, sender, text, scope="main", sel
         seller_line = f"\n🏪 Seller: {seller_id}" if seller_id else ""
         await app.bot.send_message(
             ADMIN_ID,
-            "📲 bKash notice parsed by app/webhook\n\n"
+            "���� bKash notice parsed by app/webhook\n\n"
             f"📩 Source: {sender}\n"
             f"🔎 Scope: {scope}{seller_line}\n"
             f"💵 Amount: {parsed['amount_bdt']} BDT\n"
@@ -9126,6 +9139,7 @@ async def main():
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))
     app.add_handler(CommandHandler("guide", guide_cmd))
     app.add_handler(CommandHandler("wallets", mywallets_cmd))
+    app.add_handler(CallbackQueryHandler(mywallets_cmd, pattern="^mw_list$"))
     app.add_handler(CommandHandler("ai", ai_cmd))
     app.add_handler(CommandHandler("swap", swap_cmd))
     app.add_handler(buy_conv)
