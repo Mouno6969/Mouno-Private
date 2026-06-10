@@ -32,12 +32,19 @@ const Modal: React.FC<{ open: boolean; onClose: () => void; title: string; child
   open, onClose, title, children,
 }) => {
   if (!open) return null;
+  const titleId = `modal-title-${title.replace(/\s+/g, '-').toLowerCase()}`;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-lg border border-primary/10 bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="w-full max-w-md rounded-lg border border-primary/10 bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-base font-bold">{title}</h2>
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <h2 id={titleId} className="text-base font-bold">{title}</h2>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close dialog">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -157,7 +164,9 @@ const MyWallet: React.FC = () => {
   const submitSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sendWallet) return;
-    if (!sDest || !sAmount || !sMasterPwd) { toast.error('All fields are required'); return; }
+    if (!sDest.trim() || !sAmount || !sMasterPwd) { toast.error('All fields are required'); return; }
+    const amount = parseFloat(sAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('Enter a valid amount greater than 0'); return; }
     setSBusy(true);
     try {
       const res = await fetch(`${API}/api/wallets/${sendWallet.id}/send`, {
@@ -165,7 +174,7 @@ const MyWallet: React.FC = () => {
         headers: headers(),
         body: JSON.stringify({
           to_address: sDest.trim(),
-          amount: parseFloat(sAmount),
+          amount,
           asset: sendWallet.asset || undefined,
           master_password: sMasterPwd,
         }),
@@ -298,6 +307,7 @@ const MyWallet: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => copy(w.wallet_address)}
+                              aria-label={`Copy wallet address ${w.wallet_address || ''}`}
                               className="flex items-center gap-1 text-xs text-muted-foreground font-mono hover:text-foreground"
                             >
                               {truncate(w.wallet_address)}
@@ -328,6 +338,7 @@ const MyWallet: React.FC = () => {
                             size="sm"
                             variant="ghost"
                             className="text-destructive hover:text-destructive"
+                            aria-label={`Remove wallet ${w.label || meta?.name || network}`}
                             onClick={() => { setDelWallet(w); setDelPwd(''); }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

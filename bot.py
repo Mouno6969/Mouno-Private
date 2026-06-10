@@ -1917,7 +1917,7 @@ def telegram_id_finder_text(lang):
         ltext(
             lang,
             "This tool helps you find Telegram user, group, or channel IDs.\n\nHow to use\n1. Tap Start ID Finder.\n2. Send a public @username or public t.me/telegram.me link.\n3. Or forward a message from the user/group/channel.\n4. Or use it inside a group/channel where the bot can read messages to see the current chat ID.\n\nNotes\n• Public usernames/links can be resolved directly.\n• Private group/channel IDs usually require the bot/account to have access, or a forwarded message with visible origin.\n• If Telegram hides the forward sender for privacy, the bot cannot reveal that hidden ID.",
-            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-এ ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে না।",
+            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-��� ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে না।",
         ),
     )
 
@@ -3950,7 +3950,7 @@ async def show_seller_rates(query, seller_id, lang):
 async def show_seller_pending(query, seller_id, lang):
     rows = list_pending_seller_orders(seller_id, 10)
     if not rows:
-        await query.edit_message_text("✅ Pending/manual seller order নেই।", reply_markup=back_keyboard(lang))
+        await query.edit_message_text("✅ Pending/manual seller order নে���।", reply_markup=back_keyboard(lang))
         return
     for row in rows:
         order_id = row[0]
@@ -5377,7 +5377,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if context.user_data.get("giveaway_source") == "user_wallet":
                 context.user_data["giveaway_minutes"] = minutes
                 context.user_data["giveaway_step"] = "password"
-                await query.edit_message_text(ltext(lang, "🔐 Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password দিন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
+                await query.edit_message_text(ltext(lang, "🔐 Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password ��িন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
                 return
             await create_giveaway_from_context(query, context, user_id, lang, minutes)
             return
@@ -7714,7 +7714,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         api_key = _clean_ai_key(text)
         if not api_key or len(api_key) < 12:
             await update.message.reply_text(
-                ltext(lang, "❌ Key is too short or empty. Send the correct key, or send /cancel.", "❌ Key খুব ছোট/খালি। সঠিক key পাঠান, অথবা /cancel লিখুন।"),
+                ltext(lang, "❌ Key is too short or empty. Send the correct key, or send /cancel.", "❌ Key ��ুব ছোট/খালি। সঠিক key পাঠান, অথবা /cancel লিখুন।"),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="honcho_setup")]]),
             )
             return
@@ -7852,7 +7852,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     network = context.user_data.get("network", "solana")
     net_info = NETWORKS[network]
     if not wallet:
-        await update.message.reply_text(ltext(lang, "❌ Wallet not found.\n\nPlease start again with /start.", "❌ Wallet পাওয়া যায়নি!\n\n/start দিয়ে আবার শুরু করুন।"))
+        await update.message.reply_text(ltext(lang, "�� Wallet not found.\n\nPlease start again with /start.", "❌ Wallet পাওয়া যায়নি!\n\n/start দিয়ে আবার শুরু করুন।"))
         return
 
     sms_row = get_sms(trx_id)
@@ -7896,10 +7896,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(ltext(lang, f"❌ Insufficient {net_info['symbol']} stock.\n\n🌐 {net_info['name']}\n💵 Requested: {crypto_amount}\n{stock_detail(network, crypto_amount, current_bal)}\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}", f"❌ পর্যাপ্ত {net_info['symbol']} নেই!\n\n🌐 {net_info['name']}\n💵 চান: {crypto_amount}\n{stock_detail(network, crypto_amount, current_bal)}\n\n📞 @{SUPPORT_USERNAME.lstrip('@')}"))
         return
 
-    await update.message.reply_text(ltext(lang, f"✅ Payment verified!
-
-🌐 {net_info['name']}
-💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...", f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে..."))
+    await update.message.reply_text(ltext(lang, f"✅ Payment verified!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ Sending...", f"✅ পেমেন্ট যাচাই সফল!\n\n🌐 {net_info['name']}\n💰 {amount_bdt} BDT = {crypto_amount} {net_info['symbol']}\n👛 {wallet}\n\n⏳ পাঠানো হচ্ছে..."))
     try:
         sig = await send_crypto(network, wallet, crypto_amount)
         mark_sms_used(trx_id)
@@ -8335,7 +8332,7 @@ async def send_wallet_password(update: Update, context: ContextTypes.DEFAULT_TYP
         save_transaction(f"WALLET-{sig[:24]}", user_id, 0, amount, dest, sig, "completed", network, source="wallet")
         record_referral_reward_for_transaction(user_id, "wallet", f"WALLET-{sig[:24]}", network, amount, 0, "user_wallet_transfer")
         context.user_data.clear()
-        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
+        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n���� {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
     except Exception as exc:
         context.user_data.clear()
         reason = failure_reason_text(exc, network, lang)

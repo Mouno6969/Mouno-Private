@@ -960,7 +960,16 @@ def wallet_status(current_user):
 
 # ─── Multi-Wallet Tools ───
 def _uid(current_user):
-    return str(current_user[0] if isinstance(current_user, (list, tuple)) else current_user.get('id', current_user.get('username', '')))
+    if isinstance(current_user, (list, tuple)):
+        uid = current_user[0] if current_user else None
+    elif isinstance(current_user, dict):
+        uid = current_user.get('id') or current_user.get('username')
+    else:
+        uid = current_user
+    uid = str(uid).strip() if uid is not None else ''
+    if not uid:
+        raise RuntimeError("Could not determine the authenticated user.")
+    return uid
 
 
 @app.route('/api/wallets', methods=['GET'])
@@ -985,6 +994,8 @@ def add_wallet(current_user):
     master_password = data.get('master_password')
     if not network or not master_password:
         return jsonify({'ok': False, 'message': 'network and master_password are required', 'data': None}), 400
+    if mode not in ('create', 'import'):
+        return jsonify({'ok': False, 'message': "mode must be either 'create' or 'import'", 'data': None}), 400
     if mode == 'import' and not private_key:
         return jsonify({'ok': False, 'message': 'private_key is required to import', 'data': None}), 400
     try:
