@@ -427,7 +427,7 @@ TEXT = {
     "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
     "code_select_network": {"bn": "🎟️ গিফট ক���ড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
     "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
-    "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
+    "code_select_duration": {"bn": "৩/৩: ��োডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
     "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
     "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
     "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
@@ -502,7 +502,7 @@ def failure_reason_text(error, network=None, lang="bn"):
         bn = "সম্ভবত token stock/balance পর্যাপ্ত নেই। Retry করার আগে admin-এর available stock ও reserved amount চেক করা উচিত।"
     elif any(word in text for word in ["rpc", "timeout", "timed out", "connection", "network", "temporarily", "503", "502", "504"]):
         en = "Likely temporary RPC/network issue. Check RPC health/explorer and retry after confirming the payment and no duplicate send occurred."
-        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়নি নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
+        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়ন�� নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
     elif any(word in text for word in ["invalid", "address", "wallet", "checksum", "wrong network"]):
         en = "Likely invalid wallet address or network mismatch. Confirm the destination wallet matches the selected network before retrying."
         bn = "সম্ভবত wallet address ভুল বা network mismatch. Retry করার আগে destination wallet নির্বাচিত network-এর কিনা নিশ্চিত করুন।"
@@ -1398,7 +1398,7 @@ def ai_status_text(lang="bn"):
 def ai_setup_text(lang="bn"):
     order = ai_provider_order()
     lines = [
-        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তারপর শুধু API key পাঠান।"),
+        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তারপ��� শুধু API key পাঠান।"),
         ltext(lang, "Bot setup keys are saved to SQLite immediately; no restart is required.", "Bot setup key সাথে সাথে SQLite-এ save হবে; restart লাগবে না।"),
         ltext(lang, ".env keys still work; a bot setup key takes priority when present.", ".env key এখনও কাজ করবে; Bot setup key থাকলে সেটাই আগে ব্যবহার হবে।"),
         ltext(lang, "Full keys are never shown in status.", "Full key কখনো status-এ দেখানো হবে না।"),
@@ -2210,7 +2210,7 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
         "• Personal account forwarding শুধু সেই group/channel-এর জন্য যেখানে আপনার account member এবং post করার permission/consent আছে। Spam/account-risk কমাতে rate-limit আছে।\n"
         "• বারবার forward বন্ধ করতে Stop scheduled forward, token/session সরাতে Disconnect ব্যবহার করুন।\n\n"
-        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট সময়ের forward: {schedule}",
+        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট স���য়ের forward: {schedule}",
     )
     return panel(ltext(lang, "📨 Telegram Message Forwarder", "���� Telegram Message Forwarder"), body)
 
@@ -2796,7 +2796,7 @@ def bot_health_text():
     lines.extend([
         f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
         f"☁️ Backup upload: {'✅ yes' if BACKUP_UPLOAD_URL else '❌ no'}",
-        f"🔐 Seller master key: {'✅ yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
+        f"🔐 Seller master key: {'��� yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
         DIVIDER,
     ])
     try:
@@ -3429,7 +3429,7 @@ def faq_text(lang="bn"):
         "১. Crypto কীভাবে কিনব?\n"
         "Buy চাপুন, network বেছে নিন, receiving wallet দিন, BDT amount লিখুন, exact bKash amount pay করুন, তারপর TrxID submit করুন।\n\n"
         "২. কোন network support করে?\n"
-        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়ী সঠিক wallet দিন।\n\n"
+        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়�� সঠিক wallet দিন।\n\n"
         "৩. Delivery কত সময় লাগে?\n"
         "Payment verify হলে সাধারণত কয়েক মিনিটের মধ্যে delivery হয়। bKash notice delay, ভুল TrxID, stock কম, অথবা network/RPC busy থাকলে সময় বেশি লাগতে পারে।\n\n"
         "৪. Payment করার আগে কী check করব?\n"
@@ -3574,6 +3574,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lang = get_user_language(user.id)
             if not lang:
                 await send_first_time_language_selection(update)
+                return
+            if is_maintenance_enabled() and not is_admin(user.id):
+                await update.message.reply_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
                 return
             context.user_data.clear()
             context.user_data["redeem_step"] = "code"
@@ -3836,7 +3839,7 @@ def seller_guide_text(seller=None, lang="bn"):
 
 def seller_approval_text(seller=None, lang="bn"):
     if lang == "en":
-        return "🎉 Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
+        return "���� Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
     return "🎉 আপনার seller account approved হয়েছে।\n\n" + seller_guide_text(seller, lang)
 
 
@@ -7425,7 +7428,7 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
     if step == "to_token":
         context.user_data["swap_to_token"] = text
         context.user_data["swap_step"] = "amount"
-        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন ��িখুন।"), reply_markup=swap_cancel_keyboard(lang))
         return True
 
     if step == "amount":
@@ -8511,7 +8514,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     delete_user_wallet(str(update.effective_user.id))
-    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দেওয়া হয়েছে!\n\nনতুন wallet setup করুন:"))
+    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দে��য়া হয়েছে!\n\nনতুন wallet setup করুন:"))
     return await setup_cmd(update, context)
 
 
