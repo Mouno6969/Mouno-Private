@@ -383,6 +383,7 @@ TEXT = {
     "swap": {"bn": "🔁 Swap/Bridge", "en": "🔁 Swap/Bridge"},
     "gift": {"bn": "🎁 গিফট কোড", "en": "🎁 Gift Code"},
     "giveaway": {"bn": "🎉 Giveaway", "en": "🎉 Giveaway"},
+    "giveaway_redeem": {"bn": "🎟️ Giveaway রিডিম", "en": "🎟️ Redeem Giveaway"},
     "stars": {"bn": "⭐ Telegram Stars", "en": "⭐ Telegram Stars"},
     "rate": {"bn": "📊 রেট", "en": "📊 Rates"},
     "balance": {"bn": "💰 ব্যালেন্স", "en": "💰 Balance"},
@@ -424,9 +425,9 @@ TEXT = {
     "send_bdt": {"bn": "পাঠাবেন", "en": "You pay"},
     "receive_crypto": {"bn": "পাবেন", "en": "You receive"},
     "confirm_prompt": {"bn": "নিশ্চিত করতে Confirm চাপুন 👇", "en": "Tap Confirm to continue 👇"},
-    "code_select_network": {"bn": "🎟️ গিফট কোড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
+    "code_select_network": {"bn": "🎟️ গিফট ক���ড তৈরি\n\n১/৩: নেটওয়ার্ক বেছে নিন", "en": "🎟️ Generate Gift Code\n\nStep 1/3: Select network"},
     "code_select_amount": {"bn": "২/৩: কত {symbol} এর কোড তৈরি করবেন?", "en": "Step 2/3: Choose {symbol} amount"},
-    "code_select_duration": {"bn": "৩/৩: কোডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
+    "code_select_duration": {"bn": "৩/৩: ��োডের মেয়াদ বেছে নিন", "en": "Step 3/3: Choose expiry time"},
     "custom_amount": {"bn": "✏️ Custom Amount", "en": "✏️ Custom Amount"},
     "custom_duration": {"bn": "✏️ Custom Time", "en": "✏️ Custom Time"},
     "enter_custom_amount": {"bn": "পরিমাণ লিখুন। যেমন: 1.5", "en": "Send the amount. Example: 1.5"},
@@ -501,7 +502,7 @@ def failure_reason_text(error, network=None, lang="bn"):
         bn = "সম্ভবত token stock/balance পর্যাপ্ত নেই। Retry করার আগে admin-এর available stock ও reserved amount চেক করা উচিত।"
     elif any(word in text for word in ["rpc", "timeout", "timed out", "connection", "network", "temporarily", "503", "502", "504"]):
         en = "Likely temporary RPC/network issue. Check RPC health/explorer and retry after confirming the payment and no duplicate send occurred."
-        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়নি নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
+        bn = "সম্ভবত temporary RPC/network issue. Payment confirm এবং duplicate send হয়ন�� নিশ্চিত করে RPC/explorer চেক করে retry করুন।"
     elif any(word in text for word in ["invalid", "address", "wallet", "checksum", "wrong network"]):
         en = "Likely invalid wallet address or network mismatch. Confirm the destination wallet matches the selected network before retrying."
         bn = "সম্ভবত wallet address ভুল বা network mismatch. Retry করার আগে destination wallet নির্বাচিত network-এর কিনা নিশ্চিত করুন।"
@@ -1397,7 +1398,7 @@ def ai_status_text(lang="bn"):
 def ai_setup_text(lang="bn"):
     order = ai_provider_order()
     lines = [
-        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তারপর শুধু API key পাঠান।"),
+        ltext(lang, "Tap a provider button, then send only the API key.", "Provider button চাপুন, তারপ��� শুধু API key পাঠান।"),
         ltext(lang, "Bot setup keys are saved to SQLite immediately; no restart is required.", "Bot setup key সাথে সাথে SQLite-এ save হবে; restart লাগবে না।"),
         ltext(lang, ".env keys still work; a bot setup key takes priority when present.", ".env key এখনও কাজ করবে; Bot setup key থাকলে সেটাই আগে ব্যবহার হবে।"),
         ltext(lang, "Full keys are never shown in status.", "Full key কখনো status-এ দেখানো হবে না।"),
@@ -2209,9 +2210,9 @@ def free_forward_text(lang, has_token=False, bot_name=None, has_schedule=False, 
         "• কোনো target fail করলে check করুন bot add আছে কি না এবং post করার permission আছে কি না।\n"
         "• Personal account forwarding শুধু সেই group/channel-এর জন্য যেখানে আপনার account member এবং post করার permission/consent আছে। Spam/account-risk কমাতে rate-limit আছে।\n"
         "• বারবার forward বন্ধ করতে Stop scheduled forward, token/session সরাতে Disconnect ব্যবহার করুন।\n\n"
-        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট সময়ের forward: {schedule}",
+        f"Bot token: {status}\nPersonal account: {personal_status}\nনির্দিষ্ট স���য়ের forward: {schedule}",
     )
-    return panel(ltext(lang, "📨 Telegram Message Forwarder", "📨 Telegram Message Forwarder"), body)
+    return panel(ltext(lang, "📨 Telegram Message Forwarder", "���� Telegram Message Forwarder"), body)
 
 
 def normalize_free_forward_target(value):
@@ -2795,7 +2796,7 @@ def bot_health_text():
     lines.extend([
         f"📞 Support: @{SUPPORT_USERNAME.lstrip('@')}",
         f"☁️ Backup upload: {'✅ yes' if BACKUP_UPLOAD_URL else '❌ no'}",
-        f"🔐 Seller master key: {'✅ yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
+        f"🔐 Seller master key: {'��� yes' if SELLER_WALLET_MASTER_KEY else '❌ no'}",
         DIVIDER,
     ])
     try:
@@ -3428,7 +3429,7 @@ def faq_text(lang="bn"):
         "১. Crypto কীভাবে কিনব?\n"
         "Buy চাপুন, network বেছে নিন, receiving wallet দিন, BDT amount লিখুন, exact bKash amount pay করুন, তারপর TrxID submit করুন।\n\n"
         "২. কোন network support করে?\n"
-        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়ী সঠিক wallet দিন।\n\n"
+        "Solana USDC, Polygon USDC, BSC USDT, Avalanche USDT, Ethereum USDT/USDC, Base USDC, Tron USDT এবং TON support করে। Selected network অনুযায়�� সঠিক wallet দিন।\n\n"
         "৩. Delivery কত সময় লাগে?\n"
         "Payment verify হলে সাধারণত কয়েক মিনিটের মধ্যে delivery হয়। bKash notice delay, ভুল TrxID, stock কম, অথবা network/RPC busy থাকলে সময় বেশি লাগতে পারে।\n\n"
         "৪. Payment করার আগে কী check করব?\n"
@@ -3449,6 +3450,7 @@ def main_menu(user_id, lang=None):
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("swap", lang), callback_data="swap_start")],
         [InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu")],
+        [InlineKeyboardButton(tr("giveaway_redeem", lang), callback_data="giveaway_redeem_menu")],
         [InlineKeyboardButton(tr("rate", lang), callback_data="rate"), InlineKeyboardButton(tr("wallet", lang), callback_data="my_wallet_menu")],
         [InlineKeyboardButton(tr("balance", lang), callback_data="balance"), InlineKeyboardButton(tr("txlog", lang), callback_data="txlog")],
         [InlineKeyboardButton(tr("order_status", lang), callback_data="order_status"), InlineKeyboardButton(tr("referral", lang), callback_data="referral_menu")],
@@ -3568,6 +3570,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = getattr(context, "args", None) or []
     if args:
         raw_code = str(args[0]).strip()
+        if raw_code.lower() == "giveaway_redeem":
+            lang = get_user_language(user.id)
+            if not lang:
+                await send_first_time_language_selection(update)
+                return
+            if is_maintenance_enabled() and not is_admin(user.id):
+                await update.message.reply_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
+                return
+            context.user_data.clear()
+            context.user_data["redeem_step"] = "code"
+            await update.message.reply_text(ltext(lang, "🎟️ Redeem Giveaway Code\n\nEnter the giveaway code you received:\n\n📋 Example: ABC12345\n\nThe reward will be sent to the wallet address you provide next.", "🎟️ Giveaway কোড রিডিম\n\nআপনি যে giveaway কোড পেয়েছেন সেটি লিখুন:\n\n📋 উদাহরণ: ABC12345\n\nReward পরবর্তীতে দেওয়া wallet address-এ পাঠানো হবে।"))
+            return
         code = raw_code[4:] if raw_code.startswith("ref_") else raw_code
         if re.fullmatch(r"[A-Za-z0-9]{6,32}", code):
             try:
@@ -3825,7 +3839,7 @@ def seller_guide_text(seller=None, lang="bn"):
 
 def seller_approval_text(seller=None, lang="bn"):
     if lang == "en":
-        return "🎉 Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
+        return "���� Your seller account has been approved.\n\n" + seller_guide_text(seller, lang)
     return "🎉 আপনার seller account approved হয়েছে।\n\n" + seller_guide_text(seller, lang)
 
 
@@ -5322,6 +5336,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["redeem_step"] = "code"
         await query.edit_message_text(ltext(lang, "🎁 Redeem Gift Code\n\nEnter your gift code:\n\n📋 Example: ABC12345", "🎁 গিফট কোড রিডিম\n\nআপনার গিফট কোড লিখুন:\n\n📋 উদাহরণ: ABC12345"))
 
+    elif query.data == "giveaway_redeem_menu":
+        if is_maintenance_enabled() and not is_admin(user_id):
+            await query.edit_message_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
+            return ConversationHandler.END
+        context.user_data.clear()
+        context.user_data["redeem_step"] = "code"
+        await query.edit_message_text(ltext(lang, "🎟️ Redeem Giveaway Code\n\nEnter the giveaway code you received:\n\n📋 Example: ABC12345\n\nThe reward will be sent to the wallet address you provide next.", "🎟️ Giveaway কোড রিডিম\n\nআপনি যে giveaway কোড পেয়েছেন সেটি লিখুন:\n\n📋 উদাহরণ: ABC12345\n\nReward পরবর্তীতে দেওয়া wallet address-এ পাঠানো হবে।"))
+
     elif query.data == "giveaway_menu":
         if is_maintenance_enabled() and not is_admin(user_id):
             await query.edit_message_text(maintenance_message(lang), reply_markup=back_keyboard(lang))
@@ -6520,7 +6542,7 @@ async def reject_order(query, user_id):
     release_stock_reservation(order_id=order_id, trx_id=trx_id, reason="admin_reject", actor_id=user_id)
     add_audit(user_id, "order_rejected", "pending_order", trx_id, f"order={order_id}")
     await query.edit_message_text(f"❌ Rejected!\n\n{order_admin_summary(order_id, target_uid, trx_id, amount_bdt, crypto_amount, network, wallet, 'rejected/manual verify failed')}")
-    await send_order_user_message(query.get_bot(), target_uid, f"❌ আপনার পেমেন্ট verify করা যায়নি।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
+    await send_order_user_message(query.get_bot(), target_uid, f"❌ আপনার পেমেন্��� verify করা যায়নি।\n\n🧾 Order: {order_id or 'N/A'}\n🔑 TrxID: {trx_id}\n\nসঠিক TrxID নিশ্চিত করুন অথবা যোগাযোগ করুন:\n📞 @{SUPPORT_USERNAME.lstrip('@')}")
 
 
 async def waiting_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7406,7 +7428,7 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
     if step == "to_token":
         context.user_data["swap_to_token"] = text
         context.user_data["swap_step"] = "amount"
-        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
+        await update.message.reply_text(ltext(lang, "Enter amount to swap/bridge.", "কত amount swap/bridge করবেন ��িখুন।"), reply_markup=swap_cancel_keyboard(lang))
         return True
 
     if step == "amount":
@@ -7721,7 +7743,7 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_setting(AI_PROVIDER_SETTING_KEYS[setup_provider], api_key)
         context.user_data.pop("ai_setup_provider", None)
         add_audit(user_id, "ai_api_key_updated", "ai_provider", setup_provider, "configured via bot setup")
-        await update.message.reply_text(f"✅ {AI_PROVIDER_LABELS[setup_provider]} API key saved. {'No restart required.' if lang == 'en' else 'Restart লাগবে না।'}\n\n{ai_setup_text(lang)}", reply_markup=ai_setup_keyboard(lang))
+        await update.message.reply_text(f"✅ {AI_PROVIDER_LABELS[setup_provider]} API key saved. {'No restart required.' if lang == 'en' else 'Restart লা��বে না।'}\n\n{ai_setup_text(lang)}", reply_markup=ai_setup_keyboard(lang))
         return
 
     if context.user_data.get("ai_support"):
@@ -8005,7 +8027,7 @@ async def handle_redeem(update, context, user_id, username):
             bonus_line = ltext(lang, "No early bonus.", "Early bonus নেই।")
             if int(session[6] or 0) > 0 and float(session[7] or 0) > 0:
                 bonus_line = ltext(lang, f"First {session[6]} successful claimers get +{session[7]} {net_info['symbol']} extra if still available.", f"প্রথম {session[6]} জন successful claimer +{session[7]} {net_info['symbol']} extra পাবে, slot থাকলে।")
-            await update.message.reply_text(ltext(lang, f"✅ Giveaway code verified!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Giveaway code যাচাই সফল!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
+            await update.message.reply_text(ltext(lang, f"✅ Giveaway code verified!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ Giveaway code যাচাই সফল!\n\n🧾 Session: {giveaway_id}\n🎁 Base: {session[4]} {net_info['symbol']}\n🎯 {bonus_line}\n���� Network: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
         else:
             await update.message.reply_text(ltext(lang, f"✅ Code verified!\n\n🎁 You receive: {amount_crypto} {net_info['symbol']}\n🌐 Network: {net_info['name']}\n\nEnter your {net_info['name']} wallet address:\n\n📋 Example: {wallet_hint(code_network)}", f"✅ কোড যাচাই সফল!\n\n🎁 পাবেন: {amount_crypto} {net_info['symbol']}\n🌐 নেটওয়ার্ক: {net_info['name']}\n\nআপনার {net_info['name']} Wallet Address দিন:\n\n📋 উদাহরণ: {wallet_hint(code_network)}"))
         return
@@ -8492,7 +8514,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def changekey_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_lang(update.effective_user.id)
     delete_user_wallet(str(update.effective_user.id))
-    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দেওয়া হয়েছে!\n\nনতুন wallet setup করুন:"))
+    await update.message.reply_text(ltext(lang, "🔄 Old key deleted.\n\nSet up a new wallet:", "🔄 পুরনো key মুছে দে��য়া হয়েছে!\n\nনতুন wallet setup করুন:"))
     return await setup_cmd(update, context)
 
 

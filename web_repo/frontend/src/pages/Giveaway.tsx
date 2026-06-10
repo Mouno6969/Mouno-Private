@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Gift, Clock, Users, Loader2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Gift, Clock, Users, Loader2, Ticket } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
 
 interface GiveawaySession {
@@ -19,9 +24,15 @@ interface GiveawaySession {
 
 
 
+const botUsername = process.env.REACT_APP_BOT_USERNAME || 'Automatedcryptobuybot';
+
 const Giveaway: React.FC = () => {
+  const { token } = useAuth();
   const [giveaways, setGiveaways] = useState<GiveawaySession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState('');
+  const [wallet, setWallet] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL || ''}/api/giveaways`)
@@ -30,6 +41,35 @@ const Giveaway: React.FC = () => {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleRedeem = async () => {
+    if (!code || !wallet) {
+      toast.error('Please enter both code and wallet address');
+      return;
+    }
+    setRedeeming(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/gift/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code, wallet })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message);
+        setCode('');
+      } else {
+        toast.error(data.message);
+      }
+    } catch (err) {
+      toast.error('Failed to connect to server');
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -40,6 +80,60 @@ const Giveaway: React.FC = () => {
         <h1 className="text-3xl font-extrabold tracking-tight">Giveaways</h1>
       </div>
       <p className="text-muted-foreground">Active giveaway sessions — claim codes on the Gift Codes page.</p>
+
+      <Card className="border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Ticket className="h-5 w-5 text-primary" /> Redeem Giveaway Code
+          </CardTitle>
+          <CardDescription>Enter a giveaway code to claim your reward directly to your wallet.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {token ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Giveaway Code</label>
+                <Input
+                  placeholder="ABC12345"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Wallet Address</label>
+                <Input
+                  placeholder="Enter your receiving address"
+                  value={wallet}
+                  onChange={(e) => setWallet(e.target.value)}
+                />
+              </div>
+              <Button className="w-full" onClick={handleRedeem} disabled={redeeming}>
+                {redeeming ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...
+                  </>
+                ) : (
+                  'Claim Reward'
+                )}
+              </Button>
+            </>
+          ) : (
+            <Button asChild className="w-full">
+              <Link to="/login">Log in to redeem</Link>
+            </Button>
+          )}
+          <a
+            href={`https://t.me/${botUsername}?start=giveaway_redeem`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block"
+          >
+            <Button variant="outline" className="w-full">
+              Redeem on Telegram Bot
+            </Button>
+          </a>
+        </CardContent>
+      </Card>
 
       {loading && (
         <div className="flex justify-center py-12">
