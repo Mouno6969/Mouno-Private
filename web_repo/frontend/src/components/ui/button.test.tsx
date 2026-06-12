@@ -105,7 +105,7 @@ describe('Button', () => {
     });
 
     it('does not fire onClick when disabled', async () => {
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
       render(<Button disabled onClick={handleClick}>Disabled</Button>);
       await userEvent.click(screen.getByRole('button'));
       expect(handleClick).not.toHaveBeenCalled();
@@ -135,7 +135,7 @@ describe('Button', () => {
 
   describe('click interaction', () => {
     it('calls onClick handler when clicked', async () => {
-      const handleClick = jest.fn();
+      const handleClick = vi.fn();
       render(<Button onClick={handleClick}>Click me</Button>);
       await userEvent.click(screen.getByRole('button'));
       expect(handleClick).toHaveBeenCalledTimes(1);

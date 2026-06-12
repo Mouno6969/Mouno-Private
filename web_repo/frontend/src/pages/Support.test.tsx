@@ -2,21 +2,33 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 import Support from './Support';
+import { apiClient } from '../lib/apiClient';
 
-// Mock fetch globally
-global.fetch = jest.fn();
-const mockedFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+// Mock the central API client. Support.tsx talks to the backend exclusively
+// through apiClient (axios), so we drive responses by mocking get/post/delete.
+vi.mock('../lib/apiClient', () => ({
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+const mockedGet = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+const mockedPost = apiClient.post as unknown as ReturnType<typeof vi.fn>;
+const mockedDelete = apiClient.delete as unknown as ReturnType<typeof vi.fn>;
 
 // Mock AuthContext
-const mockUseAuth = jest.fn();
-jest.mock('../context/AuthContext', () => ({
+const mockUseAuth = vi.fn();
+vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
 // Mock i18n
 const mockI18n = { language: 'en' };
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: mockI18n,
@@ -24,34 +36,38 @@ jest.mock('react-i18next', () => ({
 }));
 
 // Mock Marquee to simplify rendering
-jest.mock('../components/ui/marquee', () => ({
+vi.mock('../components/ui/marquee', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="marquee">{children}</div>
   ),
 }));
 
-const urlOf = (input: RequestInfo | URL): string =>
-  typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
-
-// Route fetch calls by URL. Session listing returns empty by default; the
-// chat endpoint uses whatever `chatResponse` is configured for the test.
-const setupFetch = (chatResponse?: Partial<Response> & { json?: () => Promise<any> }) => {
-  mockedFetch.mockImplementation((input: RequestInfo | URL) => {
-    const url = urlOf(input);
+// Route GET calls by URL. Session listing returns empty by default.
+const setupGet = (sessions: Array<{ id: number; title: string }> = []) => {
+  mockedGet.mockImplementation((url: string) => {
     if (url.includes('/api/ai/sessions')) {
-      return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
+      return Promise.resolve({ data: { sessions } });
     }
+    return Promise.resolve({ data: {} });
+  });
+};
+
+// Configure the chat POST response (or rejection).
+const setupChat = (
+  result: { data?: Record<string, unknown>; reject?: boolean } = { data: { answer: 'OK' } }
+) => {
+  mockedPost.mockImplementation((url: string) => {
     if (url.includes('/api/ai/chat')) {
-      if (chatResponse) return Promise.resolve(chatResponse as Response);
-      return Promise.resolve({ ok: true, json: async () => ({ answer: 'OK' }) } as Response);
+      if (result.reject) return Promise.reject(new Error('Network down'));
+      return Promise.resolve({ data: result.data ?? {} });
     }
-    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    return Promise.resolve({ data: {} });
   });
 };
 
 const chatCalls = () =>
-  mockedFetch.mock.calls.filter(([input]) => urlOf(input as RequestInfo | URL).includes('/api/ai/chat'));
+  mockedPost.mock.calls.filter(([url]) => String(url).includes('/api/ai/chat'));
 
 const sendButton = () => screen.getByRole('button', { name: 'send' });
 
@@ -65,10 +81,11 @@ const renderSupport = () => {
 
 describe('Support', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockI18n.language = 'en';
     mockUseAuth.mockReturnValue({ token: 'test-token' });
-    setupFetch();
+    setupGet();
+    setupChat();
   });
 
   describe('initial messages (PR addition: system + welcome messages)', () => {
@@ -168,7 +185,7 @@ describe('Support', () => {
 
   describe('handleSend - success flow', () => {
     it('adds user message to the chat on submit', async () => {
-      setupFetch({ ok: true, json: async () => ({ answer: 'Bot reply' }) });
+      setupChat({ data: { answer: 'Bot reply' } });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'my question');
@@ -180,7 +197,7 @@ describe('Support', () => {
     });
 
     it('clears input after send', async () => {
-      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
+      setupChat({ data: { answer: 'OK' } });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...') as HTMLInputElement;
       await userEvent.type(input, 'test');
@@ -192,7 +209,7 @@ describe('Support', () => {
     });
 
     it('adds assistant reply message to chat on success', async () => {
-      setupFetch({ ok: true, json: async () => ({ answer: 'Helpful answer from bot' }) });
+      setupChat({ data: { answer: 'Helpful answer from bot' } });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'question');
@@ -203,8 +220,8 @@ describe('Support', () => {
       });
     });
 
-    it('sends fetch request to /api/ai/chat with question and session_id', async () => {
-      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
+    it('posts to /api/ai/chat with question and session_id', async () => {
+      setupChat({ data: { answer: 'OK' } });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'my question');
@@ -213,35 +230,18 @@ describe('Support', () => {
       await waitFor(() => {
         const calls = chatCalls();
         expect(calls.length).toBe(1);
-        const [, init] = calls[0];
-        expect(init?.method).toBe('POST');
-        expect(JSON.parse(init?.body as string)).toEqual({ question: 'my question', session_id: null });
-      });
-    });
-
-    it('sends Authorization header with token', async () => {
-      setupFetch({ ok: true, json: async () => ({ answer: 'OK' }) });
-      renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
-      await userEvent.type(input, 'test');
-      await userEvent.click(sendButton());
-
-      await waitFor(() => {
-        const calls = chatCalls();
-        expect(calls.length).toBe(1);
-        const [, init] = calls[0];
-        expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-token');
+        const [, body] = calls[0];
+        expect(body).toEqual({ question: 'my question', session_id: null });
       });
     });
 
     it('shows loading indicator while waiting for response', async () => {
-      let resolveResponse: (value: Response) => void;
-      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = urlOf(input);
-        if (url.includes('/api/ai/sessions')) {
-          return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
+      let resolveResponse: (value: { data: Record<string, unknown> }) => void;
+      mockedPost.mockImplementation((url: string) => {
+        if (url.includes('/api/ai/chat')) {
+          return new Promise((resolve) => { resolveResponse = resolve; });
         }
-        return new Promise<Response>((resolve) => { resolveResponse = resolve; });
+        return Promise.resolve({ data: {} });
       });
 
       renderSupport();
@@ -252,10 +252,7 @@ describe('Support', () => {
       expect(screen.getByText(/Computing response.../i)).toBeInTheDocument();
 
       act(() => {
-        resolveResponse!({
-          ok: true,
-          json: async () => ({ answer: 'done' }),
-        } as Response);
+        resolveResponse!({ data: { answer: 'done' } });
       });
 
       await waitFor(() => {
@@ -265,8 +262,8 @@ describe('Support', () => {
   });
 
   describe('handleSend - error flows (PR change: new error messages)', () => {
-    it('shows ERROR: UPLINK_FAILURE when response is not ok', async () => {
-      setupFetch({ ok: false, json: async () => ({}) });
+    it('shows ERROR: UPLINK_FAILURE when a 2xx response has no answer', async () => {
+      setupChat({ data: {} });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
@@ -277,15 +274,8 @@ describe('Support', () => {
       });
     });
 
-    it('shows CRITICAL_ERROR: NETWORK_OFFLINE on fetch exception', async () => {
-      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = urlOf(input);
-        if (url.includes('/api/ai/sessions')) {
-          return Promise.resolve({ ok: true, json: async () => ({ sessions: [] }) } as Response);
-        }
-        return Promise.reject(new Error('Network down'));
-      });
-
+    it('shows CRITICAL_ERROR: NETWORK_OFFLINE when the request rejects', async () => {
+      setupChat({ reject: true });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
@@ -296,8 +286,8 @@ describe('Support', () => {
       });
     });
 
-    it('uses data.message from error response when available', async () => {
-      setupFetch({ ok: false, json: async () => ({ message: 'Service unavailable' }) });
+    it('uses data.message when a 2xx response lacks an answer', async () => {
+      setupChat({ data: { message: 'Service unavailable' } });
       renderSupport();
       const input = screen.getByPlaceholderText('COMMAND_INPUT...');
       await userEvent.type(input, 'test');
@@ -360,13 +350,7 @@ describe('Support', () => {
     });
 
     it('lists existing sessions returned by the API', async () => {
-      mockedFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = urlOf(input);
-        if (url.includes('/api/ai/sessions')) {
-          return Promise.resolve({ ok: true, json: async () => ({ sessions: [{ id: 1, title: 'My first chat' }] }) } as Response);
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
-      });
+      setupGet([{ id: 1, title: 'My first chat' }]);
       renderSupport();
       await waitFor(() => {
         expect(screen.getByText('My first chat')).toBeInTheDocument();
