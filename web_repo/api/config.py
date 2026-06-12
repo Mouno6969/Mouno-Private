@@ -78,3 +78,10 @@ SCB_FORWARDER_SERVER_URL = os.getenv("SCB_FORWARDER_SERVER_URL", "https://crypto
 TELEGRAM_AUTH_BASE_URL = os.getenv("TELEGRAM_AUTH_BASE_URL", SCB_FORWARDER_SERVER_URL)
 BACKUP_UPLOAD_URL = os.getenv("BACKUP_UPLOAD_URL")
 SELLER_WALLET_MASTER_KEY = os.getenv("SELLER_WALLET_MASTER_KEY")
+
+# ─── Webhook notifications (Telegram / Discord) ───
+# These are optional overrides. If unset, the notifier falls back to the bot's
+# existing BOT_TOKEN / ADMIN_ID so we don't duplicate Telegram credentials.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or BOT_TOKEN
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or ADMIN_ID
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")

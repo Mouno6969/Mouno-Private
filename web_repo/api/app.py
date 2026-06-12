@@ -24,6 +24,7 @@ import requests as http_requests
 
 import db
 import config
+import notifier
 from balance import get_all_balances
 from swap_service import quote_lifi, summarize_quote, get_lifi_chains
 from crypto_manager import (
@@ -281,6 +282,19 @@ def buy_crypto(current_user):
             "Waiting for bKash payment confirmation."
         )
 
+    # Fire webhook notification for the transaction (best-effort).
+    try:
+        notifier.notify_event(
+            "transaction",
+            f"New web order placed\n"
+            f"Order: {order_id}\n"
+            f"User: {user_id}\n"
+            f"Amount: {amount_bdt} BDT -> {amount_usdc} USDC\n"
+            f"Network: {network}",
+        )
+    except Exception as exc:
+        logger.warning("Transaction notification failed: %s", exc)
+
     return jsonify({
         'status': 'pending',
         'order_id': order_id,
@@ -431,6 +445,19 @@ def redeem_gift(current_user):
         f"🔗 Sig: {sig or 'N/A'}"
     )
 
+    # Fire webhook notification: a giveaway / gift bonus was credited.
+    try:
+        notifier.notify_event(
+            "giveaway_result" if giveaway_id else "referral_bonus",
+            f"{'Giveaway' if giveaway_id else 'Gift'} code redeemed\n"
+            f"Code: {code}\n"
+            f"User: {username} ({user_id})\n"
+            f"Amount: {amount_crypto} ({network})\n"
+            f"Status: {status}",
+        )
+    except Exception as exc:
+        logger.warning("Gift/giveaway notification failed: %s", exc)
+
     if status == "completed":
         return jsonify({'message': f'Gift redeemed! {amount_crypto} sent to your wallet.', 'status': 'completed', 'sig': sig}), 200
     else:
@@ -571,7 +598,114 @@ def ai_chat(current_user):
     except Exception as exc:
         logger.warning("Honcho record_turn (web) failed: %s", exc)
 
-    return jsonify({'answer': answer, 'session_id': session_id}), 200
+    return jsonify({
+        'answer': answer,
+        'session_id': session_id,
+        'suggest_escalation': _should_suggest_escalation(answer),
+    }), 200
+
+
+# ─── Support ticketing (human escalation) ───
+
+# Low-confidence / "I don't know" style phrases that signal the AI couldn't
+# resolve the question, so we surface an escalate-to-human option.
+_ESCALATION_PHRASES = (
+    "i don't know", "i do not know", "i'm not sure", "i am not sure",
+    "i cannot help", "i can't help", "contact support", "contact our support",
+    "temporarily unavailable", "currently unavailable", "no ai provider",
+    "reach out to support", "human agent", "speak to a human",
+    "আমি জানি না", "নিশ্চিত নই", "সাপোর্টে যোগাযোগ",
+)
+
+
+def _should_suggest_escalation(answer):
+    """Heuristic: did the AI fail to resolve the question?"""
+    if not answer:
+        return True
+    low = answer.lower()
+    return any(phrase in low for phrase in _ESCALATION_PHRASES)
+
+
+@app.route('/api/support/tickets', methods=['POST'])
+@token_required
+def create_ticket(current_user):
+    data = request.get_json() or {}
+    user_id = current_user[0]
+    subject = (data.get('subject') or 'Support request').strip()[:200]
+
+    raw_session_id = data.get('session_id')
+    try:
+        session_id = int(raw_session_id) if raw_session_id is not None else None
+    except (TypeError, ValueError):
+        session_id = None
+
+    # Carry over the recent transcript from the linked AI chat session.
+    transcript = None
+    if session_id:
+        transcript = db.get_recent_chat_messages(session_id, user_id, limit=20) or None
+
+    priority = (data.get('priority') or 'normal')
+    ticket = db.create_support_ticket(
+        user_id, subject, session_id=session_id, priority=priority, transcript=transcript
+    )
+
+    # Notify the support channel (best-effort, never blocks the response).
+    try:
+        notifier.notify_event(
+            "ticket_created",
+            f"New support ticket #{ticket['id']}\n"
+            f"User: {current_user[1]} (id {user_id})\n"
+            f"Subject: {ticket['subject']}\n"
+            f"Priority: {ticket['priority']}",
+        )
+    except Exception as exc:
+        logger.warning("Ticket notification failed: %s", exc)
+
+    return jsonify({'ticket': ticket}), 201
+
+
+@app.route('/api/support/tickets', methods=['GET'])
+@token_required
+def list_tickets(current_user):
+    tickets = db.list_support_tickets(current_user[0])
+    return jsonify({'tickets': tickets}), 200
+
+
+@app.route('/api/support/tickets/<int:ticket_id>', methods=['GET'])
+@token_required
+def get_ticket(current_user, ticket_id):
+    ticket = db.get_support_ticket(ticket_id, current_user[0])
+    if ticket is None:
+        return jsonify({'message': 'Ticket not found'}), 404
+    return jsonify({'ticket': ticket}), 200
+
+
+@app.route('/api/support/tickets/<int:ticket_id>/messages', methods=['POST'])
+@token_required
+def add_ticket_reply(current_user, ticket_id):
+    data = request.get_json() or {}
+    body = (data.get('body') or '').strip()
+    if not body:
+        return jsonify({'message': 'Message body required'}), 400
+    ok = db.add_ticket_message(ticket_id, current_user[0], 'user', body)
+    if not ok:
+        return jsonify({'message': 'Ticket not found'}), 404
+    ticket = db.get_support_ticket(ticket_id, current_user[0])
+    return jsonify({'ticket': ticket}), 201
+
+
+@app.route('/api/support/tickets/<int:ticket_id>', methods=['PATCH'])
+@token_required
+def patch_ticket(current_user, ticket_id):
+    data = request.get_json() or {}
+    status = (data.get('status') or '').strip().lower()
+    if status not in ('open', 'pending', 'resolved', 'closed'):
+        return jsonify({'message': 'Invalid status'}), 400
+    ticket = db.update_ticket_status(ticket_id, current_user[0], status)
+    if ticket is None:
+        return jsonify({'message': 'Ticket not found'}), 404
+    return jsonify({'ticket': ticket}), 200
+
 
 @app.route('/api/link-telegram', methods=['POST'])
 @token_required
@@ -871,6 +1005,13 @@ def payout_request(current_user):
         notify_admin_telegram(
             f"💸 Web Payout Request\n\nID: {req_id}\nUser: {user_id}\nAmount: {amount}\nMethod: {method}\nDetails: {details}"
         )
+        try:
+            notifier.notify_event(
+                "transaction",
+                f"Payout request #{req_id}\nUser: {user_id}\nAmount: {amount}\nMethod: {method}",
+            )
+        except Exception as exc:
+            logger.warning("Payout notification failed: %s", exc)
         return jsonify({'success': True, 'request_id': req_id})
     except Exception as exc:
         logger.error("Payout request failed: %s", exc)
