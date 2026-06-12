@@ -165,6 +165,7 @@ interface Schedule {
   to_chain_id: string;
   interval_key?: string;
   next_run?: string;
+  runs_count?: number;
 }
 
 const Automation: React.FC = () => {

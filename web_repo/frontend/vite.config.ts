@@ -7,6 +7,10 @@ import react from '@vitejs/plugin-react';
 // instead of the default `dist` to avoid touching the backend.
 export default defineConfig({
   plugins: [react()],
+  // Re-run dependency pre-bundling on startup to keep the optimizer cache fresh.
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'sonner', 'swr', 'axios'],
+  },
   resolve: {
     // Resolve the "@/*" path alias from tsconfig.json natively.
     tsconfigPaths: true,

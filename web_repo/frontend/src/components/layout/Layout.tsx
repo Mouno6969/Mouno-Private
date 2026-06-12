@@ -3,29 +3,15 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import {
-  LayoutDashboard,
+  LogOut,
+  User,
+  Languages,
+  Home,
   ShoppingCart,
   RefreshCw,
   Wallet,
-  History,
-  MessageSquare,
-  LogOut,
   Menu,
-  User,
-  Store,
-  Gift,
-  Coins,
-  HelpCircle,
-  ShieldAlert,
-  ScrollText,
-  Search,
-  Banknote,
-  BookOpen,
-  Languages,
-  Home,
-  Sparkles,
-  Wrench,
-  LifeBuoy
+  X,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -35,7 +21,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu"
+} from '../ui/dropdown-menu';
+import { NAV_GROUPS } from './navConfig';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -47,81 +34,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const location = useLocation();
 
-  // Close the mobile menu whenever the route changes so navigation always works
+  // Close the mobile "More" sheet whenever the route changes.
   React.useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
   const toggleLang = () => {
-    const newLang = i18n.language === 'bn' ? 'en' : 'bn';
-    i18n.changeLanguage(newLang);
+    i18n.changeLanguage(i18n.language === 'bn' ? 'en' : 'bn');
   };
-
-  const navItems = [
-    { name: t('buy'), icon: <ShoppingCart className="h-4 w-4" />, path: '/buy' },
-    { name: t('swap'), icon: <RefreshCw className="h-4 w-4" />, path: '/swap' },
-    { name: t('smart_trading'), icon: <Sparkles className="h-4 w-4" />, path: '/automation' },
-    { name: t('wallet'), icon: <Wallet className="h-4 w-4" />, path: '/wallet' },
-    { name: t('orders'), icon: <History className="h-4 w-4" />, path: '/orders' },
-    { name: t('referral'), icon: <User className="h-4 w-4" />, path: '/referral' },
-    { name: t('gift'), icon: <User className="h-4 w-4" />, path: '/gift' },
-    { name: t('market'), icon: <Store className="h-4 w-4" />, path: '/market' },
-    { name: t('sellers'), icon: <Store className="h-4 w-4" />, path: '/seller' },
-    { name: t('free_tools'), icon: <Wrench className="h-4 w-4" />, path: '/tools' },
-    { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
-    { name: t('my_tickets'), icon: <LifeBuoy className="h-4 w-4" />, path: '/tickets' },
-    { name: 'Giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
-    { name: 'Balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },
-    { name: 'TX Log', icon: <ScrollText className="h-4 w-4" />, path: '/txlog' },
-    { name: 'Order Status', icon: <Search className="h-4 w-4" />, path: '/order-status' },
-    { name: 'Payout', icon: <Banknote className="h-4 w-4" />, path: '/payout' },
-    { name: 'FAQ', icon: <HelpCircle className="h-4 w-4" />, path: '/faq' },
-    { name: 'Guide', icon: <BookOpen className="h-4 w-4" />, path: '/guide' },
-    { name: 'Terms', icon: <ShieldAlert className="h-4 w-4" />, path: '/terms' },
-  ];
 
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-        <div className="container flex h-16 items-center justify-between gap-3">
-          <div className="flex items-center gap-2 shrink-0">
-            <Link to="/" className="flex items-center space-x-2">
-              <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-none object-cover border border-white" />
-            </Link>
-          </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-16 items-center justify-between gap-3 px-4 md:px-6">
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="Home">
+            <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-none object-cover border border-white" />
+            <span className="hidden sm:inline font-mono text-sm font-bold tracking-tight">BGC Crypto</span>
+          </Link>
 
-          {/* Horizontal scrollable nav (visible on all sizes) */}
-          <nav className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-none text-[11px] uppercase tracking-widest font-mono py-2">
-            <Link
-              to="/"
-              className={
-                isActive('/')
-                  ? "shrink-0 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-foreground"
-                  : "shrink-0 px-2 py-1 text-muted-foreground transition-colors hover:text-primary"
-              }
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleLang}
+              aria-label="Toggle language"
+              className="rounded-none gap-1 px-2 border border-white/10 hover:border-white"
             >
-              Dashboard
-            </Link>
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={
-                  isActive(item.path)
-                    ? "shrink-0 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-foreground"
-                    : "shrink-0 px-2 py-1 text-muted-foreground transition-colors hover:text-primary"
-                }
-              >
-                {item.name}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <Button variant="ghost" size="sm" onClick={toggleLang} className="rounded-none gap-1 px-2 border border-white/10 hover:border-white">
               <Languages className="h-4 w-4" />
               <span className="text-xs font-mono">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
             </Button>
@@ -129,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {token ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-none border border-white/10 p-0">
+                  <Button variant="ghost" aria-label="Account menu" className="relative h-8 w-8 rounded-none border border-white/10 p-0">
                     <div className="h-full w-full bg-white/10 flex items-center justify-center font-mono text-xs">
                       {user?.username?.[0]?.toUpperCase() || 'U'}
                     </div>
@@ -168,62 +109,114 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </header>
 
-      <div className="flex-1">
-        <main className="container py-6 md:py-10 pb-24 md:pb-10">
+      <div className="flex">
+        {/* ── Desktop grouped sidebar ── */}
+        <aside className="hidden md:flex sticky top-16 h-[calc(100vh-4rem)] w-60 shrink-0 flex-col gap-6 overflow-y-auto border-r bg-background/60 px-3 py-6">
+          <Link
+            to="/"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isActive('/') ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+            aria-current={isActive('/') ? 'page' : undefined}
+          >
+            <Home className="h-4 w-4" />
+            {t('nav_dashboard')}
+          </Link>
+
+          {NAV_GROUPS.map((group) => (
+            <div key={group.titleKey} className="flex flex-col gap-1">
+              <h2 className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                {t(group.titleKey)}
+              </h2>
+              {group.items.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive(item.path)
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                  aria-current={isActive(item.path) ? 'page' : undefined}
+                >
+                  {item.icon}
+                  {t(item.labelKey)}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </aside>
+
+        {/* ── Main content ── */}
+        <main className="flex-1 min-w-0 px-4 py-6 md:px-8 md:py-10 pb-24 md:pb-10">
           {children}
         </main>
       </div>
 
-      {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="container flex items-center justify-around h-16 px-4">
-          <Link to="/" onClick={() => setIsMenuOpen(false)} className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
-            <Home className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Home</span>
-          </Link>
-          <Link
-            to={token ? '/wallet' : '/login'}
-            onClick={() => setIsMenuOpen(false)}
-            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/wallet') || isActive('/login') ? 'text-primary' : 'text-muted-foreground'}`}
-          >
-            <User className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Account</span>
-          </Link>
+      {/* ── Mobile bottom nav ── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        aria-label="Primary"
+      >
+        <div className="flex items-center justify-around h-16 px-2">
+          <BottomLink to="/" label={t('nav_home')} active={isActive('/')} icon={<Home className="h-5 w-5" />} />
+          <BottomLink to="/buy" label={t('buy')} active={isActive('/buy')} icon={<ShoppingCart className="h-5 w-5" />} />
+          <BottomLink to="/swap" label={t('swap')} active={isActive('/swap')} icon={<RefreshCw className="h-5 w-5" />} />
+          <BottomLink to="/wallet" label={t('nav_wallet')} active={isActive('/wallet')} icon={<Wallet className="h-5 w-5" />} />
           <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isMenuOpen ? 'text-primary' : 'text-muted-foreground'}`}
+            type="button"
+            onClick={() => setIsMenuOpen((v) => !v)}
+            aria-label={t('nav_more')}
+            aria-expanded={isMenuOpen}
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${
+              isMenuOpen ? 'text-primary' : 'text-muted-foreground'
+            }`}
           >
             <Menu className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Menu</span>
+            <span className="text-xs font-medium">{t('nav_more')}</span>
           </button>
-          <Link to="/support" onClick={() => setIsMenuOpen(false)} className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${isActive('/support') ? 'text-primary' : 'text-muted-foreground'}`}>
-            <Sparkles className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Support</span>
-          </Link>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
+      {/* ── Mobile "More" grouped sheet ── */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-background overflow-y-auto pb-24">
-          <div className="container flex flex-col gap-6 pt-20">
-            <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 text-lg font-medium">
-              <LayoutDashboard className="h-5 w-5 text-primary" />
-              Dashboard
-            </Link>
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center gap-4 text-lg font-medium text-muted-foreground"
-              >
-                <span className="text-primary">{item.icon}</span>
-                {item.name}
-              </Link>
+        <div className="md:hidden fixed inset-0 z-[60] bg-background overflow-y-auto">
+          <div className="flex items-center justify-between h-16 px-4 border-b sticky top-0 bg-background/95 backdrop-blur">
+            <span className="font-mono text-sm font-bold uppercase tracking-widest">{t('nav_more')}</span>
+            <Button variant="ghost" size="icon" aria-label="Close menu" onClick={() => setIsMenuOpen(false)}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="px-4 py-6 flex flex-col gap-8 pb-28">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.titleKey} className="flex flex-col gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {t(group.titleKey)}
+                </h2>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
+                        isActive(item.path)
+                          ? 'border-primary/30 bg-primary/10 text-primary'
+                          : 'border-muted text-foreground hover:bg-muted'
+                      }`}
+                      aria-current={isActive(item.path) ? 'page' : undefined}
+                    >
+                      <span className="text-primary">{item.icon}</span>
+                      {t(item.labelKey)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             ))}
+
             {!token && (
-              <div className="flex flex-col gap-2 pt-4 border-t">
+              <div className="flex flex-col gap-2 pt-2 border-t">
                 <Button asChild className="w-full">
                   <Link to="/login" onClick={() => setIsMenuOpen(false)}>{t('login')}</Link>
                 </Button>
@@ -238,5 +231,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   );
 };
+
+interface BottomLinkProps {
+  to: string;
+  label: string;
+  active: boolean;
+  icon: React.ReactNode;
+}
+
+const BottomLink: React.FC<BottomLinkProps> = ({ to, label, active, icon }) => (
+  <Link
+    to={to}
+    className={`flex flex-col items-center justify-center gap-1 min-h-11 min-w-11 px-2 ${
+      active ? 'text-primary' : 'text-muted-foreground'
+    }`}
+    aria-current={active ? 'page' : undefined}
+  >
+    {icon}
+    <span className="text-xs font-medium">{label}</span>
+  </Link>
+);
 
 export default Layout;
