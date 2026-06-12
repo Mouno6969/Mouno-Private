@@ -12,6 +12,7 @@ don't duplicate bot tokens. Dedicated overrides may be supplied via
 """
 
 import logging
+import threading
 
 import requests
 
@@ -19,6 +20,8 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# Keep this conservative: notifications are best-effort and run off the
+# request thread, but a tight timeout still bounds resource use.
 _TIMEOUT = 5
 
 # Event -> channels mapping. Toggle channels per event here without touching
@@ -72,12 +75,8 @@ def send_discord(message, webhook_url=None):
         return False
 
 
-def notify_event(event_type, message):
-    """Fan a message out to every channel enabled for ``event_type``.
-
-    Best-effort: individual channel failures are swallowed so the caller is
-    never affected. Returns nothing meaningful by design.
-    """
+def _dispatch(event_type, message):
+    """Synchronously fan a message out to every enabled channel."""
     channels = EVENT_CHANNELS.get(event_type, [])
     for channel in channels:
         try:
@@ -87,3 +86,25 @@ def notify_event(event_type, message):
                 send_discord(message)
         except Exception as exc:  # defensive; senders already swallow errors
             logger.warning("notify_event(%s) channel %s failed: %s", event_type, channel, exc)
+
+
+def notify_event(event_type, message):
+    """Fan a message out to every channel enabled for ``event_type``.
+
+    Best-effort and **non-blocking**: the actual HTTP sends run on a daemon
+    thread so a slow or unreachable endpoint never adds latency to the
+    user-facing request that triggered the notification. Individual channel
+    failures are swallowed so the caller is never affected.
+    """
+    if not EVENT_CHANNELS.get(event_type):
+        return
+    try:
+        thread = threading.Thread(
+            target=_dispatch,
+            args=(event_type, message),
+            name=f"notify-{event_type}",
+            daemon=True,
+        )
+        thread.start()
+    except Exception as exc:  # spawning a thread should never break the caller
+        logger.warning("notify_event(%s) could not start thread: %s", event_type, exc)
