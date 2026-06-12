@@ -59,6 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { name: t('buy'), icon: <ShoppingCart className="h-4 w-4" />, path: '/buy' },
     { name: t('swap'), icon: <RefreshCw className="h-4 w-4" />, path: '/swap' },
+    { name: t('smart_trading'), icon: <Sparkles className="h-4 w-4" />, path: '/automation' },
     { name: t('wallet'), icon: <Wallet className="h-4 w-4" />, path: '/wallet' },
     { name: t('orders'), icon: <History className="h-4 w-4" />, path: '/orders' },
     { name: t('referral'), icon: <User className="h-4 w-4" />, path: '/referral' },
