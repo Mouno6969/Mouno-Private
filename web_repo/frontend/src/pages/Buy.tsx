@@ -198,7 +198,7 @@ const Buy: React.FC = () => {
                     </div>
                     <div className="text-3xl font-black font-mono tracking-widest text-primary flex items-center gap-3">
                        {marketData?.bKash || '01XXXXXXXXX'}
-                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => navigator.clipboard.writeText(marketData?.bKash)}>
+                       <Button variant="ghost" size="icon" aria-label="Copy bKash number" className="h-8 w-8 text-muted-foreground" onClick={() => navigator.clipboard.writeText(marketData?.bKash || '')}>
                           <CreditCard className="h-4 w-4" />
                        </Button>
                     </div>

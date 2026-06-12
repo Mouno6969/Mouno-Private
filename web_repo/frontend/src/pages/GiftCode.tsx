@@ -3,12 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const GiftCode: React.FC = () => {
   const { t } = useTranslation();
-  const { token } = useAuth();
   const [code, setCode] = useState('');
   const [wallet, setWallet] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,23 +20,15 @@ const GiftCode: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/gift/redeem`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ code, wallet })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message);
-        setCode('');
-      } else {
-        toast.error(data.message);
-      }
+      const res = await apiClient.post<{ message: string }>(
+        '/api/gift/redeem',
+        { code, wallet },
+        { silent: true }
+      );
+      toast.success(res.data.message);
+      setCode('');
     } catch (err) {
-      toast.error('Failed to connect to server');
+      toast.error(getErrorMessage(err, 'Failed to connect to server'));
     } finally {
       setLoading(false);
     }

@@ -4,14 +4,27 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Search, Loader2, FileText } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+
+interface OrderLookup {
+  found?: boolean;
+  message?: string;
+  status?: string;
+  network: string;
+  order_id?: string;
+  trx_id?: string;
+  amount_bdt?: number;
+  amount_crypto?: number;
+  wallet?: string;
+  sig?: string;
+  created_at?: string;
+}
 
 const OrderStatus: React.FC = () => {
-  const { token } = useAuth();
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<any>(null);
-  const [receipt, setReceipt] = useState<any>(null);
+  const [result, setResult] = useState<OrderLookup | null>(null);
+  const [receipt, setReceipt] = useState<OrderLookup | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,29 +32,33 @@ const OrderStatus: React.FC = () => {
     if (!query.trim()) return;
     setLoading(true); setError(''); setResult(null); setReceipt(null);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/order/lookup?id=${encodeURIComponent(query.trim())}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      const data = await res.json();
-      if (data.found) {
-        setResult(data);
+      const res = await apiClient.get<OrderLookup>(
+        `/api/order/lookup?id=${encodeURIComponent(query.trim())}`,
+        { silent: true }
+      );
+      if (res.data.found) {
+        setResult(res.data);
         // Also try to fetch receipt
-        const rRes = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/order/receipt?id=${encodeURIComponent(query.trim())}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        const rData = await rRes.json();
-        if (rData.found && rData.status === 'completed') setReceipt(rData);
+        try {
+          const rRes = await apiClient.get<OrderLookup>(
+            `/api/order/receipt?id=${encodeURIComponent(query.trim())}`,
+            { silent: true }
+          );
+          if (rRes.data.found && rRes.data.status === 'completed') setReceipt(rRes.data);
+        } catch {
+          /* receipt is optional */
+        }
       } else {
-        setError(data.message || 'Order not found');
+        setError(res.data.message || 'Order not found');
       }
-    } catch {
-      setError('Failed to connect to server');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to connect to server'));
     } finally {
       setLoading(false);
     }
   };
 
-  const shortWallet = (w: string) => w ? `${w.slice(0, 8)}...${w.slice(-6)}` : 'N/A';
+  const shortWallet = (w?: string) => w ? `${w.slice(0, 8)}...${w.slice(-6)}` : 'N/A';
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles, Target, CalendarClock, ShieldCheck, Lock, Plus, Trash2, Pause, Play,
@@ -14,8 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { NetworkLogo } from '../constants/networks';
 import { useAuth } from '../context/AuthContext';
-
-const API = process.env.REACT_APP_API_URL || '';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 // Shared chain catalogue — same set the Swap page exposes.
 const CHAINS = [
@@ -147,11 +145,27 @@ const defaultIntent = (): SwapIntent => {
   };
 };
 
-const authErr = (err: any, fallback: string) =>
-  err?.response?.data?.message || err?.message || fallback;
-
 // ───────────────────────────────────────────────────────────────────────────
 type Tab = 'limit' | 'scheduled' | 'setup';
+
+interface LimitOrder {
+  order_id: string;
+  status: string;
+  amount: string;
+  to_chain_id: string;
+  direction: string;
+  target_price: string;
+  last_price?: string;
+}
+
+interface Schedule {
+  schedule_id: string;
+  status: string;
+  amount: string;
+  to_chain_id: string;
+  interval_key?: string;
+  next_run?: string;
+}
 
 const Automation: React.FC = () => {
   const { t } = useTranslation();
@@ -159,8 +173,8 @@ const Automation: React.FC = () => {
 
   const [tab, setTab] = useState<Tab>('limit');
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [limitOrders, setLimitOrders] = useState<any[]>([]);
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [limitOrders, setLimitOrders] = useState<LimitOrder[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
 
   // ── setup password ──
   const [pw, setPw] = useState('');
@@ -179,16 +193,16 @@ const Automation: React.FC = () => {
 
   const loadStatus = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/automation/setup-password`);
+      const res = await apiClient.get<{ configured: boolean }>('/api/automation/setup-password', { silent: true });
       setConfigured(!!res.data.configured);
-    } catch (err) {
+    } catch {
       setConfigured(false);
     }
   }, []);
 
   const loadLimitOrders = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/automation/limit-orders`);
+      const res = await apiClient.get<{ orders: LimitOrder[] }>('/api/automation/limit-orders', { silent: true });
       setLimitOrders(res.data.orders || []);
     } catch (err) {
       console.error(err);
@@ -197,7 +211,7 @@ const Automation: React.FC = () => {
 
   const loadSchedules = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/automation/scheduled-buys`);
+      const res = await apiClient.get<{ schedules: Schedule[] }>('/api/automation/scheduled-buys', { silent: true });
       setSchedules(res.data.schedules || []);
     } catch (err) {
       console.error(err);
@@ -215,12 +229,12 @@ const Automation: React.FC = () => {
     if (!pw) return;
     setSavingPw(true);
     try {
-      await axios.post(`${API}/api/automation/setup-password`, { password: pw });
+      await apiClient.post('/api/automation/setup-password', { password: pw }, { silent: true });
       toast.success('Auto-sign enabled');
       setPw('');
       setConfigured(true);
     } catch (err) {
-      toast.error(authErr(err, 'Could not enable auto-sign'));
+      toast.error(getErrorMessage(err, 'Could not enable auto-sign'));
     } finally {
       setSavingPw(false);
     }
@@ -229,15 +243,15 @@ const Automation: React.FC = () => {
   const createLimit = async () => {
     setCreatingLimit(true);
     try {
-      await axios.post(`${API}/api/automation/limit-orders`, {
+      await apiClient.post('/api/automation/limit-orders', {
         ...limitIntent, direction, target_price: targetPrice,
-      });
+      }, { silent: true });
       toast.success('Limit order created');
       setTargetPrice('');
       setLimitIntent(defaultIntent());
       loadLimitOrders();
     } catch (err) {
-      toast.error(authErr(err, 'Could not create limit order'));
+      toast.error(getErrorMessage(err, 'Could not create limit order'));
     } finally {
       setCreatingLimit(false);
     }
@@ -245,11 +259,11 @@ const Automation: React.FC = () => {
 
   const cancelLimit = async (orderId: string) => {
     try {
-      await axios.delete(`${API}/api/automation/limit-orders/${orderId}`);
+      await apiClient.delete(`/api/automation/limit-orders/${orderId}`, { silent: true });
       toast.success('Limit order cancelled');
       loadLimitOrders();
     } catch (err) {
-      toast.error(authErr(err, 'Could not cancel'));
+      toast.error(getErrorMessage(err, 'Could not cancel'));
     }
   };
 
@@ -257,48 +271,48 @@ const Automation: React.FC = () => {
     const next = window.prompt('New target price (USD):');
     if (!next) return;
     try {
-      await axios.patch(`${API}/api/automation/limit-orders/${orderId}`, { target_price: next });
+      await apiClient.patch(`/api/automation/limit-orders/${orderId}`, { target_price: next }, { silent: true });
       toast.success('Target price updated');
       loadLimitOrders();
     } catch (err) {
-      toast.error(authErr(err, 'Could not update'));
+      toast.error(getErrorMessage(err, 'Could not update'));
     }
   };
 
   const createSched = async () => {
     setCreatingSched(true);
     try {
-      await axios.post(`${API}/api/automation/scheduled-buys`, {
+      await apiClient.post('/api/automation/scheduled-buys', {
         ...schedIntent, interval_key: interval,
-      });
+      }, { silent: true });
       toast.success('Auto-buy created');
       setSchedIntent(defaultIntent());
       loadSchedules();
     } catch (err) {
-      toast.error(authErr(err, 'Could not create auto-buy'));
+      toast.error(getErrorMessage(err, 'Could not create auto-buy'));
     } finally {
       setCreatingSched(false);
     }
   };
 
-  const toggleSched = async (schedule: any) => {
+  const toggleSched = async (schedule: Schedule) => {
     const next = schedule.status === 'paused' ? 'active' : 'paused';
     try {
-      await axios.patch(`${API}/api/automation/scheduled-buys/${schedule.schedule_id}`, { status: next });
+      await apiClient.patch(`/api/automation/scheduled-buys/${schedule.schedule_id}`, { status: next }, { silent: true });
       toast.success(next === 'active' ? 'Resumed' : 'Paused');
       loadSchedules();
     } catch (err) {
-      toast.error(authErr(err, 'Could not update'));
+      toast.error(getErrorMessage(err, 'Could not update'));
     }
   };
 
   const cancelSched = async (scheduleId: string) => {
     try {
-      await axios.delete(`${API}/api/automation/scheduled-buys/${scheduleId}`);
+      await apiClient.delete(`/api/automation/scheduled-buys/${scheduleId}`, { silent: true });
       toast.success('Auto-buy cancelled');
       loadSchedules();
     } catch (err) {
-      toast.error(authErr(err, 'Could not cancel'));
+      toast.error(getErrorMessage(err, 'Could not cancel'));
     }
   };
 

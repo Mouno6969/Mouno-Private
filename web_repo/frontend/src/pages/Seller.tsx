@@ -7,18 +7,39 @@ import { useAuth } from '../context/AuthContext';
 import { Store, CheckCircle2, Clock, XCircle, Package, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '../components/ui/badge';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+
+interface SellerStatus {
+  status?: string;
+  display_name?: string;
+  bkash_number?: string;
+  sms_token?: string;
+}
+interface SellerInventory {
+  rates?: { network: string; rate: number }[];
+  wallets?: { network: string; wallet_address: string }[];
+}
+interface SellerOrder {
+  order_id?: string;
+  trx_id?: string;
+  status?: string;
+  amount_bdt?: number;
+  amount_crypto?: number;
+  network?: string;
+  wallet?: string;
+}
 
 const Seller: React.FC = () => {
   const { t } = useTranslation();
   const { token, user } = useAuth();
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<SellerStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
 
   const [showInventory, setShowInventory] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
-  const [inventory, setInventory] = useState<any>(null);
-  const [sellerOrders, setSellerOrders] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<SellerInventory | null>(null);
+  const [sellerOrders, setSellerOrders] = useState<SellerOrder[]>([]);
 
   const [formData, setFormData] = useState({
     display_name: '',
@@ -32,29 +53,26 @@ const Seller: React.FC = () => {
     } else {
         setLoading(false);
     }
-  }, [token, user]);
+  }, [token, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (showInventory && !inventory && token) {
-      fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/inventory`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setInventory(d)).catch(() => {});
+      apiClient.get<SellerInventory>('/api/seller/inventory', { silent: true })
+        .then(r => setInventory(r.data)).catch(() => {});
     }
   }, [showInventory, inventory, token]);
 
   useEffect(() => {
     if (showOrders && sellerOrders.length === 0 && token) {
-      fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/orders`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setSellerOrders(Array.isArray(d) ? d : d.orders || [])).catch(() => {});
+      apiClient.get<SellerOrder[] | { orders: SellerOrder[] }>('/api/seller/orders', { silent: true })
+        .then(r => setSellerOrders(Array.isArray(r.data) ? r.data : r.data.orders || [])).catch(() => {});
     }
   }, [showOrders, sellerOrders.length, token]);
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setStatus(data);
+      const res = await apiClient.get<SellerStatus>('/api/seller/status', { silent: true });
+      setStatus(res.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,23 +84,11 @@ const Seller: React.FC = () => {
     e.preventDefault();
     setApplying(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/seller/apply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message);
-        fetchStatus();
-      } else {
-        toast.error(data.message);
-      }
+      const res = await apiClient.post<{ message: string }>('/api/seller/apply', formData, { silent: true });
+      toast.success(res.data.message);
+      fetchStatus();
     } catch (err) {
-      toast.error('Failed to submit application');
+      toast.error(getErrorMessage(err, 'Failed to submit application'));
     } finally {
       setApplying(false);
     }
@@ -159,7 +165,7 @@ const Seller: React.FC = () => {
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-medium mb-2">Rates</h4>
-                    {inventory.rates?.length > 0 ? inventory.rates.map((r: any, i: number) => (
+                    {inventory.rates?.length ? inventory.rates.map((r, i) => (
                       <div key={i} className="flex justify-between py-1 border-b text-sm">
                         <span className="font-mono">{r.network}</span>
                         <Badge variant="outline">৳{r.rate}</Badge>
@@ -168,7 +174,7 @@ const Seller: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-medium mb-2">Wallets</h4>
-                    {inventory.wallets?.length > 0 ? inventory.wallets.map((w: any, i: number) => (
+                    {inventory.wallets?.length ? inventory.wallets.map((w, i) => (
                       <div key={i} className="flex justify-between py-1 border-b text-sm">
                         <span className="font-mono">{w.network}</span>
                         <span className="font-mono text-xs truncate max-w-[200px]">{w.wallet_address}</span>
@@ -187,7 +193,7 @@ const Seller: React.FC = () => {
             <CardContent>
               {sellerOrders.length > 0 ? (
                 <div className="space-y-3">
-                  {sellerOrders.map((order: any, i: number) => (
+                  {sellerOrders.map((order, i) => (
                     <div key={i} className="p-3 border rounded-lg space-y-1">
                       <div className="flex justify-between">
                         <span className="font-mono font-bold">{order.order_id || order.trx_id}</span>

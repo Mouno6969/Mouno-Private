@@ -23,7 +23,8 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { API_BASE, safeJson } from '../lib/api';
+import { API_BASE } from '../lib/api';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 interface SellerNetwork {
   network: string;
@@ -52,7 +53,7 @@ const Market: React.FC = () => {
   const [bdtAmount, setBdtAmount] = useState('');
   const [trxId, setTrxId] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<any>(null);
+  const [success, setSuccess] = useState<{ order_id: string; amount_crypto: string } | null>(null);
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [refreshing, setRefreshing] = useState(false);
@@ -71,18 +72,13 @@ const Market: React.FC = () => {
 
   const fetchSellers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/sellers`);
-      const data = await safeJson(res, '/api/sellers');
-      if (!res.ok) {
-        setLoadError(data?.message || `Failed to load sellers (HTTP ${res.status})`);
-        return;
-      }
-      setSellers(Array.isArray(data) ? data : []);
+      const res = await apiClient.get<MarketSeller[]>('/api/sellers', { silent: true });
+      setSellers(Array.isArray(res.data) ? res.data : []);
       setLoadError(null);
       setLastRefresh(new Date());
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch sellers:', err);
-      setLoadError(err?.message || 'Failed to connect to the server.');
+      setLoadError(getErrorMessage(err, 'Failed to connect to the server.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -161,28 +157,20 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/seller/order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post<{ order_id: string; amount_crypto: string }>(
+        '/api/seller/order',
+        {
           seller_id: selectedSeller.seller_id,
           network,
           wallet,
           amount_bdt: bdtAmount,
           trx_id: trxId,
-        }),
-      });
-      const data = await safeJson(res, '/api/seller/order');
-      if (res.ok) {
-        setSuccess(data);
-      } else {
-        toast.error(data.message || 'Failed to place order');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+        },
+        { silent: true }
+      );
+      setSuccess(res.data);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to place order'));
     } finally {
       setSubmitting(false);
     }

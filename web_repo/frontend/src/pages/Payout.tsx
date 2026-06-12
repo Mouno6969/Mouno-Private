@@ -7,6 +7,16 @@ import { Button } from '../components/ui/button';
 import { Banknote, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+
+interface PayoutEntry {
+  id: string;
+  amount: number;
+  method: string;
+  details?: string;
+  status: string;
+  created_at?: string;
+}
 
 const Payout: React.FC = () => {
   const { token } = useAuth();
@@ -14,14 +24,14 @@ const Payout: React.FC = () => {
   const [method, setMethod] = useState('bKash');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<PayoutEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
 
   const fetchHistory = () => {
     setHistoryLoading(true);
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/payout/history`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-      .then(r => r.json())
-      .then(d => setHistory(Array.isArray(d) ? d : []))
+    apiClient
+      .get<PayoutEntry[]>('/api/payout/history', { silent: true })
+      .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
   };
@@ -33,21 +43,20 @@ const Payout: React.FC = () => {
     if (!amount || parseFloat(amount) <= 0) { toast.error('Enter a valid amount'); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/payout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ amount: parseFloat(amount), method, details })
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Payout request submitted: ${data.request_id}`);
+      const res = await apiClient.post<{ success?: boolean; request_id?: string; message?: string }>(
+        '/api/payout',
+        { amount: parseFloat(amount), method, details },
+        { silent: true }
+      );
+      if (res.data.success) {
+        toast.success(`Payout request submitted: ${res.data.request_id}`);
         setAmount(''); setDetails('');
         fetchHistory();
       } else {
-        toast.error(data.message || 'Request failed');
+        toast.error(res.data.message || 'Request failed');
       }
-    } catch {
-      toast.error('Failed to connect to server');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to connect to server'));
     } finally {
       setLoading(false);
     }

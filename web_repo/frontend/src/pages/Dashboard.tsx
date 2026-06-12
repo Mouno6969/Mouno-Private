@@ -10,8 +10,8 @@ import { Badge } from '../components/ui/badge';
 import { BkashLogo, LifiLogo } from '../components/ui/brand-logos';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
-import { useMarket, useStats, useRecentActivity } from '../lib/hooks';
-import { SkeletonTableRows } from '../components/ui/skeleton';
+import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
+import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -22,6 +22,17 @@ const Dashboard: React.FC = () => {
   const { data: marketData, isLoading: marketLoading } = useMarket();
   const { data: stats } = useStats();
   const { data: recentActivity } = useRecentActivity();
+
+  // User-scoped data — only fetched when logged in.
+  const isLoggedIn = !!user;
+  const { data: balanceData, isLoading: balanceLoading } = useBalance(isLoggedIn);
+  const { data: txData } = useTxLog(isLoggedIn);
+
+  // Derive real, user-scoped stats from the live data above.
+  const balances = balanceData?.balances ?? {};
+  const fundedAssetCount = Object.values(balances).filter((v) => Number(v) > 0).length;
+  const totalAssetCount = Object.keys(balances).length;
+  const recentTxCount = txData.length;
 
   // Surface when the live market data was last refreshed.
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -114,8 +125,14 @@ const Dashboard: React.FC = () => {
                 <TrendingUp className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted-foreground truncate">Live Rates</p>
-                <p className="text-base sm:text-lg font-bold tracking-tight truncate">৳{marketData?.rates?.solana || '...'}</p>
+                <p className="text-sm font-medium text-muted-foreground truncate">Live Rate (USDC)</p>
+                {marketLoading && !marketData ? (
+                  <SkeletonText className="mt-1 h-5 w-16" />
+                ) : (
+                  <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                    {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
+                  </p>
+                )}
               </div>
             </div>
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -131,11 +148,38 @@ const Dashboard: React.FC = () => {
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
             <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-muted-foreground truncate">Funded Assets</p>
+              {isLoggedIn && balanceLoading && !balanceData ? (
+                <SkeletonText className="mt-1 h-5 w-12" />
+              ) : isLoggedIn ? (
+                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                  {fundedAssetCount}
+                  <span className="text-xs font-normal text-muted-foreground"> / {totalAssetCount}</span>
+                </p>
+              ) : (
+                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                  {NETWORK_LIST.length} Chains
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
+            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
               <Zap className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Network</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Healthy</p>
+              <p className="text-sm font-medium text-muted-foreground truncate">
+                {isLoggedIn ? 'Your Transactions' : 'Platform Orders'}
+              </p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                {isLoggedIn ? recentTxCount : (stats?.total_orders ?? '—')}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -146,20 +190,12 @@ const Dashboard: React.FC = () => {
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Security</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">{user ? user.username : 'Guest'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
-              <Layers className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Assets</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Multi-Chain</p>
+              <p className="text-sm font-medium text-muted-foreground truncate">
+                {isLoggedIn ? 'Account' : 'Members'}
+              </p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                {isLoggedIn ? user!.username : (stats?.total_users ?? '—')}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -229,7 +265,8 @@ const Dashboard: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     );
-                  })}
+                  })
+                  )}
                 </TableBody>
               </Table>
             </div>

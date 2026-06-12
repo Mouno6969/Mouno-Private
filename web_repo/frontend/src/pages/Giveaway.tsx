@@ -8,6 +8,7 @@ import { Gift, Clock, Users, Loader2, Ticket } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 interface GiveawaySession {
   session_id: string;
@@ -24,7 +25,7 @@ interface GiveawaySession {
 
 
 
-const botUsername = process.env.REACT_APP_BOT_USERNAME || 'Automatedcryptobuybot';
+const botUsername = 'Automatedcryptobuybot';
 
 const Giveaway: React.FC = () => {
   const { token } = useAuth();
@@ -35,9 +36,9 @@ const Giveaway: React.FC = () => {
   const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/giveaways`)
-      .then(r => r.json())
-      .then(d => setGiveaways(Array.isArray(d) ? d : []))
+    apiClient
+      .get<GiveawaySession[]>('/api/giveaways', { silent: true })
+      .then(r => setGiveaways(Array.isArray(r.data) ? r.data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -49,23 +50,15 @@ const Giveaway: React.FC = () => {
     }
     setRedeeming(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/gift/redeem`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ code, wallet })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message);
-        setCode('');
-      } else {
-        toast.error(data.message);
-      }
+      const res = await apiClient.post<{ message: string }>(
+        '/api/gift/redeem',
+        { code, wallet },
+        { silent: true }
+      );
+      toast.success(res.data.message);
+      setCode('');
     } catch (err) {
-      toast.error('Failed to connect to server');
+      toast.error(getErrorMessage(err, 'Failed to connect to server'));
     } finally {
       setRedeeming(false);
     }

@@ -6,34 +6,35 @@ import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
 import { Copy, Users, DollarSign, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiClient } from '../lib/apiClient';
+
+interface ReferralStats {
+  referral_count?: number;
+  total_earned?: number;
+  balance?: number;
+}
 
 const Referral: React.FC = () => {
   const { t } = useTranslation();
   const { token, user } = useAuth();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ReferralStats | null>(null);
   const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await apiClient.get<{ stats: ReferralStats; code: string }>('/api/referral', { silent: true });
+        setStats(res.data.stats);
+        setCode(res.data.code);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchStats();
   }, [token]);
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/referral`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setStats(data.stats);
-        setCode(data.code);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const copyLink = () => {
     const link = `https://t.me/Automatedcryptobuybot?start=ref_${code}`;
