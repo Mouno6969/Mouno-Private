@@ -2412,9 +2412,10 @@ def create_support_ticket(web_user_id, subject, session_id=None, priority="norma
                 if content:
                     lines.append(f"[{role}] {content}")
             if lines:
+                transcript_body = ("AI chat transcript:\n" + "\n".join(lines))[:4000]
                 con.execute(
                     "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'system', ?)",
-                    (ticket_id, "AI chat transcript:\n" + "\n".join(lines)[:4000]),
+                    (ticket_id, transcript_body),
                 )
         con.commit()
         row = con.execute(
