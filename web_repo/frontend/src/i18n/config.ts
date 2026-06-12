@@ -52,6 +52,15 @@ const resources = {
       "sellers": "Sellers",
       "market": "Marketplace",
       "free_tools": "Free Tools",
+      "smart_trading": "Smart Trading",
+      "smart_trading_desc": "Automate your trades — limit orders, recurring buys, and hands-free signing.",
+      "limit_orders": "Limit Orders",
+      "scheduled_buys": "Scheduled Buys",
+      "auto_sign_setup": "Auto-Sign Setup",
+      "create_limit_order": "Create Limit Order",
+      "your_limit_orders": "Your Limit Orders",
+      "create_scheduled_buy": "Create Scheduled Buy",
+      "your_scheduled_buys": "Your Scheduled Buys",
     }
   },
   bn: {
@@ -103,6 +112,15 @@ const resources = {
       "sellers": "সেলারগণ",
       "market": "মার্কেটপ্লেস",
       "free_tools": "ফ্রী টুলস",
+      "smart_trading": "স্মার্ট ট্রেডিং",
+      "smart_trading_desc": "আপনার ট্রেড অটোমেট করুন — লিমিট অর্ডার, নিয়মিত কেনা এবং স্বয়ংক্রিয় সাইনিং।",
+      "limit_orders": "লিমিট অর্ডার",
+      "scheduled_buys": "শিডিউল কেনা",
+      "auto_sign_setup": "অটো-সাইন সেটআপ",
+      "create_limit_order": "লিমিট অর্ডার তৈরি করুন",
+      "your_limit_orders": "আপনার লিমিট অর্ডার",
+      "create_scheduled_buy": "শিডিউল কেনা তৈরি করুন",
+      "your_scheduled_buys": "আপনার শিডিউল কেনা",
     }
   }
 };

@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Landing from './pages/Landing';
 import Buy from './pages/Buy';
 import Swap from './pages/Swap';
+import Automation from './pages/Automation';
 import MyWallet from './pages/Wallet';
 import Orders from './pages/Orders';
 import Referral from './pages/Referral';
@@ -61,6 +62,7 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/register" element={<Register />} />
         <Route path="/buy" element={token ? <Buy /> : <Navigate to="/login" />} />
         <Route path="/swap" element={<Swap />} />
+        <Route path="/automation" element={token ? <Automation /> : <Navigate to="/login" />} />
         <Route path="/wallet" element={<MyWallet />} />
         <Route path="/orders" element={token ? <Orders /> : <Navigate to="/login" />} />
         <Route path="/referral" element={token ? <Referral /> : <Navigate to="/login" />} />
