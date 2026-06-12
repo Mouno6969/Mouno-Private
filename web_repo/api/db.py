@@ -2398,6 +2398,11 @@ def create_support_ticket(web_user_id, subject, session_id=None, priority="norma
     subject = (subject or "Support request").strip()[:200] or "Support request"
     priority = priority if priority in ("low", "normal", "high", "urgent") else "normal"
     with closing(connect()) as con:
+        # Only link a session that actually belongs to this user; otherwise drop
+        # the link (and any transcript) to preserve ticket↔chat ownership integrity.
+        if session_id is not None and not _session_belongs_to(con, session_id, web_user_id):
+            session_id = None
+            transcript = None
         cur = con.execute(
             "INSERT INTO support_tickets (user_id, session_id, subject, status, priority) "
             "VALUES (?, ?, ?, 'open', ?)",
