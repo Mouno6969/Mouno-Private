@@ -279,27 +279,7 @@ from swap_service import (
     short_tx_data,
     summarize_quote,
     fetch_lifi_approval,
-    fetch_token_price_usd,
     get_lifi_status,
-)
-from automation_service import (
-    init_automation_tables,
-    create_limit_order,
-    list_limit_orders,
-    get_active_limit_orders,
-    get_limit_order,
-    update_limit_price,
-    mark_limit_order,
-    cancel_limit_order,
-    limit_should_trigger,
-    open_password,
-    create_scheduled_buy,
-    list_scheduled_buys,
-    get_due_scheduled_buys,
-    get_scheduled_buy,
-    record_scheduled_run,
-    set_scheduled_status,
-    INTERVAL_SECONDS,
 )
 
 
@@ -1586,7 +1566,7 @@ def swap_setup_keyboard(lang="bn"):
 
 def swap_setup_provider_prompt(provider, lang="bn"):
     label = SWAP_PROVIDER_LABELS[provider]
-    return panel("🔑 Swap API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করত��� /cancel, cancel, অথবা বাতিল লিখুন।"))
+    return panel("🔑 Swap API Key", ltext(lang, f"Send the {label} API key.\n\nSend only the key; your next message will be saved.\nTo cancel, send /cancel or cancel.", f"{label} API key পাঠান।\n\nশুধু key পাঠান; next message save হবে।\nCancel করতে /cancel, cancel, অথবা বাতিল লিখুন।"))
 
 
 def swap_chains(context):
@@ -1937,7 +1917,7 @@ def telegram_id_finder_text(lang):
         ltext(
             lang,
             "This tool helps you find Telegram user, group, or channel IDs.\n\nHow to use\n1. Tap Start ID Finder.\n2. Send a public @username or public t.me/telegram.me link.\n3. Or forward a message from the user/group/channel.\n4. Or use it inside a group/channel where the bot can read messages to see the current chat ID.\n\nNotes\n• Public usernames/links can be resolved directly.\n• Private group/channel IDs usually require the bot/account to have access, or a forwarded message with visible origin.\n• If Telegram hides the forward sender for privacy, the bot cannot reveal that hidden ID.",
-            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-���� ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে ��া।",
+            "এই tool দিয়ে Telegram user, group অথবা channel ID বের করতে পারবেন।\n\nকীভাবে ব্যবহার করবেন\n১. Start ID Finder চাপুন।\n২. Public @username অথবা public t.me/telegram.me link পাঠান।\n৩. অথবা user/group/channel থেকে কোনো message forward করুন।\n৪. অথবা bot যেখানে message পড়তে পারে এমন group/channel-��� ব্যবহার করলে current chat ID দেখা যাবে।\n\nনোট\n• Public username/link সরাসরি resolve করা যায়।\n• Private group/channel ID পেতে সাধারণত bot/account-এর access লাগবে, অথবা visible origin সহ forwarded message লাগবে।\n• Telegram privacy-এর কারণে forward sender hidden থাকলে bot সেই hidden ID বের করতে পারে না।",
         ),
     )
 
@@ -2079,7 +2059,7 @@ def solana_refund_text(lang, wallet=None, summary=None):
         ),
         "",
         ltext(lang, "Important:", "গুরুত্বপূর্ণ:"),
-        ltext(lang, "�� Only your own Solana wallet should be connected.", "• শুধু নিজের Solana wallet connect করবেন।"),
+        ltext(lang, "• Only your own Solana wallet should be connected.", "• শুধু নিজের Solana wallet connect করবেন।"),
         ltext(lang, "• ATAs with token balances will not be closed.", "• Token balance থাকা ATA close করা হবে না।"),
         ltext(lang, "• Solana network fee applies when refunding.", "• Refund করার সময় Solana network fee লাগবে।"),
     ]
@@ -2809,7 +2789,7 @@ tail -50 bot.out"""
         "���️ Bot থেকে restart command execute করা হবে না; safety guide only.\n"
         "✅ Restart করার আগে অবশ্যই `git pull origin main` চালান।\n"
         "❌ `py_compile` fail করলে bot start করবেন না; আগে error fix করুন।\n"
-        "✅ Start এর পর `bot.out` ��� `Bot started!` বা polling/webhook logs দেখা উচিত।\n\n"
+        "✅ Start এর পর `bot.out` এ `Bot started!` বা polling/webhook logs দেখা উচিত।\n\n"
         f"```bash\n{commands}\n```"
     )
 
@@ -3484,7 +3464,6 @@ def main_menu(user_id, lang=None):
     lang = lang or user_lang(user_id)
     keyboard = [
         [InlineKeyboardButton(tr("buy", lang), callback_data="buy"), InlineKeyboardButton(tr("swap", lang), callback_data="swap_start")],
-        [InlineKeyboardButton("⚙️ Smart Trading" if lang == "en" else "⚙️ স্মার্ট ট্রেডিং", callback_data="auto_menu")],
         [InlineKeyboardButton(tr("stars", lang), callback_data="star_buy")],
         [InlineKeyboardButton(tr("gift", lang), callback_data="redeem_menu"), InlineKeyboardButton(tr("giveaway", lang), callback_data="giveaway_menu")],
         [InlineKeyboardButton(tr("giveaway_redeem", lang), callback_data="giveaway_redeem_menu")],
@@ -3870,9 +3849,9 @@ def seller_guide_text(seller=None, lang="bn"):
         "3️⃣ Seller mode অন করুন। Seller ফোনে admin/main mode ব্যবহার করবেন না।\n"
         "4️⃣ আপনার Seller token paste করে Save setup চাপুন। সব ঠিক থাকলে app দেখাবে Ready to forward।\n"
         "5️⃣ Check server চাপুন। Internet, server reachable, token — তিনটাই OK হওয়া দরকার। Token fail হলে Seller Center থেকে token আবার copy করে setup save করুন।\n"
-        "6️⃣ Allow SMS Permission চাপুন�� তারপর Enable Notification Access চাপুন এবং SCB-Forwarder enable করুন। SMS ও notification দুইটাই on রাখলে সমস্যা নেই, bot TrxID দিয়ে duplicate বাদ দেয়।\n"
+        "6️⃣ Allow SMS Permission চাপুন। তারপর Enable Notification Access চাপুন এবং SCB-Forwarder enable করুন। SMS ও notification দুইটাই on রাখলে সমস্যা নেই, bot TrxID দিয়ে duplicate বাদ দেয়।\n"
         "7️⃣ Start Background Service চাপুন এবং SCB-Forwarder running notification visible রাখুন।\n"
-        "8️⃣ Battery/autostart guide খুলে SCB-Forwarder-এর battery restriction/autostart blocking off ���রুন। Samsung হলে Never sleeping apps-এ add করুন; Xiaomi/Redmi/Poco হলে Autostart on ও No restrictions দিন।\n"
+        "8️⃣ Battery/autostart guide খুলে SCB-Forwarder-এর battery restriction/autostart blocking off করুন। Samsung হলে Never sleeping apps-এ add করুন; Xiaomi/Redmi/Poco হলে Autostart on ও No restrictions দিন।\n"
         "9️⃣ Seller Center → Delivery Wallet এ আপনি যে network sell করবেন, প্রতিটির private key add/update করুন। প্রতিটি seller wallet-এ native gas token রাখুন।\n"
         "🔟 Custom rate চাইলে seller rate set করুন; 0 দিলে global/admin rate use হবে।\n\n"
         "Supported seller auto-delivery: Solana, Polygon, BSC, Avalanche, Ethereum, Base, TRC20। TON seller auto-delivery supported না। Telegram Stars seller sale হলে pending payout ledger তৈরি হয়, admin manual paid mark করবেন।"
@@ -4961,7 +4940,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ltext(
                 lang,
                 "🧠 Send the Honcho API key (from app.honcho.dev) in the next message.\n\nThe message will be deleted automatically for security. Send /cancel to abort.",
-                "🧠 পরবর্তী মেসেজে Honcho API key (app.honcho.dev থেকে) পাঠান।\n\nনিরাপত্তার জন্য মেসেজটি স্বয়ংক্রিয়ভাবে মুছে ফেলা হব���। বাতিল করতে /cancel লিখুন।",
+                "🧠 পরবর্তী মেসেজে Honcho API key (app.honcho.dev থেকে) পাঠান।\n\nনিরাপত্তার জন্য মেসেজটি স্বয়ংক্রিয়ভাবে মুছে ফেলা হবে। বাতিল করতে /cancel লিখুন।",
             ),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel" if lang == "en" else "❌ বাতিল", callback_data="honcho_setup")]]),
         )
@@ -5122,81 +5101,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "swap_confirm_in_bot":
         if not context.user_data.get("swap_quote"):
-            await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
+            await query.edit_message_text(ltext(lang, "❌ Quote expired. Start again.", "❌ Quote expire হয়েছে। আবার শুরু করুন।"), reply_markup=main_menu(user_id, lang))
             return ConversationHandler.END
         context.user_data["swap_step"] = "in_bot_password"
         await query.edit_message_text(ltext(lang, "🔐 Enter your Personal Wallet password to confirm and sign the swap/bridge transaction.", "🔐 Personal Wallet password দিন। এটি swap/bridge transaction sign করতে ব্যবহার হবে।"), reply_markup=swap_cancel_keyboard(lang))
-
-    elif query.data == "auto_menu":
-        context.user_data.clear()
-        await query.edit_message_text(automation_menu_text(lang), reply_markup=automation_menu_keyboard(lang))
-
-    elif query.data in ("auto_limit_start", "auto_sched_start"):
-        mode = "limit" if query.data == "auto_limit_start" else "schedule"
-        await start_swap_flow(query, context, lang)
-        context.user_data["auto_mode"] = mode
-
-    elif query.data in ("auto_dir_below", "auto_dir_above"):
-        context.user_data["auto_direction"] = "below" if query.data == "auto_dir_below" else "above"
-        context.user_data["swap_step"] = "auto_limit_target"
-        to_token = context.user_data.get("swap_to_token", "the token")
-        arrow = "≤" if context.user_data["auto_direction"] == "below" else "≥"
-        await query.edit_message_text(
-            ltext(
-                lang,
-                f"Enter the target USD price for {to_token}.\nThe order fills when price {arrow} target.\n\nExample: 50000",
-                f"{to_token}-এর target USD price দিন।\nদাম {arrow} target হলে order fill হবে।\n\nউদাহরণ: 50000",
-            ),
-            reply_markup=swap_cancel_keyboard(lang),
-        )
-
-    elif query.data in ("auto_int_daily", "auto_int_weekly", "auto_int_monthly"):
-        context.user_data["auto_interval"] = query.data.replace("auto_int_", "", 1)
-        context.user_data["swap_step"] = "auto_schedule_password"
-        await query.edit_message_text(
-            ltext(
-                lang,
-                "🔐 Enter your Personal Wallet password.\n\nIt is encrypted and used only to auto-sign each recurring buy.",
-                "🔐 আপনার Personal Wallet পাসওয়ার্ড দিন।\n\nএটি এনক্রিপ্ট করে রাখা হবে এবং শুধু প্রতিটি রিকারিং কেনার সময় অটো-সাইন করতে ব্যবহৃত হবে।",
-            ),
-            reply_markup=swap_cancel_keyboard(lang),
-        )
-
-    elif query.data == "auto_limit_list":
-        orders = list_limit_orders(user_id, statuses=("active",))
-        await query.edit_message_text(limit_order_list_text(orders, lang), reply_markup=limit_orders_list_keyboard(orders, lang))
-
-    elif query.data == "auto_sched_list":
-        rows_data = list_scheduled_buys(user_id, statuses=("active", "paused"))
-        await query.edit_message_text(scheduled_list_text(rows_data, lang), reply_markup=scheduled_list_keyboard(rows_data, lang))
-
-    elif query.data.startswith("auto_limit_cancel_"):
-        order_id = query.data.replace("auto_limit_cancel_", "", 1)
-        ok = cancel_limit_order(order_id, user_id)
-        msg = ltext(lang, f"✅ Cancelled {order_id}.", f"✅ {order_id} বাতিল হয়েছে।") if ok else ltext(lang, "❌ Order not found.", "❌ Order পাওয়া যায়নি।")
-        orders = list_limit_orders(user_id, statuses=("active",))
-        await query.edit_message_text(f"{msg}\n\n" + limit_order_list_text(orders, lang), reply_markup=limit_orders_list_keyboard(orders, lang))
-
-    elif query.data.startswith("auto_sched_pause_"):
-        sid = query.data.replace("auto_sched_pause_", "", 1)
-        set_scheduled_status(sid, user_id, "paused")
-        rows_data = list_scheduled_buys(user_id, statuses=("active", "paused"))
-        await query.edit_message_text(scheduled_list_text(rows_data, lang), reply_markup=scheduled_list_keyboard(rows_data, lang))
-
-    elif query.data.startswith("auto_sched_resume_"):
-        sid = query.data.replace("auto_sched_resume_", "", 1)
-        set_scheduled_status(sid, user_id, "active")
-        rows_data = list_scheduled_buys(user_id, statuses=("active", "paused"))
-        await query.edit_message_text(scheduled_list_text(rows_data, lang), reply_markup=scheduled_list_keyboard(rows_data, lang))
-
-    elif query.data.startswith("auto_sched_cancel_"):
-        sid = query.data.replace("auto_sched_cancel_", "", 1)
-        set_scheduled_status(sid, user_id, "cancelled")
-        rows_data = list_scheduled_buys(user_id, statuses=("active", "paused"))
-        await query.edit_message_text(
-            ltext(lang, f"✅ Cancelled {sid}.", f"✅ {sid} বাতিল হয়েছে।") + "\n\n" + scheduled_list_text(rows_data, lang),
-            reply_markup=scheduled_list_keyboard(rows_data, lang),
-        )
 
     elif query.data == "swap_status":
         if not is_admin(user_id):
@@ -5474,7 +5382,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if context.user_data.get("giveaway_source") == "user_wallet":
                 context.user_data["giveaway_minutes"] = minutes
                 context.user_data["giveaway_step"] = "password"
-                await query.edit_message_text(ltext(lang, "��� Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password ��িন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
+                await query.edit_message_text(ltext(lang, "🔐 Enter your wallet password to confirm.\n\n⚠️ Your message will be deleted after you send it.", "🔐 Confirm করতে wallet password ��িন।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
                 return
             await create_giveaway_from_context(query, context, user_id, lang, minutes)
             return
@@ -5778,7 +5686,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📊 Admin Dashboard\n\n"
         f"👥 Total Users: {total_users or 0}\n"
         f"🆕 New Users (Today): {new_users_today or 0}\n"
-        "��━━━━━━━━━━━━━━\n"
+        "━━━━━━━━━━━━━━━\n"
         f"🧾 Total TX: {total or 0}\n"
         f"✅ Completed: {completed or 0}\n"
         f"❌ Failed: {failed or 0}\n"
@@ -7164,7 +7072,7 @@ async def handle_solana_refund_text(update, context, user_id, lang, incoming_tex
             reply_markup=solana_refund_keyboard(lang, True, bool(summary.get("refundable_count"))),
         )
     except Exception as exc:
-        await update.message.reply_text(ltext(lang, f"❌ ATA check failed: {friendly_solana_error(exc, lang)}", f"❌ ATA check ব্যর্���: {friendly_solana_error(exc, lang)}"), reply_markup=solana_refund_keyboard(lang, True, False))
+        await update.message.reply_text(ltext(lang, f"❌ ATA check failed: {friendly_solana_error(exc, lang)}", f"❌ ATA check ব্যর্থ: {friendly_solana_error(exc, lang)}"), reply_markup=solana_refund_keyboard(lang, True, False))
     return True
 
 
@@ -7555,21 +7463,6 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             await update.message.reply_text(ltext(lang, "❌ Invalid amount. Send a number greater than 0.", "❌ Amount ভুল। 0-এর বেশি সংখ্যা লিখুন।"), reply_markup=swap_cancel_keyboard(lang))
             return True
         context.user_data["swap_amount"] = amount_text
-        auto_mode = context.user_data.get("auto_mode")
-        if auto_mode == "limit":
-            context.user_data["swap_step"] = "auto_limit_direction"
-            await update.message.reply_text(
-                ltext(lang, "When should this order execute?", "এই order কখন execute হবে?"),
-                reply_markup=limit_direction_keyboard(lang),
-            )
-            return True
-        if auto_mode == "schedule":
-            context.user_data["swap_step"] = "auto_schedule_interval"
-            await update.message.reply_text(
-                ltext(lang, "How often should this auto-buy run?", "এই auto-buy কত ঘন ঘন চলবে?"),
-                reply_markup=schedule_interval_keyboard(lang),
-            )
-            return True
         context.user_data["swap_step"] = "wallet"
         target_chain_id = context.user_data.get("swap_to_chain_id")
         target_chain = find_chain(swap_chains(context), target_chain_id)
@@ -7600,123 +7493,6 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         context.user_data["swap_wallet"] = text
         context.user_data["swap_step"] = "preference"
         await update.message.reply_text(ltext(lang, "Choose routing preference.", "Route preference বেছে নিন।"), reply_markup=swap_quote_keyboard(lang))
-        return True
-
-    if step == "auto_limit_target":
-        raw = text.replace("$", "").replace(",", "").strip()
-        try:
-            target_price = Decimal(raw)
-            if target_price <= 0:
-                raise ValueError()
-        except Exception:
-            await update.message.reply_text(
-                ltext(lang, "❌ Enter a valid target price in USD (e.g. 50000).", "❌ সঠিক target price (USD) দিন (যেমন 50000)।"),
-                reply_markup=swap_cancel_keyboard(lang),
-            )
-            return True
-        context.user_data["auto_target_price"] = str(target_price)
-        context.user_data["swap_step"] = "auto_limit_password"
-        await update.message.reply_text(
-            ltext(
-                lang,
-                "🔐 Enter your Personal Wallet password.\n\nIt is encrypted and used only to auto-sign this order when it triggers.",
-                "🔐 আপনার Personal Wallet পাসওয়ার্ড দিন।\n\nএটি এনক্রিপ্ট করে রাখা হবে এবং শুধু order ট্রিগার হলে অটো-সাইন করতে ব্যবহৃত হবে।",
-            ),
-            reply_markup=swap_cancel_keyboard(lang),
-        )
-        return True
-
-    if step == "auto_limit_password":
-        password = text
-        try:
-            await update.message.delete()
-        except Exception:
-            pass
-        chat_id = update.effective_chat.id
-        intent = context.user_data.get("swap_intent") or _build_auto_intent(context)
-        from_chain = find_chain(swap_chains(context), intent.get("from_chain_id"))
-        wallet_row = personal_wallet_for_chain(user_id, from_chain)
-        if not wallet_row:
-            await context.bot.send_message(chat_id, "❌ No personal wallet found for this chain type.")
-            _clear_auto(context)
-            return True
-        try:
-            decrypt_key(wallet_row[0], wallet_row[1], password)
-        except Exception:
-            await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Try again.", "❌ ভুল পাসওয়ার্ড। আবার দিন।"), reply_markup=swap_cancel_keyboard(lang))
-            return True
-        try:
-            order_id = create_limit_order(
-                user_id,
-                intent,
-                watch_symbol=intent.get("to_token"),
-                direction=context.user_data.get("auto_direction", "below"),
-                target_price=context.user_data.get("auto_target_price"),
-                password=password,
-            )
-        except Exception as exc:
-            await context.bot.send_message(chat_id, f"❌ Could not create limit order: {exc}")
-            _clear_auto(context)
-            return True
-        arrow = "≤" if context.user_data.get("auto_direction") == "below" else "≥"
-        await context.bot.send_message(
-            chat_id,
-            panel(
-                "🎯 Limit Order Created",
-                ltext(
-                    lang,
-                    f"`{order_id}`\nBuy {intent['amount']} {intent['from_token']} → {intent['to_token']}\nWhen {intent['to_token']} {arrow} ${context.user_data.get('auto_target_price')}\n\nThe bot is now watching the price 24/7.",
-                    f"`{order_id}`\n{intent['amount']} {intent['from_token']} → {intent['to_token']}\nযখন {intent['to_token']} {arrow} ${context.user_data.get('auto_target_price')}\n\nবট এখন দাম ২৪/৭ পর্যবেক্ষণ করছে।",
-                ),
-            ),
-            reply_markup=main_menu(user_id, lang),
-        )
-        _clear_auto(context)
-        return True
-
-    if step == "auto_schedule_password":
-        password = text
-        try:
-            await update.message.delete()
-        except Exception:
-            pass
-        chat_id = update.effective_chat.id
-        intent = context.user_data.get("swap_intent") or _build_auto_intent(context)
-        from_chain = find_chain(swap_chains(context), intent.get("from_chain_id"))
-        wallet_row = personal_wallet_for_chain(user_id, from_chain)
-        if not wallet_row:
-            await context.bot.send_message(chat_id, "❌ No personal wallet found for this chain type.")
-            _clear_auto(context)
-            return True
-        try:
-            decrypt_key(wallet_row[0], wallet_row[1], password)
-        except Exception:
-            await context.bot.send_message(chat_id, ltext(lang, "❌ Invalid password. Try again.", "❌ ভুল পাসওয়ার্ড। আবার দিন।"), reply_markup=swap_cancel_keyboard(lang))
-            return True
-        try:
-            schedule_id = create_scheduled_buy(
-                user_id,
-                intent,
-                interval_key=context.user_data.get("auto_interval", "weekly"),
-                password=password,
-            )
-        except Exception as exc:
-            await context.bot.send_message(chat_id, f"❌ Could not create auto-buy: {exc}")
-            _clear_auto(context)
-            return True
-        await context.bot.send_message(
-            chat_id,
-            panel(
-                "🗓 Auto-Buy Created",
-                ltext(
-                    lang,
-                    f"`{schedule_id}`\nBuy {intent['amount']} {intent['from_token']} → {intent['to_token']}\nEvery {context.user_data.get('auto_interval')}.\n\nThe bot will sign and execute each run automatically.",
-                    f"`{schedule_id}`\n{intent['amount']} {intent['from_token']} → {intent['to_token']}\nপ্রতি {context.user_data.get('auto_interval')}।\n\nবট প্রতিবার নিজে সাইন করে execute করবে।",
-                ),
-            ),
-            reply_markup=main_menu(user_id, lang),
-        )
-        _clear_auto(context)
         return True
 
     if step == "in_bot_password":
@@ -7847,304 +7623,6 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         return True
 
     return True
-
-
-# ===========================================================================
-# Buy/Swap automation: Limit Orders + Scheduled (recurring) Buys
-# ---------------------------------------------------------------------------
-# These reuse the existing swap collection flow (chain/token/amount) and the
-# Personal Wallet auto-sign machinery. The user's wallet password is sealed
-# with the server master key so the bot can sign when a trigger fires.
-# ===========================================================================
-
-def personal_wallet_for_chain(user_id, from_chain):
-    """Return the encrypted personal wallet row matching a chain's type."""
-    chain_type = str((from_chain or {}).get("chainType") or "").upper()
-    from_chain_id = (from_chain or {}).get("id")
-    if chain_type == "SVM" or str(from_chain_id) == "1151111081099710":
-        return get_user_solana_wallet(user_id)
-    if chain_type == "EVM":
-        return get_user_evm_wallet(user_id)
-    return get_user_wallet(user_id)
-
-
-def _build_auto_intent(context):
-    """Assemble the swap intent dict from the collected swap_* user_data."""
-    return {
-        "from_chain_id": context.user_data.get("swap_from_chain_id"),
-        "from_chain_name": context.user_data.get("swap_from_chain_name"),
-        "to_chain_id": context.user_data.get("swap_to_chain_id"),
-        "to_chain_name": context.user_data.get("swap_to_chain_name"),
-        "from_token": context.user_data.get("swap_from_token"),
-        "to_token": context.user_data.get("swap_to_token"),
-        "amount": context.user_data.get("swap_amount"),
-        "preference": context.user_data.get("swap_preference", "cheapest"),
-    }
-
-
-def _clear_auto(context):
-    """Clear all swap/automation collection state."""
-    for key in (
-        "auto_mode", "auto_direction", "auto_target_price", "auto_interval",
-        "swap_step", "swap_intent", "swap_quote", "swap_from_chain_id",
-        "swap_from_chain_name", "swap_to_chain_id", "swap_to_chain_name",
-        "swap_from_token", "swap_to_token", "swap_amount", "swap_preference",
-    ):
-        context.user_data.pop(key, None)
-
-
-def _automation_chains(app):
-    chains = app.bot_data.get("swap_lifi_chains")
-    if not chains:
-        try:
-            chains = get_lifi_chains(swap_provider_key("lifi"))
-        except Exception:
-            chains = fallback_chains()
-        app.bot_data["swap_lifi_chains"] = chains
-    return chains
-
-
-async def execute_automation_swap(bot, app, user_id, intent, password, lang):
-    """Sign + broadcast a swap/buy on the user's behalf. Returns (ok, hash_or_error)."""
-    loop = asyncio.get_running_loop()
-    chains = _automation_chains(app)
-    from_chain_id = intent.get("from_chain_id")
-    from_chain = find_chain(chains, from_chain_id)
-    chain_type = str((from_chain or {}).get("chainType") or "").upper()
-    is_svm = chain_type == "SVM" or str(from_chain_id) == "1151111081099710"
-    network = lifi_chain_to_network(from_chain)
-
-    wallet_row = personal_wallet_for_chain(user_id, from_chain)
-    if not wallet_row:
-        return False, "No personal wallet found for this chain type."
-    try:
-        private_key = decrypt_key(wallet_row[0], wallet_row[1], password)
-    except Exception:
-        return False, "Wallet password could not be decrypted."
-
-    try:
-        signer_address = get_wallet_address(network, private_key)
-        intent = dict(intent)
-        intent["wallet"] = signer_address  # fromAddress must match the signer
-        quote = await loop.run_in_executor(None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi")))
-        summary = summarize_quote(quote)
-
-        rpc_url = None
-        if from_chain:
-            metamask = from_chain.get("metamask", {})
-            rpc_url = (metamask.get("rpcUrls") or [None])[0]
-
-        # 1. Approval (EVM only)
-        if summary["approval_needed"] and not is_svm:
-            approval_data = await loop.run_in_executor(
-                None,
-                lambda: fetch_lifi_approval(
-                    from_chain_id,
-                    quote["action"]["fromToken"]["address"],
-                    quote["action"]["fromAmount"],
-                    api_key=swap_provider_key("lifi"),
-                ),
-            )
-            if not network and not rpc_url:
-                return False, f"No RPC URL for chain {from_chain_id}."
-            await loop.run_in_executor(
-                None,
-                lambda: send_raw_evm_transaction(network, private_key, approval_data["to"], approval_data["data"], rpc_url=rpc_url),
-            )
-            await asyncio.sleep(15)
-
-        # 2. Execute swap/buy
-        tx = quote.get("transactionRequest")
-        if is_svm:
-            swap_hash = await loop.run_in_executor(None, lambda: send_raw_solana_transaction(private_key, tx["data"], rpc_url=rpc_url))
-        else:
-            if not network and not rpc_url:
-                return False, f"No RPC URL for chain {from_chain_id}."
-            swap_hash = await loop.run_in_executor(
-                None,
-                lambda: send_raw_evm_transaction(network, private_key, tx["to"], tx["data"], value=tx.get("value", 0), rpc_url=rpc_url),
-            )
-        return True, swap_hash
-    except Exception as exc:
-        logger.error("Automation swap failed for %s: %s", user_id, exc)
-        return False, str(exc)
-
-
-def automation_intent_from_row(row):
-    return {
-        "from_chain_id": row["from_chain_id"],
-        "from_chain_name": row["from_chain_name"],
-        "to_chain_id": row["to_chain_id"],
-        "to_chain_name": row["to_chain_name"],
-        "from_token": row["from_token"],
-        "to_token": row["to_token"],
-        "amount": row["amount"],
-        "preference": row["preference"] or "cheapest",
-    }
-
-
-# ----- Keyboards -----------------------------------------------------------
-def automation_menu_keyboard(lang="bn"):
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("🔁 Swap / Bridge / Convert" if lang == "en" else "🔁 Swap / Bridge / Convert", callback_data="swap_start")],
-            [InlineKeyboardButton("🎯 Limit Order" if lang == "en" else "🎯 Limit Order", callback_data="auto_limit_start")],
-            [InlineKeyboardButton("🗓 Auto / Recurring Buy" if lang == "en" else "🗓 অটো / রিকারিং বাই", callback_data="auto_sched_start")],
-            [InlineKeyboardButton("📋 My Limit Orders" if lang == "en" else "📋 আমার Limit Orders", callback_data="auto_limit_list")],
-            [InlineKeyboardButton("📋 My Auto-Buys" if lang == "en" else "📋 আমার Auto-Buys", callback_data="auto_sched_list")],
-            [InlineKeyboardButton(tr("back", lang), callback_data="back")],
-        ]
-    )
-
-
-def limit_direction_keyboard(lang="bn"):
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("📉 Buy when price ≤ target" if lang == "en" else "📉 দাম ≤ target হলে কিনুন", callback_data="auto_dir_below")],
-            [InlineKeyboardButton("📈 Buy when price ≥ target" if lang == "en" else "📈 দাম ≥ target হলে কিনুন", callback_data="auto_dir_above")],
-            [InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
-        ]
-    )
-
-
-def schedule_interval_keyboard(lang="bn"):
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("📅 Daily" if lang == "en" else "📅 প্রতিদিন", callback_data="auto_int_daily")],
-            [InlineKeyboardButton("📆 Weekly" if lang == "en" else "📆 প্রতি সপ্তাহে", callback_data="auto_int_weekly")],
-            [InlineKeyboardButton("🗓 Monthly" if lang == "en" else "🗓 প্রতি মাসে", callback_data="auto_int_monthly")],
-            [InlineKeyboardButton(tr("cancel", lang), callback_data="swap_cancel")],
-        ]
-    )
-
-
-def limit_orders_list_keyboard(orders, lang="bn"):
-    rows = []
-    for o in orders:
-        rows.append([InlineKeyboardButton(f"❌ Cancel {o['order_id']}", callback_data=f"auto_limit_cancel_{o['order_id']}")])
-    rows.append([InlineKeyboardButton(tr("back", lang), callback_data="auto_menu")])
-    return InlineKeyboardMarkup(rows)
-
-
-def scheduled_list_keyboard(rows_data, lang="bn"):
-    rows = []
-    for s in rows_data:
-        if s["status"] == "active":
-            rows.append([InlineKeyboardButton(f"⏸ Pause {s['schedule_id']}", callback_data=f"auto_sched_pause_{s['schedule_id']}"), InlineKeyboardButton("🗑", callback_data=f"auto_sched_cancel_{s['schedule_id']}")])
-        elif s["status"] == "paused":
-            rows.append([InlineKeyboardButton(f"▶️ Resume {s['schedule_id']}", callback_data=f"auto_sched_resume_{s['schedule_id']}"), InlineKeyboardButton("🗑", callback_data=f"auto_sched_cancel_{s['schedule_id']}")])
-    rows.append([InlineKeyboardButton(tr("back", lang), callback_data="auto_menu")])
-    return InlineKeyboardMarkup(rows)
-
-
-# ----- Text builders -------------------------------------------------------
-def automation_menu_text(lang="bn"):
-    return panel(
-        "⚙️ Smart Trading" if lang == "en" else "⚙️ স্মার্ট ট্রেডিং",
-        ltext(
-            lang,
-            "• Swap/Convert any asset to another in one go (multi-leg routing).\n"
-            "• Limit Order: auto-buy when a token hits your target price.\n"
-            "• Auto Buy: recurring buys on a daily/weekly/monthly schedule.\n\n"
-            "Limit Orders and Auto Buys sign automatically with your Personal Wallet.",
-            "• এক ধাপে যেকোনো asset আরেকটায় convert/swap করুন (multi-leg routing)।\n"
-            "• Limit Order: token নির্দিষ্ট দামে পৌঁছালে অটো-কিনুন।\n"
-            "• Auto Buy: প্রতিদিন/সপ্তাহ/মাসে রিকারিং কেনা।\n\n"
-            "Limit Order ও Auto Buy আপনার Personal Wallet দিয়ে অটো-সাইন হয়।",
-        ),
-    )
-
-
-def limit_order_list_text(orders, lang="bn"):
-    if not orders:
-        return panel("🎯 Limit Orders", ltext(lang, "No active limit orders.", "কোনো active limit order নেই।"))
-    lines = []
-    for o in orders:
-        arrow = "≤" if o["direction"] == "below" else "≥"
-        last = f" | last ${o['last_price']}" if o["last_price"] else ""
-        lines.append(
-            f"`{o['order_id']}` {o['amount']} {o['from_token']} → {o['to_token']}\n"
-            f"   Trigger: {o['watch_symbol']} {arrow} ${o['target_price']}{last}"
-        )
-    return panel("🎯 Limit Orders", "\n".join(lines))
-
-
-def scheduled_list_text(rows_data, lang="bn"):
-    if not rows_data:
-        return panel("🗓 Auto Buys", ltext(lang, "No scheduled buys.", "কোনো scheduled buy নেই।"))
-    lines = []
-    for s in rows_data:
-        nxt = (s["next_run"] or "")[:16].replace("T", " ")
-        lines.append(
-            f"`{s['schedule_id']}` [{s['status']}] {s['amount']} {s['from_token']} → {s['to_token']}\n"
-            f"   Every {s['interval_key']} | runs: {s['runs_count']} | next: {nxt} UTC"
-        )
-    return panel("🗓 Auto Buys", "\n".join(lines))
-
-
-# ----- Background monitors -------------------------------------------------
-async def limit_order_monitor(app, poll_seconds=60):
-    """Poll watched token prices and fire triggered limit orders."""
-    await asyncio.sleep(20)
-    while True:
-        try:
-            orders = await asyncio.get_running_loop().run_in_executor(None, get_active_limit_orders)
-            for o in orders:
-                lang = user_lang(o["user_id"])
-                try:
-                    price = await asyncio.get_running_loop().run_in_executor(
-                        None, lambda: fetch_token_price_usd(o["to_chain_id"], o["to_token"], api_key=swap_provider_key("lifi"))
-                    )
-                except Exception as exc:
-                    logger.warning("Limit price fetch failed (%s): %s", o["order_id"], exc)
-                    continue
-                update_limit_price(o["order_id"], price)
-                if not limit_should_trigger(o["direction"], o["target_price"], price):
-                    continue
-                try:
-                    password = open_password(o["enc_password"], o["pw_salt"])
-                except Exception:
-                    mark_limit_order(o["order_id"], "failed", error="password vault error")
-                    continue
-                intent = automation_intent_from_row(o)
-                await app.bot.send_message(o["user_id"], ltext(lang, f"🎯 Limit order `{o['order_id']}` triggered at ${price}. Executing...", f"🎯 Limit order `{o['order_id']}` ${price}-এ ট্রিগার হয়েছে। Execute হচ্ছে..."))
-                ok, result = await execute_automation_swap(app.bot, app, o["user_id"], intent, password, lang)
-                if ok:
-                    mark_limit_order(o["order_id"], "filled", tx_hash=result)
-                    await app.bot.send_message(o["user_id"], panel("✅ Limit Order Filled", f"`{o['order_id']}`\nHash: `{result}`"))
-                else:
-                    mark_limit_order(o["order_id"], "failed", error=result)
-                    await app.bot.send_message(o["user_id"], panel("❌ Limit Order Failed", f"`{o['order_id']}`\n{result}"))
-        except Exception as exc:
-            logger.error("limit_order_monitor loop error: %s", exc)
-        await asyncio.sleep(poll_seconds)
-
-
-async def scheduled_buy_runner(app, poll_seconds=60):
-    """Execute due recurring buys and re-arm the next run."""
-    await asyncio.sleep(30)
-    while True:
-        try:
-            due = await asyncio.get_running_loop().run_in_executor(None, get_due_scheduled_buys)
-            for s in due:
-                lang = user_lang(s["user_id"])
-                try:
-                    password = open_password(s["enc_password"], s["pw_salt"])
-                except Exception:
-                    record_scheduled_run(s["schedule_id"], s["interval_key"], error="password vault error")
-                    continue
-                intent = automation_intent_from_row(s)
-                await app.bot.send_message(s["user_id"], ltext(lang, f"🗓 Auto-buy `{s['schedule_id']}` running...", f"🗓 Auto-buy `{s['schedule_id']}` চলছে..."))
-                ok, result = await execute_automation_swap(app.bot, app, s["user_id"], intent, password, lang)
-                if ok:
-                    record_scheduled_run(s["schedule_id"], s["interval_key"], tx_hash=result)
-                    await app.bot.send_message(s["user_id"], panel("✅ Auto-Buy Done", f"`{s['schedule_id']}`\nHash: `{result}`"))
-                else:
-                    record_scheduled_run(s["schedule_id"], s["interval_key"], error=result)
-                    await app.bot.send_message(s["user_id"], panel("❌ Auto-Buy Failed", f"`{s['schedule_id']}`\n{result}"))
-        except Exception as exc:
-            logger.error("scheduled_buy_runner loop error: %s", exc)
-        await asyncio.sleep(poll_seconds)
 
 
 async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -9101,10 +8579,10 @@ async def mw_create_or_import(update: Update, context: ContextTypes.DEFAULT_TYPE
     network = context.user_data.get("mw_network", "solana")
     if query.data == "mwc_create":
         if network == "ton":
-            await query.edit_message_text(ltext(lang, "❌ Creating new TON wallets is not supported. Import an existing key instead.", "❌ নতুন TON wallet ত���রি সমর্থিত নয়। existing key import করুন।"))
+            await query.edit_message_text(ltext(lang, "❌ Creating new TON wallets is not supported. Import an existing key instead.", "❌ নতুন TON wallet তৈরি সমর্থিত নয়। existing key import করুন।"))
             return ConversationHandler.END
         context.user_data["mw_private_key"] = "create"
-        await query.edit_message_text(ltext(lang, "🆕 A new wallet will be generated.\n\nGive it an optional label (or send - to skip):", "🆕 একট��� নতুন wallet তৈরি হবে।\n\nএকটি optional label দিন (বা skip করতে - পাঠান):"))
+        await query.edit_message_text(ltext(lang, "🆕 A new wallet will be generated.\n\nGive it an optional label (or send - to skip):", "🆕 একটি নতুন wallet তৈরি হবে।\n\nএকটি optional label দিন (বা skip করতে - পাঠান):"))
         return MW_ADD_LABEL
     await query.edit_message_text(ltext(lang, "📥 Send your private key now.\n\n⚠️ Your message will be deleted after it is received.", "📥 এখন আপনার Private Key পাঠান।\n\n⚠️ Message পাঠানোর পর মুছে যাবে।"))
     context.user_data["mw_private_key"] = None
@@ -9259,7 +8737,7 @@ async def mw_send_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_transaction(f"WALLET-{str(sig)[:24]}", user_id, 0, amount, dest, sig, "completed", network, source="wallet")
         record_referral_reward_for_transaction(user_id, "wallet", f"WALLET-{str(sig)[:24]}", network, amount, 0, "user_wallet_transfer")
         context.user_data.clear()
-        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে প��ঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
+        await update.message.reply_text(ltext(lang, f"🎉 Sent successfully!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}", f"🎉 সফলভাবে পাঠানো হয়েছে!\n\n🌐 {net_info['name']}\n💵 {amount} {net_info['symbol']}\n📤 {dest}\n🔗 {net_info['explorer']}{sig}"))
     except RuntimeError as exc:
         if "master password" in str(exc).lower():
             await update.message.reply_text(ltext(lang, "❌ Wrong master password. Enter it again:", "❌ ভুল master password! আবার লিখুন:"))
@@ -9526,8 +9004,6 @@ async def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is not configured")
 
-    init_automation_tables()
-
     request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
     app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
 
@@ -9699,8 +9175,6 @@ async def main():
     set_callback(lambda txt, sndr, meta=None: sms_handler(app, loop, txt, sndr, meta))
     threading.Thread(target=run_webhook, daemon=True).start()
     asyncio.create_task(daily_admin_jobs(app))
-    asyncio.create_task(limit_order_monitor(app))
-    asyncio.create_task(scheduled_buy_runner(app))
     logger.info("Bot started!")
 
     try:
