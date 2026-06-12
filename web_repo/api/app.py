@@ -30,6 +30,12 @@ from crypto_manager import (
     get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
     add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
     list_wallet_balances, has_master_password, verify_master_password,
+    get_user_evm_wallet, get_user_solana_wallet, get_user_wallet, decrypt_key,
+)
+import automation_service
+from automation_vault import (
+    init_automation_vault, store_auto_password, has_auto_password,
+    get_auto_password, clear_auto_password,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +116,16 @@ _SECRET = os.getenv("WEB_SECRET_KEY")
 if not _SECRET:
     raise RuntimeError("WEB_SECRET_KEY must be set in the environment")
 app.config['SECRET_KEY'] = _SECRET
+
+# Ensure automation tables exist on startup. These share the same SQLite DB
+# (mouno.db) as the Telegram bot, whose limit_order_monitor / scheduled_buy_runner
+# background workers execute web-created automations. The web app only creates
+# rows + the auto-sign vault; it never runs its own scheduler/background thread.
+try:
+    automation_service.init_automation_tables()
+    init_automation_vault()
+except Exception as _exc:  # never block app startup on schema init
+    logger.error("Automation table init failed: %s", _exc)
 
 def token_required(f):
     @wraps(f)
@@ -1332,6 +1348,271 @@ def tool_telegram_forward(current_user):
 
     sent = sum(1 for r in results if r['ok'])
     return jsonify({'sent': sent, 'failed': len(results) - sent, 'results': results})
+
+
+# ─── Buy/Swap Automation (Limit Orders + Scheduled Buys) ───
+# These endpoints only create/list/cancel rows in the SHARED mouno.db. The
+# Telegram bot's limit_order_monitor / scheduled_buy_runner workers execute
+# them and auto-sign with the user's sealed wallet password. The web app does
+# NOT run its own scheduler.
+
+def _verify_wallet_password(user_id, password):
+    """True if `password` decrypts the user's personal (EVM or Solana) wallet."""
+    for getter in (get_user_evm_wallet, get_user_solana_wallet, get_user_wallet):
+        try:
+            row = getter(str(user_id))
+        except Exception:
+            row = None
+        if not row:
+            continue
+        try:
+            decrypt_key(row[0], row[1], password)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _build_automation_intent(data):
+    """Validate + assemble a swap intent from request JSON. Raises ValueError."""
+    from_chain_id = str(data.get('from_chain_id') or '').strip()
+    to_chain_id = str(data.get('to_chain_id') or '').strip()
+    from_token = str(data.get('from_token') or '').strip()
+    to_token = str(data.get('to_token') or '').strip()
+    amount_raw = data.get('amount')
+    if not (from_chain_id and to_chain_id and from_token and to_token):
+        raise ValueError('from_chain_id, to_chain_id, from_token and to_token are required')
+    try:
+        amount = float(amount_raw)
+    except (TypeError, ValueError):
+        raise ValueError('A valid amount is required')
+    if amount <= 0:
+        raise ValueError('Amount must be greater than zero')
+    preference = (data.get('preference') or 'cheapest').lower()
+    if preference not in ('cheapest', 'fastest'):
+        preference = 'cheapest'
+    return {
+        'from_chain_id': from_chain_id,
+        'from_chain_name': data.get('from_chain_name'),
+        'to_chain_id': to_chain_id,
+        'to_chain_name': data.get('to_chain_name'),
+        'from_token': from_token,
+        'to_token': to_token,
+        'amount': str(amount_raw).strip(),
+        'preference': preference,
+    }
+
+
+def _limit_order_public(row):
+    """Serialize a limit_orders row WITHOUT any password material."""
+    return {
+        'order_id': row['order_id'],
+        'from_chain_id': row['from_chain_id'],
+        'from_chain_name': row['from_chain_name'],
+        'from_token': row['from_token'],
+        'to_chain_id': row['to_chain_id'],
+        'to_chain_name': row['to_chain_name'],
+        'to_token': row['to_token'],
+        'amount': row['amount'],
+        'preference': row['preference'],
+        'watch_symbol': row['watch_symbol'],
+        'direction': row['direction'],
+        'target_price': row['target_price'],
+        'last_price': row['last_price'],
+        'status': row['status'],
+        'tx_hash': row['tx_hash'],
+        'error': row['error'],
+        'created_at': row['created_at'],
+        'triggered_at': row['triggered_at'],
+    }
+
+
+def _scheduled_buy_public(row):
+    """Serialize a scheduled_buys row WITHOUT any password material."""
+    return {
+        'schedule_id': row['schedule_id'],
+        'from_chain_id': row['from_chain_id'],
+        'from_chain_name': row['from_chain_name'],
+        'from_token': row['from_token'],
+        'to_chain_id': row['to_chain_id'],
+        'to_chain_name': row['to_chain_name'],
+        'to_token': row['to_token'],
+        'amount': row['amount'],
+        'preference': row['preference'],
+        'interval_key': row['interval_key'],
+        'status': row['status'],
+        'runs_count': row['runs_count'],
+        'last_tx_hash': row['last_tx_hash'],
+        'last_error': row['last_error'],
+        'created_at': row['created_at'],
+        'next_run': row['next_run'],
+        'last_run': row['last_run'],
+    }
+
+
+@app.route('/api/automation/setup-password', methods=['GET', 'POST'])
+@token_required
+def automation_setup_password(current_user):
+    user_id = _uid(current_user)
+    if request.method == 'GET':
+        return jsonify({'configured': has_auto_password(user_id)})
+
+    data = request.get_json() or {}
+    password = data.get('password')
+    if not password:
+        return jsonify({'message': 'Wallet password is required'}), 400
+    if not (get_user_evm_wallet(str(user_id)) or get_user_solana_wallet(str(user_id)) or get_user_wallet(str(user_id))):
+        return jsonify({'message': 'Set up a personal wallet first before enabling auto-sign.'}), 400
+    if not _verify_wallet_password(user_id, password):
+        return jsonify({'message': 'Incorrect wallet password.'}), 400
+    try:
+        store_auto_password(user_id, password)
+    except Exception as exc:
+        logger.error('Auto-sign setup failed: %s', exc)
+        return jsonify({'message': 'Could not enable auto-sign right now.'}), 500
+    return jsonify({'configured': True, 'message': 'Auto-sign enabled.'})
+
+
+@app.route('/api/automation/limit-orders', methods=['GET', 'POST'])
+@token_required
+def automation_limit_orders(current_user):
+    user_id = _uid(current_user)
+
+    if request.method == 'GET':
+        rows = automation_service.list_limit_orders(user_id, statuses=('active', 'filled', 'failed', 'cancelled'))
+        return jsonify({'orders': [_limit_order_public(r) for r in rows]})
+
+    password = get_auto_password(user_id)
+    if not password:
+        return jsonify({'message': 'Enable auto-sign (set your wallet password) before creating automations.'}), 400
+    data = request.get_json() or {}
+    try:
+        intent = _build_automation_intent(data)
+    except ValueError as exc:
+        return jsonify({'message': str(exc)}), 400
+
+    direction = str(data.get('direction') or '').lower()
+    if direction not in automation_service.LIMIT_DIRECTIONS:
+        return jsonify({'message': "direction must be 'below' or 'above'"}), 400
+    try:
+        target_price = float(data.get('target_price'))
+    except (TypeError, ValueError):
+        return jsonify({'message': 'A valid target price is required'}), 400
+    if target_price <= 0:
+        return jsonify({'message': 'Target price must be greater than zero'}), 400
+
+    if not _verify_wallet_password(user_id, password):
+        clear_auto_password(user_id)
+        return jsonify({'message': 'Saved wallet password is no longer valid. Please re-run auto-sign setup.'}), 400
+
+    try:
+        order_id = automation_service.create_limit_order(
+            user_id, intent,
+            watch_symbol=intent.get('to_token'),
+            direction=direction,
+            target_price=str(data.get('target_price')).strip(),
+            password=password,
+        )
+    except Exception as exc:
+        logger.error('Create limit order failed: %s', exc)
+        return jsonify({'message': 'Could not create limit order.'}), 500
+    return jsonify({'order_id': order_id, 'message': 'Limit order created. The bot is watching the price 24/7.'})
+
+
+@app.route('/api/automation/limit-orders/<order_id>', methods=['PATCH', 'DELETE'])
+@token_required
+def automation_limit_order_detail(current_user, order_id):
+    user_id = _uid(current_user)
+    existing = automation_service.get_limit_order(order_id, user_id=user_id)
+    if not existing:
+        return jsonify({'message': 'Limit order not found'}), 404
+
+    if request.method == 'DELETE':
+        ok = automation_service.cancel_limit_order(order_id, user_id)
+        if not ok:
+            return jsonify({'message': 'Limit order could not be cancelled (already inactive).'}), 400
+        return jsonify({'message': 'Limit order cancelled.'})
+
+    # PATCH: update target price (only while still active)
+    if existing['status'] != 'active':
+        return jsonify({'message': 'Only active limit orders can be updated.'}), 400
+    data = request.get_json() or {}
+    try:
+        new_price = float(data.get('target_price'))
+    except (TypeError, ValueError):
+        return jsonify({'message': 'A valid target price is required'}), 400
+    if new_price <= 0:
+        return jsonify({'message': 'Target price must be greater than zero'}), 400
+    with db.closing(db.connect()) as con:
+        con.execute(
+            "UPDATE limit_orders SET target_price=? WHERE order_id=? AND user_id=? AND status='active'",
+            (str(data.get('target_price')).strip(), order_id, str(user_id)),
+        )
+        con.commit()
+    return jsonify({'message': 'Target price updated.'})
+
+
+@app.route('/api/automation/scheduled-buys', methods=['GET', 'POST'])
+@token_required
+def automation_scheduled_buys(current_user):
+    user_id = _uid(current_user)
+
+    if request.method == 'GET':
+        rows = automation_service.list_scheduled_buys(user_id, statuses=('active', 'paused', 'cancelled'))
+        return jsonify({'schedules': [_scheduled_buy_public(r) for r in rows]})
+
+    password = get_auto_password(user_id)
+    if not password:
+        return jsonify({'message': 'Enable auto-sign (set your wallet password) before creating automations.'}), 400
+    data = request.get_json() or {}
+    try:
+        intent = _build_automation_intent(data)
+    except ValueError as exc:
+        return jsonify({'message': str(exc)}), 400
+
+    interval_key = str(data.get('interval_key') or data.get('interval') or '').lower()
+    if interval_key not in automation_service.INTERVAL_SECONDS:
+        return jsonify({'message': 'interval must be daily, weekly, or monthly'}), 400
+
+    if not _verify_wallet_password(user_id, password):
+        clear_auto_password(user_id)
+        return jsonify({'message': 'Saved wallet password is no longer valid. Please re-run auto-sign setup.'}), 400
+
+    try:
+        schedule_id = automation_service.create_scheduled_buy(
+            user_id, intent, interval_key=interval_key, password=password,
+        )
+    except Exception as exc:
+        logger.error('Create scheduled buy failed: %s', exc)
+        return jsonify({'message': 'Could not create scheduled buy.'}), 500
+    return jsonify({'schedule_id': schedule_id, 'message': f'Auto-buy created. Runs {interval_key}.'})
+
+
+@app.route('/api/automation/scheduled-buys/<schedule_id>', methods=['PATCH', 'DELETE'])
+@token_required
+def automation_scheduled_buy_detail(current_user, schedule_id):
+    user_id = _uid(current_user)
+    existing = automation_service.get_scheduled_buy(schedule_id, user_id=user_id)
+    if not existing:
+        return jsonify({'message': 'Scheduled buy not found'}), 404
+
+    if request.method == 'DELETE':
+        ok = automation_service.set_scheduled_status(schedule_id, user_id, 'cancelled')
+        if not ok:
+            return jsonify({'message': 'Scheduled buy could not be cancelled.'}), 400
+        return jsonify({'message': 'Scheduled buy cancelled.'})
+
+    # PATCH: pause / resume
+    data = request.get_json() or {}
+    status = str(data.get('status') or '').lower()
+    if status not in ('active', 'paused'):
+        return jsonify({'message': "status must be 'active' (resume) or 'paused'"}), 400
+    if existing['status'] == 'cancelled':
+        return jsonify({'message': 'Cancelled schedules cannot be changed.'}), 400
+    ok = automation_service.set_scheduled_status(schedule_id, user_id, status)
+    if not ok:
+        return jsonify({'message': 'Could not update scheduled buy.'}), 400
+    return jsonify({'message': 'Resumed.' if status == 'active' else 'Paused.'})
 
 
 if __name__ == '__main__':
