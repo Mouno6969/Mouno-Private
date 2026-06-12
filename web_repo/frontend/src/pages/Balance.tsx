@@ -1,40 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Coins, RefreshCw, Loader2 } from 'lucide-react';
+import { Coins, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
-
-
+import { useBalance } from '../lib/hooks';
+import { Skeleton, SkeletonListRow } from '../components/ui/skeleton';
+import { ErrorState } from '../components/ui/states';
 
 const Balance: React.FC = () => {
   const { token } = useAuth();
-  const [balances, setBalances] = useState<Record<string, string | number> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data, error, isLoading, isValidating, mutate } = useBalance(Boolean(token));
 
-  const fetchBalance = () => {
-    setLoading(true);
-    setError('');
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/balance`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
-      .then(r => r.json())
-      .then(d => {
-        if (d.balances) {
-          setBalances(d.balances);
-        } else {
-          setError(d.message || 'Failed to load balances');
-        }
-      })
-      .catch(() => setError('Failed to connect to server'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchBalance(); }, []);
+  const balances = data?.balances ?? null;
+  // The backend can return a 200 with `{ message }` instead of balances.
+  const messageError = !error && data && !data.balances ? data.message : undefined;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Coins className="h-6 w-6 text-primary" />
@@ -44,25 +29,40 @@ const Balance: React.FC = () => {
             <p className="text-muted-foreground text-sm">Live crypto balance across all networks</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchBalance} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => mutate()}
+          disabled={isValidating}
+          aria-label="Refresh balances"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {loading && !balances && (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      )}
-
-      {error && (
-        <Card className="border-destructive/30">
-          <CardContent className="py-6 text-center text-destructive">{error}</CardContent>
+      {isLoading ? (
+        <Card className="border-primary/10">
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonListRow key={i} />
+              ))}
+            </div>
+          </CardContent>
         </Card>
-      )}
-
-      {balances && (
+      ) : error ? (
+        <ErrorState
+          title="Couldn't load balances"
+          description="We couldn't reach the server to fetch your balances."
+          onRetry={() => mutate()}
+        />
+      ) : messageError ? (
+        <ErrorState title="Balances unavailable" description={messageError} onRetry={() => mutate()} />
+      ) : balances ? (
         <Card className="border-primary/10">
           <CardHeader>
             <CardTitle className="text-lg">Network Balances</CardTitle>
@@ -73,7 +73,9 @@ const Balance: React.FC = () => {
                 <div key={net.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                   <div className="flex items-center gap-3">
                     <NetworkLogo id={net.id} size={24} />
-                    <span className="text-sm font-medium">{net.name} {net.asset}</span>
+                    <span className="text-sm font-medium">
+                      {net.name} {net.asset}
+                    </span>
                   </div>
                   <Badge variant="outline" className="font-mono text-sm">
                     {balances[net.id] !== undefined ? String(balances[net.id]) : 'N/A'}
@@ -83,7 +85,7 @@ const Balance: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 };

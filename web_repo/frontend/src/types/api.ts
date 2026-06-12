@@ -16,6 +16,13 @@ export interface MeResponse {
   telegram_stats?: TelegramStats | null;
 }
 
+/** POST /api/login */
+export interface LoginResponse {
+  username: string;
+  token: string;
+  telegram_id: string | null;
+}
+
 export interface TelegramStats {
   [key: string]: unknown;
 }
@@ -74,15 +81,15 @@ export interface OrderEntry {
   trx_id: string;
   order_id: string | null;
   amount_bdt: number;
-  amount_crypto: number;
+  amount_usdc: number;
   network: NetworkId;
   wallet: string;
-  status: string;
+  status?: string;
   created_at: string;
 }
 
 export interface OrdersResponse {
-  orders: OrderEntry[];
+  completed: OrderEntry[];
   pending: OrderEntry[];
 }
 

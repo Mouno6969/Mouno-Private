@@ -63,7 +63,11 @@ export function useTxLog(enabled = true, config?: SWRConfiguration<TxEntry[]>) {
   return { ...swr, data: asArray<TxEntry>(swr.data) };
 }
 
-/** Authenticated orders (active + pending). */
+/** Authenticated orders (completed + pending). */
 export function useOrders(enabled = true, config?: SWRConfiguration<OrdersResponse>) {
-  return useSWR<OrdersResponse>(enabled ? '/api/orders' : null, config);
+  const swr = useSWR<OrdersResponse>(enabled ? '/api/orders' : null, config);
+  return {
+    ...swr,
+    data: swr.data ?? { completed: [], pending: [] },
+  };
 }

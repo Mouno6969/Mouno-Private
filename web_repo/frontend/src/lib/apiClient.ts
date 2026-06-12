@@ -22,6 +22,15 @@ import axios, {
 } from 'axios';
 import { toast } from 'sonner';
 
+// Allow callers to opt out of the automatic error toast on a per-request basis
+// (e.g. forms that render their own inline error). Declared via module
+// augmentation so `apiClient.get(url, { silent: true })` type-checks.
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    silent?: boolean;
+  }
+}
+
 export const TOKEN_KEY = 'token';
 
 /**
@@ -121,8 +130,8 @@ apiClient.interceptors.response.use(
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
 
-    // Only auto-toast when the caller hasn't opted out via `meta.silent`.
-    const silent = (error.config as { silent?: boolean } | undefined)?.silent;
+    // Only auto-toast when the caller hasn't opted out via `silent`.
+    const silent = error.config?.silent;
     if (!silent) {
       toast.error(getErrorMessage(error));
     }

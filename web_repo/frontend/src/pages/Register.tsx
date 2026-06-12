@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { User, Lock, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -28,11 +28,11 @@ const Register: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || ''}/api/register`, { username, password });
+      await apiClient.post('/api/register', { username, password }, { silent: true });
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }

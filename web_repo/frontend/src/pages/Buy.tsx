@@ -1,39 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, CreditCard } from 'lucide-react';
+import { toast } from 'sonner';
+import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, CreditCard, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { useMarket } from '../lib/hooks';
+
+interface BuyResponse {
+  order_id: string;
+}
 
 const Buy: React.FC = () => {
   const { t } = useTranslation();
   const networks = NETWORK_LIST;
 
+  const { data: marketData } = useMarket();
   const [selectedNetwork, setSelectedNetwork] = useState('solana');
   const [bdtAmount, setBdtAmount] = useState('');
   const [cryptoAmount, setCryptoAmount] = useState('0');
   const [wallet, setWallet] = useState('');
   const [trxId, setTrxId] = useState('');
-  const [marketData, setMarketData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchMarket = async () => {
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`);
-        setMarketData(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchMarket();
-  }, []);
 
   const handleBdtChange = (val: string) => {
     setBdtAmount(val);
@@ -53,20 +48,20 @@ const Buy: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL || ''}/api/buy`, {
+      const res = await apiClient.post<BuyResponse>('/api/buy', {
         amount_bdt: bdtAmount,
         network: selectedNetwork,
         wallet,
-        trx_id: trxId
+        trx_id: trxId,
       });
       setSuccess(res.data.order_id);
       setBdtAmount('');
       setCryptoAmount('0');
       setWallet('');
       setTrxId('');
+      toast.success('Order submitted successfully');
     } catch (err) {
-      console.error(err);
-      alert('Failed to submit order');
+      toast.error(getErrorMessage(err, 'Failed to submit order'));
     } finally {
       setLoading(false);
     }
@@ -86,7 +81,7 @@ const Buy: React.FC = () => {
           </CardContent>
         </Card>
         <p className="text-muted-foreground mb-8 text-lg">
-          Your order is being processed automatically. You can track the status in the <a href="/orders" className="text-primary underline">Orders</a> section.
+          Your order is being processed automatically. You can track the status in the <Link to="/orders" className="text-primary underline">Orders</Link> section.
         </p>
         <Button size="lg" onClick={() => setSuccess(null)} className="rounded-full px-10">
           Place Another Order
@@ -282,14 +277,5 @@ const Buy: React.FC = () => {
     </div>
   );
 };
-
-// Help helper
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);
-
-const Link = ({ to, children, className }: any) => (
-  <a href={to} className={className}>{children}</a>
-);
 
 export default Buy;

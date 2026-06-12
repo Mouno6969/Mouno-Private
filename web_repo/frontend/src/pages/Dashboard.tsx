@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Zap, ArrowRight, ShieldCheck, Users, Gift, Store, Layers, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -11,68 +10,30 @@ import { Badge } from '../components/ui/badge';
 import { BkashLogo, LifiLogo } from '../components/ui/brand-logos';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
+import { useMarket, useStats, useRecentActivity } from '../lib/hooks';
+import { SkeletonTableRows } from '../components/ui/skeleton';
+
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [marketData, setMarketData] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+
+  const { data: marketData, isLoading: marketLoading } = useMarket();
+  const { data: stats } = useStats();
+  const { data: recentActivity } = useRecentActivity();
+
+  // Surface when the live market data was last refreshed.
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
+  const lastMarketRef = useRef<unknown>(null);
   useEffect(() => {
-    const controller = new AbortController();
-
-    const fetchData = async () => {
-      // Fetch market data (critical)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`, { signal: controller.signal });
-        if (!controller.signal.aborted) {
-          setMarketData(res.data);
-          setLastUpdated(new Date());
-        }
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Market fetch failed", err);
-      }
-
-      // Fetch global stats (optional)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/stats`, { signal: controller.signal });
-        if (!controller.signal.aborted) setStats(res.data);
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Stats fetch failed", err);
-      }
-
-      // Fetch recent activity (optional)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal });
-        if (!controller.signal.aborted) {
-          // API সবসময় array নাও দিতে পারে (object/error response এলে .map ক্র্যাশ করে),
-          // তাই array হলে তবেই সেট করি, নইলে খালি array রাখি।
-          const data = res.data;
-          if (Array.isArray(data)) {
-            setRecentActivity(data);
-          } else if (data && Array.isArray(data.data)) {
-            setRecentActivity(data.data);
-          } else {
-            setRecentActivity([]);
-          }
-        }
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Activity fetch failed", err);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Update every 10 seconds
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-    };
-  }, []);
+    if (marketData && marketData !== lastMarketRef.current) {
+      lastMarketRef.current = marketData;
+      setLastUpdated(new Date());
+    }
+  }, [marketData]);
 
   const networks = NETWORK_LIST;
-  const isDemoMode = process.env.REACT_APP_DEMO_MODE === 'true';
 
   const formatActivityStatus = (status?: string) => {
     const map: Record<string, string> = {
@@ -231,7 +192,10 @@ const Dashboard: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {networks.map((net, idx) => {
+                  {marketLoading && !marketData ? (
+                    <SkeletonTableRows rows={NETWORK_LIST.length} cols={4} />
+                  ) : (
+                    networks.map((net, idx) => {
                     const rate = marketData?.rates?.[net.id];
                     const change = marketData?.changes?.[net.id];
                     const marketCap = marketData?.market_caps?.[net.id];
