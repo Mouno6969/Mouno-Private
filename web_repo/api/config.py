@@ -80,8 +80,9 @@ BACKUP_UPLOAD_URL = os.getenv("BACKUP_UPLOAD_URL")
 SELLER_WALLET_MASTER_KEY = os.getenv("SELLER_WALLET_MASTER_KEY")
 
 # ─── Webhook notifications (Telegram / Discord) ───
-# These are optional overrides. If unset, the notifier falls back to the bot's
-# existing BOT_TOKEN / ADMIN_ID so we don't duplicate Telegram credentials.
+# TELEGRAM_CHAT_ID is the channel the bot posts all web updates to. Telegram
+# channel ids must be prefixed with -100 for the Bot API, so the raw channel id
+# 4372779559 becomes -1004372779559. Override via env if needed.
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or BOT_TOKEN
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or ADMIN_ID
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or "-1004372779559"
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
