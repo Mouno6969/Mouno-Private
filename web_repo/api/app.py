@@ -35,7 +35,7 @@ from crypto_manager import (
 import automation_service
 from automation_vault import (
     init_automation_vault, store_auto_password, has_auto_password,
-    get_auto_password, clear_auto_password,
+    get_auto_password,
 )
 
 logger = logging.getLogger(__name__)
@@ -1356,9 +1356,25 @@ def tool_telegram_forward(current_user):
 # them and auto-sign with the user's sealed wallet password. The web app does
 # NOT run its own scheduler.
 
-def _verify_wallet_password(user_id, password):
-    """True if `password` decrypts the user's personal (EVM or Solana) wallet."""
-    for getter in (get_user_evm_wallet, get_user_solana_wallet, get_user_wallet):
+_SOL_CHAIN_IDS = {"1151111081099710", "sol", "solana"}
+
+
+def _wallet_getters_for_chain(from_chain_id=None):
+    """Return the wallet getter(s) relevant to a chain. Solana automations must
+    validate against the Solana wallet; EVM automations against the EVM wallet.
+    When the chain is unknown, fall back to checking all wallets."""
+    if from_chain_id is not None and str(from_chain_id).lower() in _SOL_CHAIN_IDS:
+        return (get_user_solana_wallet,)
+    if from_chain_id:
+        return (get_user_evm_wallet,)
+    return (get_user_evm_wallet, get_user_solana_wallet, get_user_wallet)
+
+
+def _verify_wallet_password(user_id, password, from_chain_id=None):
+    """True if `password` decrypts the user's wallet for the given chain. When
+    `from_chain_id` is omitted, returns True if it decrypts ANY wallet (used
+    only for the one-time setup check)."""
+    for getter in _wallet_getters_for_chain(from_chain_id):
         try:
             row = getter(str(user_id))
         except Exception:
@@ -1501,9 +1517,8 @@ def automation_limit_orders(current_user):
     if target_price <= 0:
         return jsonify({'message': 'Target price must be greater than zero'}), 400
 
-    if not _verify_wallet_password(user_id, password):
-        clear_auto_password(user_id)
-        return jsonify({'message': 'Saved wallet password is no longer valid. Please re-run auto-sign setup.'}), 400
+    if not _verify_wallet_password(user_id, password, from_chain_id=intent['from_chain_id']):
+        return jsonify({'message': "Saved wallet password does not match this chain's wallet. Re-run auto-sign setup or use a wallet secured with the same password."}), 400
 
     try:
         order_id = automation_service.create_limit_order(
@@ -1543,12 +1558,9 @@ def automation_limit_order_detail(current_user, order_id):
         return jsonify({'message': 'A valid target price is required'}), 400
     if new_price <= 0:
         return jsonify({'message': 'Target price must be greater than zero'}), 400
-    with db.closing(db.connect()) as con:
-        con.execute(
-            "UPDATE limit_orders SET target_price=? WHERE order_id=? AND user_id=? AND status='active'",
-            (str(data.get('target_price')).strip(), order_id, str(user_id)),
-        )
-        con.commit()
+    ok = automation_service.update_limit_target_price(order_id, user_id, str(data.get('target_price')).strip())
+    if not ok:
+        return jsonify({'message': 'Limit order could not be updated (no longer active).'}), 400
     return jsonify({'message': 'Target price updated.'})
 
 
@@ -1574,9 +1586,8 @@ def automation_scheduled_buys(current_user):
     if interval_key not in automation_service.INTERVAL_SECONDS:
         return jsonify({'message': 'interval must be daily, weekly, or monthly'}), 400
 
-    if not _verify_wallet_password(user_id, password):
-        clear_auto_password(user_id)
-        return jsonify({'message': 'Saved wallet password is no longer valid. Please re-run auto-sign setup.'}), 400
+    if not _verify_wallet_password(user_id, password, from_chain_id=intent['from_chain_id']):
+        return jsonify({'message': "Saved wallet password does not match this chain's wallet. Re-run auto-sign setup or use a wallet secured with the same password."}), 400
 
     try:
         schedule_id = automation_service.create_scheduled_buy(

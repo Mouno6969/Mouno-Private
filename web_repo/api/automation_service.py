@@ -194,6 +194,18 @@ def cancel_limit_order(order_id, user_id):
         return cur.rowcount > 0
 
 
+def update_limit_target_price(order_id, user_id, target_price):
+    """Update the target price of an ACTIVE limit order. Keeps all
+    limit_orders writes inside this module so the schema stays owned here."""
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        cur = con.execute(
+            "UPDATE limit_orders SET target_price=? WHERE order_id=? AND user_id=? AND status='active'",
+            (str(target_price), order_id, str(user_id)),
+        )
+        con.commit()
+        return cur.rowcount > 0
+
+
 def limit_should_trigger(direction, target_price, current_price):
     try:
         target = Decimal(str(target_price))
@@ -297,8 +309,15 @@ def set_scheduled_status(schedule_id, user_id, status):
         raise ValueError("invalid status")
     with closing(sqlite3.connect(DB_PATH)) as con:
         if status == "active":
-            # Re-arm the next run when resuming.
-            next_run = _next_run_from("daily").isoformat()
+            # Re-arm the next run using the schedule's OWN interval, not a
+            # hardcoded daily cadence. Resuming a paused weekly/monthly buy
+            # must not fire after only 1 day.
+            row = con.execute(
+                "SELECT interval_key FROM scheduled_buys WHERE schedule_id=? AND user_id=?",
+                (schedule_id, str(user_id)),
+            ).fetchone()
+            interval_key = (row[0] if row else None) or "weekly"
+            next_run = _next_run_from(interval_key).isoformat()
             cur = con.execute(
                 "UPDATE scheduled_buys SET status='active', next_run=? WHERE schedule_id=? AND user_id=?",
                 (next_run, schedule_id, str(user_id)),
