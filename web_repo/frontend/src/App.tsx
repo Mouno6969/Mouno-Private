@@ -15,6 +15,7 @@ import Orders from './pages/Orders';
 import Referral from './pages/Referral';
 import GiftCode from './pages/GiftCode';
 import Support from './pages/Support';
+import Tickets from './pages/Tickets';
 import Seller from './pages/Seller';
 import LinkTelegram from './pages/LinkTelegram';
 import Giveaway from './pages/Giveaway';
@@ -68,6 +69,7 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/referral" element={token ? <Referral /> : <Navigate to="/login" />} />
         <Route path="/gift" element={token ? <GiftCode /> : <Navigate to="/login" />} />
         <Route path="/support" element={token ? <Support /> : <Navigate to="/login" />} />
+        <Route path="/tickets" element={token ? <Tickets /> : <Navigate to="/login" />} />
         <Route path="/seller" element={token ? <Seller /> : <Navigate to="/login" />} />
         <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
         <Route path="/giveaway" element={<Giveaway />} />

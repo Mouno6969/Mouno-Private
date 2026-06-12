@@ -24,7 +24,8 @@ import {
   Languages,
   Home,
   Sparkles,
-  Wrench
+  Wrench,
+  LifeBuoy
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -68,6 +69,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: t('sellers'), icon: <Store className="h-4 w-4" />, path: '/seller' },
     { name: t('free_tools'), icon: <Wrench className="h-4 w-4" />, path: '/tools' },
     { name: t('support'), icon: <MessageSquare className="h-4 w-4" />, path: '/support' },
+    { name: t('my_tickets'), icon: <LifeBuoy className="h-4 w-4" />, path: '/tickets' },
     { name: 'Giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
     { name: 'Balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },
     { name: 'TX Log', icon: <ScrollText className="h-4 w-4" />, path: '/txlog' },

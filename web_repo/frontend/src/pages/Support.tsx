@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
-import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare, X } from 'lucide-react';
+import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare, X, LifeBuoy } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -23,12 +24,15 @@ const API = process.env.REACT_APP_API_URL || '';
 const Support: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [canEscalate, setCanEscalate] = useState(false);
+  const [escalating, setEscalating] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const welcomeMessages = useMemo<Message[]>(() => {
@@ -86,6 +90,7 @@ const Support: React.FC = () => {
     setMessages(welcomeMessages);
     setInput('');
     setHistoryOpen(false);
+    setCanEscalate(false);
   }, [welcomeMessages]);
 
   const deleteSession = useCallback(async (sessionId: number, e: React.MouseEvent) => {
@@ -133,17 +138,45 @@ const Support: React.FC = () => {
         if (data.session_id && data.session_id !== activeSessionId) {
           setActiveSessionId(data.session_id);
         }
+        setCanEscalate(Boolean(data.suggest_escalation));
         // Refresh history so the new/updated session shows up.
         if (token) loadSessions();
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data?.message || data?.answer || 'ERROR: UPLINK_FAILURE' }]);
+        setCanEscalate(true);
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'CRITICAL_ERROR: NETWORK_OFFLINE' }]);
+      setCanEscalate(true);
     } finally {
       setLoading(false);
     }
   };
+
+  // Escalate the current conversation to a human support agent by creating a
+  // ticket (carrying the AI chat session_id + transcript), then navigate to it.
+  const handleEscalate = useCallback(async () => {
+    if (!token || escalating) return;
+    setEscalating(true);
+    const firstUserMsg = messages.find(m => m.role === 'user')?.content || 'Support request';
+    try {
+      const res = await fetch(`${API}/api/support/tickets`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ session_id: activeSessionId, subject: firstUserMsg.slice(0, 120) }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.ticket?.id) {
+        navigate(`/tickets?open=${data.ticket.id}`);
+      } else {
+        setMessages(prev => [...prev, { role: 'system', content: '>>> ESCALATION_FAILED' }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: 'system', content: '>>> ESCALATION_FAILED: NETWORK_OFFLINE' }]);
+    } finally {
+      setEscalating(false);
+    }
+  }, [token, escalating, messages, authHeaders, activeSessionId, navigate]);
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
@@ -288,7 +321,25 @@ const Support: React.FC = () => {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="p-4 border-t border-white/10 bg-black">
+          <CardFooter className="p-4 border-t border-white/10 bg-black flex-col gap-2 items-stretch">
+            {token && (
+              <Button
+                type="button"
+                onClick={handleEscalate}
+                disabled={escalating}
+                variant={canEscalate ? 'default' : 'ghost'}
+                className={`w-full gap-2 uppercase text-[10px] tracking-widest h-8 ${
+                  canEscalate
+                    ? 'bg-primary text-white hover:bg-primary/90 animate-pulse'
+                    : 'text-muted-foreground border border-white/10 hover:text-white'
+                }`}
+              >
+                <LifeBuoy className="h-3 w-3" />
+                {escalating
+                  ? (i18n.language === 'bn' ? 'টিকেট তৈরি হচ্ছে...' : 'Creating ticket...')
+                  : t('escalate_to_human')}
+              </Button>
+            )}
             <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
               <div className="relative flex-1">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-bold">{'>'}</span>

@@ -61,6 +61,10 @@ const resources = {
       "your_limit_orders": "Your Limit Orders",
       "create_scheduled_buy": "Create Scheduled Buy",
       "your_scheduled_buys": "Your Scheduled Buys",
+      "escalate_to_human": "Escalate to human agent",
+      "my_tickets": "My Tickets",
+      "ticket_list": "Support Tickets",
+      "mark_resolved": "Mark as resolved",
     }
   },
   bn: {
@@ -121,6 +125,10 @@ const resources = {
       "your_limit_orders": "আপনার লিমিট অর্ডার",
       "create_scheduled_buy": "শিডিউল কেনা তৈরি করুন",
       "your_scheduled_buys": "আপনার শিডিউল কেনা",
+      "escalate_to_human": "মানব এজেন্টের কাছে পাঠান",
+      "my_tickets": "আমার টিকেট",
+      "ticket_list": "সাপোর্ট টিকেট",
+      "mark_resolved": "সমাধান হিসেবে চিহ্নিত করুন",
     }
   }
 };

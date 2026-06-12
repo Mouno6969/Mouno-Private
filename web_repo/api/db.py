@@ -428,6 +428,39 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_web_chat_messages_session
             ON web_chat_messages(session_id, id)
         """)
+        # Support ticketing (human escalation from the AI chat). Tickets link
+        # back to the originating AI chat session and carry a human-agent
+        # conversation thread in ticket_messages.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                session_id INTEGER,
+                subject TEXT NOT NULL DEFAULT 'Support request',
+                status TEXT NOT NULL DEFAULT 'open',
+                priority TEXT NOT NULL DEFAULT 'normal',
+                assigned_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                sender_role TEXT NOT NULL,
+                body TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_support_tickets_user
+            ON support_tickets(user_id, updated_at DESC)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
+            ON ticket_messages(ticket_id, id)
+        """)
         con.commit()
 
 
@@ -2327,6 +2360,148 @@ def delete_chat_session(session_id, web_user_id):
         con.execute("DELETE FROM web_chat_sessions WHERE id=?", (int(session_id),))
         con.commit()
         return True
+
+
+# ─── Support tickets (human escalation) ───
+
+_TICKET_STATUSES = {"open", "pending", "resolved", "closed"}
+
+
+def _ticket_to_dict(row):
+    return {
+        "id": row[0],
+        "user_id": row[1],
+        "session_id": row[2],
+        "subject": row[3],
+        "status": row[4],
+        "priority": row[5],
+        "assigned_agent": row[6],
+        "created_at": row[7],
+        "updated_at": row[8],
+    }
+
+
+def _ticket_belongs_to(con, ticket_id, web_user_id):
+    row = con.execute(
+        "SELECT 1 FROM support_tickets WHERE id=? AND user_id=?",
+        (int(ticket_id), int(web_user_id)),
+    ).fetchone()
+    return bool(row)
+
+
+def create_support_ticket(web_user_id, subject, session_id=None, priority="normal", transcript=None):
+    """Create a support ticket for a web user and return it as a dict.
+
+    If a transcript (list of {role, content}) is supplied, it is seeded into
+    the ticket thread as a system message so agents see the AI conversation.
+    """
+    subject = (subject or "Support request").strip()[:200] or "Support request"
+    priority = priority if priority in ("low", "normal", "high", "urgent") else "normal"
+    with closing(connect()) as con:
+        # Only link a session that actually belongs to this user; otherwise drop
+        # the link (and any transcript) to preserve ticket↔chat ownership integrity.
+        if session_id is not None and not _session_belongs_to(con, session_id, web_user_id):
+            session_id = None
+            transcript = None
+        cur = con.execute(
+            "INSERT INTO support_tickets (user_id, session_id, subject, status, priority) "
+            "VALUES (?, ?, ?, 'open', ?)",
+            (int(web_user_id), int(session_id) if session_id else None, subject, priority),
+        )
+        ticket_id = cur.lastrowid
+        if transcript:
+            lines = []
+            for m in transcript:
+                role = (m.get("role") or "").strip() or "user"
+                content = (m.get("content") or "").strip()
+                if content:
+                    lines.append(f"[{role}] {content}")
+            if lines:
+                transcript_body = ("AI chat transcript:\n" + "\n".join(lines))[:4000]
+                con.execute(
+                    "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'system', ?)",
+                    (ticket_id, transcript_body),
+                )
+        con.commit()
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (ticket_id,),
+        ).fetchone()
+        return _ticket_to_dict(row)
+
+
+def list_support_tickets(web_user_id):
+    """Return all tickets for a web user, newest first."""
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE user_id=? ORDER BY updated_at DESC, id DESC",
+            (int(web_user_id),),
+        ).fetchall()
+        return [_ticket_to_dict(r) for r in rows]
+
+
+def get_support_ticket(ticket_id, web_user_id):
+    """Return a ticket dict with its message thread, or None if not the user's."""
+    with closing(connect()) as con:
+        if not _ticket_belongs_to(con, ticket_id, web_user_id):
+            return None
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (int(ticket_id),),
+        ).fetchone()
+        msgs = con.execute(
+            "SELECT sender_role, body, created_at FROM ticket_messages WHERE ticket_id=? ORDER BY id ASC",
+            (int(ticket_id),),
+        ).fetchall()
+        ticket = _ticket_to_dict(row)
+        ticket["messages"] = [
+            {"sender_role": m[0], "body": m[1], "created_at": m[2]} for m in msgs
+        ]
+        return ticket
+
+
+def add_ticket_message(ticket_id, web_user_id, sender_role, body):
+    """Append a message to a ticket thread (ownership-checked). Bumps updated_at."""
+    body = (body or "").strip()
+    if not body:
+        return False
+    sender_role = sender_role if sender_role in ("user", "agent", "system") else "user"
+    with closing(connect()) as con:
+        if not _ticket_belongs_to(con, ticket_id, web_user_id):
+            return False
+        con.execute(
+            "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, ?, ?)",
+            (int(ticket_id), sender_role, body[:4000]),
+        )
+        con.execute(
+            "UPDATE support_tickets SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(ticket_id),),
+        )
+        con.commit()
+        return True
+
+
+def update_ticket_status(ticket_id, web_user_id, status):
+    """Update a ticket's status (ownership-checked). Returns the updated ticket or None."""
+    if status not in _TICKET_STATUSES:
+        return None
+    with closing(connect()) as con:
+        if not _ticket_belongs_to(con, ticket_id, web_user_id):
+            return None
+        con.execute(
+            "UPDATE support_tickets SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (status, int(ticket_id)),
+        )
+        con.commit()
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (int(ticket_id),),
+        ).fetchone()
+        return _ticket_to_dict(row)
 
 
 init_db()
