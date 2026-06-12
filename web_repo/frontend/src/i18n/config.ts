@@ -81,6 +81,7 @@ const resources = {
       "nav_faq": "FAQ",
       "nav_guide": "Guide",
       "nav_terms": "Terms",
+      "skip_to_content": "Skip to content",
     }
   },
   bn: {

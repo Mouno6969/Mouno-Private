@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { AsyncButton } from '../components/ui/async-button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
@@ -339,9 +340,9 @@ const Support: React.FC = () => {
                   className="pl-7 bg-transparent border-white/20 focus:border-white focus:ring-0 uppercase placeholder:opacity-30"
                 />
               </div>
-              <Button type="submit" size="icon" aria-label="send" disabled={loading || !input.trim()} className="bg-white text-black hover:bg-white/90">
+              <AsyncButton type="submit" size="icon" aria-label="send" loading={loading} disabled={!input.trim()} className="bg-white text-black hover:bg-white/90">
                 <Send className="h-4 w-4" />
-              </Button>
+              </AsyncButton>
             </form>
           </CardFooter>
         </Card>

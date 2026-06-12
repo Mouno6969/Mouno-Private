@@ -39,6 +39,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
+  // Keep the document language in sync with i18n for screen readers / SEO.
+  React.useEffect(() => {
+    document.documentElement.lang = i18n.language === 'bn' ? 'bn' : 'en';
+  }, [i18n.language]);
+
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === 'bn' ? 'en' : 'bn');
   };
@@ -47,6 +52,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Skip link for keyboard / screen-reader users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
+      >
+        {t('skip_to_content', 'Skip to content')}
+      </a>
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-16 items-center justify-between gap-3 px-4 md:px-6">
@@ -148,7 +160,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 min-w-0 px-4 py-6 md:px-8 md:py-10 pb-24 md:pb-10">
+        <main id="main-content" className="flex-1 min-w-0 px-4 py-6 md:px-8 md:py-10 pb-24 md:pb-10">
           {children}
         </main>
       </div>

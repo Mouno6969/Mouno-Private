@@ -421,7 +421,7 @@ const MyWallet: React.FC = () => {
                   onChange={(e) => setAPrivateKey(e.target.value)}
                   className="font-mono pr-10"
                 />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setAShowKey(!aShowKey)}>
+                <Button type="button" variant="ghost" size="icon" aria-label={aShowKey ? 'Hide private key' : 'Show private key'} className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setAShowKey(!aShowKey)}>
                   {aShowKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>

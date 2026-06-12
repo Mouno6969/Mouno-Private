@@ -156,6 +156,7 @@ const IdFinderTool: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Copy ID"
                     className="h-7 w-7 text-muted-foreground"
                     onClick={() => { navigator.clipboard.writeText(String(result.id)); toast.success('Copied!'); }}
                   >

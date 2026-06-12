@@ -97,7 +97,7 @@ const Referral: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input value={`https://t.me/Automatedcryptobuybot?start=ref_${code}`} readOnly />
-            <Button size="icon" onClick={copyLink}>
+            <Button size="icon" aria-label="Copy referral link" onClick={copyLink}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>

@@ -7,6 +7,7 @@ import {
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { AsyncButton } from '../components/ui/async-button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -176,6 +177,8 @@ const Automation: React.FC = () => {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [limitOrders, setLimitOrders] = useState<LimitOrder[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  // tracks the id of a row whose action is currently in-flight, for per-row spinners
+  const [pendingRow, setPendingRow] = useState<string | null>(null);
 
   // ── setup password ──
   const [pw, setPw] = useState('');
@@ -259,24 +262,30 @@ const Automation: React.FC = () => {
   };
 
   const cancelLimit = async (orderId: string) => {
+    setPendingRow(orderId);
     try {
       await apiClient.delete(`/api/automation/limit-orders/${orderId}`, { silent: true });
       toast.success('Limit order cancelled');
       loadLimitOrders();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not cancel'));
+    } finally {
+      setPendingRow(null);
     }
   };
 
   const updateLimitPrice = async (orderId: string) => {
     const next = window.prompt('New target price (USD):');
     if (!next) return;
+    setPendingRow(orderId);
     try {
       await apiClient.patch(`/api/automation/limit-orders/${orderId}`, { target_price: next }, { silent: true });
       toast.success('Target price updated');
       loadLimitOrders();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not update'));
+    } finally {
+      setPendingRow(null);
     }
   };
 
@@ -298,22 +307,28 @@ const Automation: React.FC = () => {
 
   const toggleSched = async (schedule: Schedule) => {
     const next = schedule.status === 'paused' ? 'active' : 'paused';
+    setPendingRow(schedule.schedule_id);
     try {
       await apiClient.patch(`/api/automation/scheduled-buys/${schedule.schedule_id}`, { status: next }, { silent: true });
       toast.success(next === 'active' ? 'Resumed' : 'Paused');
       loadSchedules();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not update'));
+    } finally {
+      setPendingRow(null);
     }
   };
 
   const cancelSched = async (scheduleId: string) => {
+    setPendingRow(scheduleId);
     try {
       await apiClient.delete(`/api/automation/scheduled-buys/${scheduleId}`, { silent: true });
       toast.success('Auto-buy cancelled');
       loadSchedules();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not cancel'));
+    } finally {
+      setPendingRow(null);
     }
   };
 
@@ -422,13 +437,15 @@ const Automation: React.FC = () => {
                     />
                   </div>
                 </div>
-                <Button
+                <AsyncButton
                   className="w-full h-12 rounded-2xl font-black"
-                  disabled={creatingLimit || !configured || !limitIntent.amount || !targetPrice}
+                  loading={creatingLimit}
+                  loadingText={t('create_limit_order')}
+                  disabled={!configured || !limitIntent.amount || !targetPrice}
                   onClick={createLimit}
                 >
-                  {creatingLimit ? <RefreshCw className="h-5 w-5 animate-spin" /> : <><Plus className="h-5 w-5 mr-2" /> {t('create_limit_order')}</>}
-                </Button>
+                  <Plus className="h-5 w-5 mr-2" /> {t('create_limit_order')}
+                </AsyncButton>
               </CardContent>
             </Card>
           </div>
@@ -438,7 +455,7 @@ const Automation: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-sm font-bold flex items-center justify-between">
                   <span>{t('your_limit_orders')}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadLimitOrders}>
+                  <Button variant="ghost" size="icon" aria-label="Refresh limit orders" className="h-7 w-7" onClick={loadLimitOrders}>
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </CardTitle>
@@ -461,12 +478,24 @@ const Automation: React.FC = () => {
                     )}
                     {o.status === 'active' && (
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1" onClick={() => updateLimitPrice(o.order_id)}>
+                        <AsyncButton
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] flex-1"
+                          loading={pendingRow === o.order_id}
+                          onClick={() => updateLimitPrice(o.order_id)}
+                        >
                           Edit Price
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1 text-destructive" onClick={() => cancelLimit(o.order_id)}>
+                        </AsyncButton>
+                        <AsyncButton
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] flex-1 text-destructive"
+                          loading={pendingRow === o.order_id}
+                          onClick={() => cancelLimit(o.order_id)}
+                        >
                           <Trash2 className="h-3 w-3 mr-1" /> Cancel
-                        </Button>
+                        </AsyncButton>
                       </div>
                     )}
                   </div>
@@ -503,13 +532,15 @@ const Automation: React.FC = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
+                <AsyncButton
                   className="w-full h-12 rounded-2xl font-black"
-                  disabled={creatingSched || !configured || !schedIntent.amount}
+                  loading={creatingSched}
+                  loadingText={t('create_scheduled_buy')}
+                  disabled={!configured || !schedIntent.amount}
                   onClick={createSched}
                 >
-                  {creatingSched ? <RefreshCw className="h-5 w-5 animate-spin" /> : <><Plus className="h-5 w-5 mr-2" /> {t('create_scheduled_buy')}</>}
-                </Button>
+                  <Plus className="h-5 w-5 mr-2" /> {t('create_scheduled_buy')}
+                </AsyncButton>
               </CardContent>
             </Card>
           </div>
@@ -519,7 +550,7 @@ const Automation: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-sm font-bold flex items-center justify-between">
                   <span>{t('your_scheduled_buys')}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={loadSchedules}>
+                  <Button variant="ghost" size="icon" aria-label="Refresh scheduled buys" className="h-7 w-7" onClick={loadSchedules}>
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </CardTitle>
@@ -543,12 +574,24 @@ const Automation: React.FC = () => {
                     </div>
                     {s.status !== 'cancelled' && (
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1" onClick={() => toggleSched(s)}>
+                        <AsyncButton
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] flex-1"
+                          loading={pendingRow === s.schedule_id}
+                          onClick={() => toggleSched(s)}
+                        >
                           {s.status === 'paused' ? <><Play className="h-3 w-3 mr-1" /> Resume</> : <><Pause className="h-3 w-3 mr-1" /> Pause</>}
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1 text-destructive" onClick={() => cancelSched(s.schedule_id)}>
+                        </AsyncButton>
+                        <AsyncButton
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] flex-1 text-destructive"
+                          loading={pendingRow === s.schedule_id}
+                          onClick={() => cancelSched(s.schedule_id)}
+                        >
                           <Trash2 className="h-3 w-3 mr-1" /> Cancel
-                        </Button>
+                        </AsyncButton>
                       </div>
                     )}
                   </div>
@@ -590,9 +633,15 @@ const Automation: React.FC = () => {
                   onChange={(e) => setPw(e.target.value)}
                 />
               </div>
-              <Button className="w-full h-12 rounded-2xl font-black" disabled={savingPw || !pw} onClick={savePassword}>
-                {savingPw ? <RefreshCw className="h-5 w-5 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> {configured ? 'Update Auto-Sign' : 'Enable Auto-Sign'}</>}
-              </Button>
+              <AsyncButton
+                className="w-full h-12 rounded-2xl font-black"
+                loading={savingPw}
+                loadingText={configured ? 'Update Auto-Sign' : 'Enable Auto-Sign'}
+                disabled={!pw}
+                onClick={savePassword}
+              >
+                <ShieldCheck className="h-5 w-5 mr-2" /> {configured ? 'Update Auto-Sign' : 'Enable Auto-Sign'}
+              </AsyncButton>
               <div className="p-4 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
                 <ShieldCheck className="h-5 w-5 text-green-500 shrink-0" />
                 <p className="text-[10px] text-muted-foreground leading-tight">

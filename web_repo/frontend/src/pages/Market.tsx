@@ -21,6 +21,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
+import { Skeleton } from '../components/ui/skeleton';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { API_BASE } from '../lib/api';
@@ -337,6 +338,7 @@ const Market: React.FC = () => {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          aria-label="Copy bKash number"
                           className="h-8 w-8 text-muted-foreground"
                           onClick={() => { navigator.clipboard.writeText(selectedSeller.bkash_number); toast.success(t('copy_success')); }}
                         >
@@ -437,8 +439,30 @@ const Market: React.FC = () => {
       </section>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" /> Loading sellers...
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-label="Loading sellers">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Card key={i} className="border-primary/10 flex flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3">
+                <Skeleton className="h-2.5 w-24" />
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-7 w-28 rounded-full" />
+                  <Skeleton className="h-7 w-24 rounded-full" />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-10 w-full rounded-md" />
+              </CardFooter>
+            </Card>
+          ))}
         </div>
       ) : loadError ? (
         <Card className="border-destructive/30">

@@ -69,7 +69,7 @@ const Swap: React.FC = () => {
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50"></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Swap Interface</CardTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+              <Button variant="ghost" size="icon" aria-label="Swap settings" className="h-8 w-8 text-muted-foreground hover:text-primary">
                 <Settings className="h-4 w-4" />
               </Button>
             </CardHeader>
@@ -108,6 +108,7 @@ const Swap: React.FC = () => {
                 <Button
                   variant="outline"
                   size="icon"
+                  aria-label="Reverse swap direction"
                   className="rounded-full h-10 w-10 border-muted bg-background shadow-lg hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all group"
                   onClick={() => {
                     const temp = fromChain;
