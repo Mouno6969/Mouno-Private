@@ -53,7 +53,7 @@ const Buy: React.FC = () => {
         network: selectedNetwork,
         wallet,
         trx_id: trxId,
-      });
+      }, { silent: true });
       setSuccess(res.data.order_id);
       setBdtAmount('');
       setCryptoAmount('0');

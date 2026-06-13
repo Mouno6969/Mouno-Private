@@ -33,6 +33,7 @@ const Swap: React.FC = () => {
     try {
       const res = await apiClient.get<SwapQuote>('/api/swap/quote', {
         params: { fromChain, toChain, fromToken, toToken, amount },
+        silent: true,
       });
       setQuote(res.data);
     } catch (err) {
