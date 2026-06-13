@@ -6,10 +6,11 @@ import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
 import { Send, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 const LinkTelegram: React.FC = () => {
   const { t } = useTranslation();
-  const { token, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,23 +20,15 @@ const LinkTelegram: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/link-telegram`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ link_code: code })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message);
-        await refreshUser();
-      } else {
-        toast.error(data.message);
-      }
+      const res = await apiClient.post<{ message: string }>(
+        '/api/link-telegram',
+        { link_code: code },
+        { silent: true }
+      );
+      toast.success(res.data.message);
+      await refreshUser();
     } catch (err) {
-      toast.error('Failed to connect to server');
+      toast.error(getErrorMessage(err, 'Failed to connect to server'));
     } finally {
       setLoading(false);
     }

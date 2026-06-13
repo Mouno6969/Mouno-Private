@@ -18,15 +18,13 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
-import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { API_BASE as API, safeJson } from '../lib/api';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 type ToolId = 'id-finder' | 'ata-refund' | 'forwarder';
 
 const Tools: React.FC = () => {
   const { t } = useTranslation();
-  const { token } = useAuth();
   const [activeTool, setActiveTool] = useState<ToolId>('id-finder');
 
   const tools: { id: ToolId; name: string; icon: React.ReactNode; description: string }[] = [
@@ -86,35 +84,31 @@ const Tools: React.FC = () => {
         ))}
       </div>
 
-      {activeTool === 'id-finder' && <IdFinderTool token={token} />}
-      {activeTool === 'ata-refund' && <AtaRefundTool token={token} />}
-      {activeTool === 'forwarder' && <ForwarderTool token={token} />}
+      {activeTool === 'id-finder' && <IdFinderTool />}
+      {activeTool === 'ata-refund' && <AtaRefundTool />}
+      {activeTool === 'forwarder' && <ForwarderTool />}
     </div>
   );
 };
 
 // ─── Telegram ID Finder ───
-const IdFinderTool: React.FC<{ token: string | null }> = ({ token }) => {
+const IdFinderTool: React.FC = () => {
   const [target, setTarget] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ id: string | number; type?: string; title?: string; username?: string } | null>(null);
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(`${API}/api/tools/telegram-id?target=${encodeURIComponent(target.trim())}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await safeJson(res, '/api/tools/telegram-id');
-      if (res.ok) {
-        setResult(data);
-      } else {
-        toast.error(data.message || 'Lookup failed');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+      const res = await apiClient.get<{ id: string | number; type?: string; title?: string; username?: string }>(
+        `/api/tools/telegram-id?target=${encodeURIComponent(target.trim())}`,
+        { silent: true }
+      );
+      setResult(res.data);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Lookup failed'));
     } finally {
       setLoading(false);
     }
@@ -162,6 +156,7 @@ const IdFinderTool: React.FC<{ token: string | null }> = ({ token }) => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Copy ID"
                     className="h-7 w-7 text-muted-foreground"
                     onClick={() => { navigator.clipboard.writeText(String(result.id)); toast.success('Copied!'); }}
                   >
@@ -216,12 +211,24 @@ const IdFinderTool: React.FC<{ token: string | null }> = ({ token }) => {
 };
 
 // ─── Solana ATA Refund ───
-const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
+interface AtaSummary {
+  wallet?: string;
+  refundable_count: number;
+  total_sol?: number;
+  non_empty_count: number;
+}
+interface AtaRefundResult {
+  refunded_count?: number;
+  total_sol?: number;
+  failed_batches?: { error: string }[];
+  signatures?: string[];
+}
+const AtaRefundTool: React.FC = () => {
   const [privateKey, setPrivateKey] = useState('');
   const [checking, setChecking] = useState(false);
   const [refunding, setRefunding] = useState(false);
-  const [summary, setSummary] = useState<any>(null);
-  const [refundResult, setRefundResult] = useState<any>(null);
+  const [summary, setSummary] = useState<AtaSummary | null>(null);
+  const [refundResult, setRefundResult] = useState<AtaRefundResult | null>(null);
 
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,19 +236,14 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
     setSummary(null);
     setRefundResult(null);
     try {
-      const res = await fetch(`${API}/api/tools/ata/check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ private_key: privateKey.trim() }),
-      });
-      const data = await safeJson(res, '/api/tools/ata/check');
-      if (res.ok) {
-        setSummary(data);
-      } else {
-        toast.error(data.message || 'Check failed');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+      const res = await apiClient.post<AtaSummary>(
+        '/api/tools/ata/check',
+        { private_key: privateKey.trim() },
+        { silent: true }
+      );
+      setSummary(res.data);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Check failed'));
     } finally {
       setChecking(false);
     }
@@ -250,22 +252,17 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
   const handleRefund = async () => {
     setRefunding(true);
     try {
-      const res = await fetch(`${API}/api/tools/ata/refund`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ private_key: privateKey.trim() }),
-      });
-      const data = await safeJson(res, '/api/tools/ata/refund');
-      if (res.ok) {
-        setRefundResult(data);
-        setPrivateKey('');
-        const refundedSol = Number(data.total_sol ?? 0).toFixed(6);
-        toast.success(`Refunded ~${refundedSol} SOL`);
-      } else {
-        toast.error(data.message || 'Refund failed');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+      const res = await apiClient.post<AtaRefundResult>(
+        '/api/tools/ata/refund',
+        { private_key: privateKey.trim() },
+        { silent: true }
+      );
+      setRefundResult(res.data);
+      setPrivateKey('');
+      const refundedSol = Number(res.data.total_sol ?? 0).toFixed(6);
+      toast.success(`Refunded ~${refundedSol} SOL`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Refund failed'));
     } finally {
       setRefunding(false);
     }
@@ -392,32 +389,32 @@ const AtaRefundTool: React.FC<{ token: string | null }> = ({ token }) => {
 };
 
 // ─── Telegram Message Forwarder ───
-const ForwarderTool: React.FC<{ token: string | null }> = ({ token }) => {
+interface ForwardResults {
+  sent: number;
+  failed: number;
+  results?: { chat: string; ok: boolean; error?: string }[];
+}
+const ForwarderTool: React.FC = () => {
   const [botToken, setBotToken] = useState('');
   const [chatIds, setChatIds] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<ForwardResults | null>(null);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
     setResults(null);
     try {
-      const res = await fetch(`${API}/api/tools/forward`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ bot_token: botToken.trim(), chat_ids: chatIds, message }),
-      });
-      const data = await safeJson(res, '/api/tools/forward');
-      if (res.ok) {
-        setResults(data);
-        toast.success(`Sent to ${data.sent} chat${data.sent === 1 ? '' : 's'}`);
-      } else {
-        toast.error(data.message || 'Send failed');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+      const res = await apiClient.post<ForwardResults>(
+        '/api/tools/forward',
+        { bot_token: botToken.trim(), chat_ids: chatIds, message },
+        { silent: true }
+      );
+      setResults(res.data);
+      toast.success(`Sent to ${res.data.sent} chat${res.data.sent === 1 ? '' : 's'}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Send failed'));
     } finally {
       setSending(false);
     }
@@ -504,7 +501,7 @@ const ForwarderTool: React.FC<{ token: string | null }> = ({ token }) => {
                   <Badge variant="outline" className="font-mono text-red-500 border-red-500/30">{results.failed} failed</Badge>
                 )}
               </div>
-              {results.results?.map((r: any, i: number) => (
+              {results.results?.map((r, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-white/5 last:border-0">
                   <span className="font-mono truncate">{r.chat}</span>
                   {r.ok ? (

@@ -1,36 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useTranslation } from 'react-i18next';
-import { RefreshCw, ArrowRight, Settings, Info, ArrowDown, ChevronDown, Zap, ShieldCheck } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import React, { useState } from 'react';
+import { toast } from 'sonner';
+import { RefreshCw, Settings, Info, ArrowDown, Zap, ShieldCheck, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { NetworkLogo } from '../constants/networks';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+
+interface SwapQuote {
+  summary?: {
+    to_amount?: string;
+    to_symbol?: string;
+    gas_usd?: string;
+  };
+}
 
 const Swap: React.FC = () => {
-  const { t } = useTranslation();
   const [fromChain, setFromChain] = useState('1'); // Ethereum
   const [toChain, setToChain] = useState('137'); // Polygon
-  const [fromToken, setFromToken] = useState('0x0000000000000000000000000000000000000000'); // ETH
-  const [toToken, setToToken] = useState('0x2791bca1f2de4661ed88a30c99a7a9449aa84174'); // USDC
+  const [fromToken] = useState('0x0000000000000000000000000000000000000000'); // ETH
+  const [toToken] = useState('0x2791bca1f2de4661ed88a30c99a7a9449aa84174'); // USDC
   const [amount, setAmount] = useState('');
-  const [quote, setQuote] = useState<any>(null);
+  const [quote, setQuote] = useState<SwapQuote | null>(null);
   const [loading, setLoading] = useState(false);
 
   const getQuote = async () => {
     if (!amount) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/swap/quote`, {
-        params: { fromChain, toChain, fromToken, toToken, amount }
+      const res = await apiClient.get<SwapQuote>('/api/swap/quote', {
+        params: { fromChain, toChain, fromToken, toToken, amount },
+        silent: true,
       });
       setQuote(res.data);
     } catch (err) {
-      console.error(err);
-      alert('Failed to get quote');
+      toast.error(getErrorMessage(err, 'Failed to get quote'));
     } finally {
       setLoading(false);
     }
@@ -63,7 +70,7 @@ const Swap: React.FC = () => {
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50"></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Swap Interface</CardTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+              <Button variant="ghost" size="icon" aria-label="Swap settings" className="h-8 w-8 text-muted-foreground hover:text-primary">
                 <Settings className="h-4 w-4" />
               </Button>
             </CardHeader>
@@ -102,6 +109,7 @@ const Swap: React.FC = () => {
                 <Button
                   variant="outline"
                   size="icon"
+                  aria-label="Reverse swap direction"
                   className="rounded-full h-10 w-10 border-muted bg-background shadow-lg hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all group"
                   onClick={() => {
                     const temp = fromChain;
@@ -214,9 +222,5 @@ const Swap: React.FC = () => {
     </div>
   );
 };
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);
 
 export default Swap;

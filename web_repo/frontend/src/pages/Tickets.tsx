@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { useAuth } from '../context/AuthContext';
 import { LifeBuoy, Send, ArrowLeft, CheckCircle2, RefreshCw } from 'lucide-react';
+import { apiClient } from '../lib/apiClient';
 
 type TicketStatus = 'open' | 'pending' | 'resolved' | 'closed';
 
@@ -29,8 +30,6 @@ interface TicketDetail extends Ticket {
   messages: TicketMessage[];
 }
 
-const API = process.env.REACT_APP_API_URL || '';
-
 const statusVariant: Record<TicketStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   open: 'default',
   pending: 'secondary',
@@ -51,11 +50,6 @@ const Tickets: React.FC = () => {
 
   const bn = i18n.language === 'bn';
 
-  const authHeaders = useMemo(
-    () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
-    [token]
-  );
-
   const statusLabel = useCallback((status: TicketStatus) => {
     const map: Record<TicketStatus, [string, string]> = {
       open: ['Open', 'খোলা'],
@@ -70,30 +64,24 @@ const Tickets: React.FC = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/support/tickets`, { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setTickets(Array.isArray(data?.tickets) ? data.tickets : []);
-      }
+      const res = await apiClient.get<{ tickets: Ticket[] }>('/api/support/tickets', { silent: true });
+      setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
     } catch {
       /* offline */
     } finally {
       setLoading(false);
     }
-  }, [token, authHeaders]);
+  }, [token]);
 
   const openTicket = useCallback(async (id: number) => {
     if (!token) return;
     try {
-      const res = await fetch(`${API}/api/support/tickets/${id}`, { headers: authHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.ticket) setActive(data.ticket);
-      }
+      const res = await apiClient.get<{ ticket: TicketDetail }>(`/api/support/tickets/${id}`, { silent: true });
+      if (res.data?.ticket) setActive(res.data.ticket);
     } catch {
       /* offline */
     }
-  }, [token, authHeaders]);
+  }, [token]);
 
   // Initial list load.
   useEffect(() => {
@@ -125,39 +113,33 @@ const Tickets: React.FC = () => {
     if (!active || !reply.trim() || sending) return;
     setSending(true);
     try {
-      const res = await fetch(`${API}/api/support/tickets/${active.id}/messages`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ body: reply.trim() }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.ticket) setActive(data.ticket);
-        setReply('');
-      }
+      const res = await apiClient.post<{ ticket: TicketDetail }>(
+        `/api/support/tickets/${active.id}/messages`,
+        { body: reply.trim() },
+        { silent: true }
+      );
+      if (res.data?.ticket) setActive(res.data.ticket);
+      setReply('');
     } catch {
       /* offline */
     } finally {
       setSending(false);
     }
-  }, [active, reply, sending, authHeaders]);
+  }, [active, reply, sending]);
 
   const markStatus = useCallback(async (status: TicketStatus) => {
     if (!active) return;
     try {
-      const res = await fetch(`${API}/api/support/tickets/${active.id}`, {
-        method: 'PATCH',
-        headers: authHeaders,
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.ticket) setActive(prev => (prev ? { ...prev, status: data.ticket.status } : prev));
-      }
+      const res = await apiClient.patch<{ ticket: TicketDetail }>(
+        `/api/support/tickets/${active.id}`,
+        { status },
+        { silent: true }
+      );
+      if (res.data?.ticket) setActive(prev => (prev ? { ...prev, status: res.data.ticket.status } : prev));
     } catch {
       /* offline */
     }
-  }, [active, authHeaders]);
+  }, [active]);
 
   if (!token) {
     return (

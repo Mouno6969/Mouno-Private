@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, Zap, ArrowRight, ShieldCheck, Users, Gift, Store, Layers, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -11,68 +10,41 @@ import { Badge } from '../components/ui/badge';
 import { BkashLogo, LifiLogo } from '../components/ui/brand-logos';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
+import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
+import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
+
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [marketData, setMarketData] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+
+  const { data: marketData, isLoading: marketLoading } = useMarket();
+  const { data: stats } = useStats();
+  const { data: recentActivity } = useRecentActivity();
+
+  // User-scoped data — only fetched when logged in.
+  const isLoggedIn = !!user;
+  const { data: balanceData, isLoading: balanceLoading } = useBalance(isLoggedIn);
+  const { data: txData } = useTxLog(isLoggedIn);
+
+  // Derive real, user-scoped stats from the live data above.
+  const balances = balanceData?.balances ?? {};
+  const fundedAssetCount = Object.values(balances).filter((v) => Number(v) > 0).length;
+  const totalAssetCount = Object.keys(balances).length;
+  const recentTxCount = txData.length;
+
+  // Surface when the live market data was last refreshed.
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
+  const lastMarketRef = useRef<unknown>(null);
   useEffect(() => {
-    const controller = new AbortController();
-
-    const fetchData = async () => {
-      // Fetch market data (critical)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/market`, { signal: controller.signal });
-        if (!controller.signal.aborted) {
-          setMarketData(res.data);
-          setLastUpdated(new Date());
-        }
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Market fetch failed", err);
-      }
-
-      // Fetch global stats (optional)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/stats`, { signal: controller.signal });
-        if (!controller.signal.aborted) setStats(res.data);
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Stats fetch failed", err);
-      }
-
-      // Fetch recent activity (optional)
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || ''}/api/recent-activity`, { signal: controller.signal });
-        if (!controller.signal.aborted) {
-          // API সবসময় array নাও দিতে পারে (object/error response এলে .map ক্র্যাশ করে),
-          // তাই array হলে তবেই সেট করি, নইলে খালি array রাখি।
-          const data = res.data;
-          if (Array.isArray(data)) {
-            setRecentActivity(data);
-          } else if (data && Array.isArray(data.data)) {
-            setRecentActivity(data.data);
-          } else {
-            setRecentActivity([]);
-          }
-        }
-      } catch (err) {
-        if (!axios.isCancel(err)) console.error("Activity fetch failed", err);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Update every 10 seconds
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-    };
-  }, []);
+    if (marketData && marketData !== lastMarketRef.current) {
+      lastMarketRef.current = marketData;
+      setLastUpdated(new Date());
+    }
+  }, [marketData]);
 
   const networks = NETWORK_LIST;
-  const isDemoMode = process.env.REACT_APP_DEMO_MODE === 'true';
 
   const formatActivityStatus = (status?: string) => {
     const map: Record<string, string> = {
@@ -153,8 +125,14 @@ const Dashboard: React.FC = () => {
                 <TrendingUp className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted-foreground truncate">Live Rates</p>
-                <p className="text-base sm:text-lg font-bold tracking-tight truncate">৳{marketData?.rates?.solana || '...'}</p>
+                <p className="text-sm font-medium text-muted-foreground truncate">Live Rate (USDC)</p>
+                {marketLoading && !marketData ? (
+                  <SkeletonText className="mt-1 h-5 w-16" />
+                ) : (
+                  <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                    {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
+                  </p>
+                )}
               </div>
             </div>
             <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -170,11 +148,38 @@ const Dashboard: React.FC = () => {
         <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
           <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
             <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
+              <Layers className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-muted-foreground truncate">Funded Assets</p>
+              {isLoggedIn && balanceLoading && !balanceData ? (
+                <SkeletonText className="mt-1 h-5 w-12" />
+              ) : isLoggedIn ? (
+                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                  {fundedAssetCount}
+                  <span className="text-xs font-normal text-muted-foreground"> / {totalAssetCount}</span>
+                </p>
+              ) : (
+                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                  {NETWORK_LIST.length} Chains
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
+            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
               <Zap className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Network</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Healthy</p>
+              <p className="text-sm font-medium text-muted-foreground truncate">
+                {isLoggedIn ? 'Your Transactions' : 'Platform Orders'}
+              </p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                {isLoggedIn ? recentTxCount : (stats?.total_orders ?? '—')}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -185,20 +190,12 @@ const Dashboard: React.FC = () => {
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Security</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">{user ? user.username : 'Guest'}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
-              <Layers className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-muted-foreground truncate">Assets</p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">Multi-Chain</p>
+              <p className="text-sm font-medium text-muted-foreground truncate">
+                {isLoggedIn ? 'Account' : 'Members'}
+              </p>
+              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                {isLoggedIn ? user!.username : (stats?.total_users ?? '—')}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -231,7 +228,10 @@ const Dashboard: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {networks.map((net, idx) => {
+                  {marketLoading && !marketData ? (
+                    <SkeletonTableRows rows={NETWORK_LIST.length} cols={4} />
+                  ) : (
+                    networks.map((net, idx) => {
                     const rate = marketData?.rates?.[net.id];
                     const change = marketData?.changes?.[net.id];
                     const marketCap = marketData?.market_caps?.[net.id];
@@ -265,7 +265,8 @@ const Dashboard: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     );
-                  })}
+                  })
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -363,7 +364,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <Badge variant={act.status === 'completed' ? 'default' : 'secondary'} className="text-[8px] h-4 px-1 uppercase">
-                    {act.status}
+                    {formatActivityStatus(act.status)}
                   </Badge>
                 </div>
               )) : (

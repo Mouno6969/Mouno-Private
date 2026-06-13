@@ -5,18 +5,19 @@ import Marquee from './marquee';
 describe('Marquee', () => {
   it('renders children content', () => {
     render(<Marquee><span>Hello World</span></Marquee>);
-    expect(screen.getAllByText('Hello World')).toHaveLength(2);
+    // Two animated tracks, each rendering the children twice, for a seamless loop.
+    expect(screen.getAllByText('Hello World')).toHaveLength(4);
   });
 
-  it('renders children twice for continuous scroll effect', () => {
+  it('renders children multiple times for continuous scroll effect', () => {
     render(
       <Marquee>
         <span>Item A</span>
         <span>Item B</span>
       </Marquee>
     );
-    expect(screen.getAllByText('Item A')).toHaveLength(2);
-    expect(screen.getAllByText('Item B')).toHaveLength(2);
+    expect(screen.getAllByText('Item A')).toHaveLength(4);
+    expect(screen.getAllByText('Item B')).toHaveLength(4);
   });
 
   it('applies default speed of 20s as animationDuration', () => {

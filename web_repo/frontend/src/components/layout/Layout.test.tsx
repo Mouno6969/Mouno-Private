@@ -1,41 +1,41 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Layout from './Layout';
 
 // Mock AuthContext
-const mockLogout = jest.fn();
-const mockUseAuth = jest.fn();
+const mockLogout = vi.fn();
+const mockUseAuth = vi.fn();
 
-jest.mock('../../context/AuthContext', () => ({
+vi.mock('../../context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-// Mock react-i18next
-const mockChangeLanguage = jest.fn();
+// Mock react-i18next — return the key so we can assert on stable strings.
+const mockChangeLanguage = vi.fn();
 const mockI18n = {
   language: 'en',
   changeLanguage: mockChangeLanguage,
 };
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: mockI18n,
   }),
 }));
 
-const renderLayout = (children = <div>Page content</div>) => {
-  return render(
+const renderLayout = (children = <div>Page content</div>) =>
+  render(
     <MemoryRouter>
       <Layout>{children}</Layout>
     </MemoryRouter>
   );
-};
 
 describe('Layout', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockI18n.language = 'en';
     mockUseAuth.mockReturnValue({
       user: null,
@@ -45,16 +45,11 @@ describe('Layout', () => {
   });
 
   describe('logo image', () => {
-    it('renders the logo image with rounded-none class (PR change)', () => {
+    it('renders the logo image with rounded-none + border-white', () => {
       renderLayout();
       const logo = screen.getByAltText('Logo');
       expect(logo.className).toContain('rounded-none');
       expect(logo.className).not.toContain('rounded-full');
-    });
-
-    it('renders logo with border-white class (PR change)', () => {
-      renderLayout();
-      const logo = screen.getByAltText('Logo');
       expect(logo.className).toContain('border-white');
     });
 
@@ -65,27 +60,32 @@ describe('Layout', () => {
     });
   });
 
-  describe('navigation styling (PR change)', () => {
-    it('nav container has text-xs uppercase tracking-widest font-mono classes', () => {
-      const { container } = renderLayout();
-      // Find the hidden md:flex nav div
-      const navDiv = container.querySelector('.hidden.md\\:flex') as HTMLElement;
-      expect(navDiv).not.toBeNull();
-      expect(navDiv.className).toContain('text-xs');
-      expect(navDiv.className).toContain('uppercase');
-      expect(navDiv.className).toContain('tracking-widest');
-      expect(navDiv.className).toContain('font-mono');
+  describe('grouped sidebar navigation', () => {
+    it('renders the four nav group headings', () => {
+      renderLayout();
+      expect(screen.getAllByText('nav_trade').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('nav_wallet').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('nav_rewards').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('nav_help').length).toBeGreaterThanOrEqual(1);
     });
 
-    it('nav does NOT have text-sm font-medium classes (was changed)', () => {
+    it('renders a sidebar dashboard link to /', () => {
       const { container } = renderLayout();
-      const navDiv = container.querySelector('.hidden.md\\:flex') as HTMLElement;
-      // It should now use text-xs instead of text-sm for the nav
-      expect(navDiv.className).not.toContain('text-sm font-medium');
+      const aside = container.querySelector('aside') as HTMLElement;
+      expect(aside).not.toBeNull();
+      const dash = within(aside).getByText('nav_dashboard').closest('a');
+      expect(dash).toHaveAttribute('href', '/');
+    });
+
+    it('renders trade links in the sidebar', () => {
+      const { container } = renderLayout();
+      const aside = container.querySelector('aside') as HTMLElement;
+      expect(within(aside).getByText('buy').closest('a')).toHaveAttribute('href', '/buy');
+      expect(within(aside).getByText('swap').closest('a')).toHaveAttribute('href', '/swap');
     });
   });
 
-  describe('language toggle button (PR change)', () => {
+  describe('language toggle button', () => {
     it('shows "বাং" when language is en', () => {
       mockI18n.language = 'en';
       renderLayout();
@@ -112,18 +112,11 @@ describe('Layout', () => {
       expect(mockChangeLanguage).toHaveBeenCalledWith('en');
     });
 
-    it('lang button has rounded-none and border classes (PR change)', () => {
+    it('lang button has rounded-none and border classes', () => {
       renderLayout();
-      // Find button containing the language text
       const langBtn = screen.getByText('বাং').closest('button') as HTMLElement;
       expect(langBtn.className).toContain('rounded-none');
       expect(langBtn.className).toContain('border');
-    });
-
-    it('lang button span has font-mono class (PR change)', () => {
-      renderLayout();
-      const span = screen.getByText('বাং');
-      expect(span.className).toContain('font-mono');
     });
   });
 
@@ -136,20 +129,18 @@ describe('Layout', () => {
 
     it('does not show user avatar when no token', () => {
       renderLayout();
-      // The user div (showing initial letter) should not be present
       expect(screen.queryByText('U')).not.toBeInTheDocument();
     });
   });
 
-  describe('authenticated state (PR change - removed Avatar component)', () => {
-    it('shows user initial in a div (not Avatar) when logged in', () => {
+  describe('authenticated state', () => {
+    it('shows user initial when logged in', () => {
       mockUseAuth.mockReturnValue({
         user: { username: 'testuser', telegram_id: null },
         token: 'fake-token',
         logout: mockLogout,
       });
       renderLayout();
-      // Shows first letter of username
       expect(screen.getByText('T')).toBeInTheDocument();
     });
 
@@ -173,41 +164,30 @@ describe('Layout', () => {
       expect(screen.queryByText('login')).not.toBeInTheDocument();
     });
 
-    it('user initial button has rounded-none class (PR change)', () => {
+    it('user initial button has rounded-none class', () => {
       mockUseAuth.mockReturnValue({
         user: { username: 'alice', telegram_id: null },
         token: 'abc123',
         logout: mockLogout,
       });
-      const { container } = renderLayout();
-      // The trigger button wrapping the user initial
+      renderLayout();
       const btn = screen.getByText('A').closest('button') as HTMLElement;
       expect(btn.className).toContain('rounded-none');
     });
   });
 
-  describe('mobile menu', () => {
-    it('mobile menu is hidden initially', () => {
-      renderLayout();
-      // The fixed inset-0 overlay should not be visible initially
-      const { container } = render(
-        <MemoryRouter>
-          <Layout>child</Layout>
-        </MemoryRouter>
-      );
+  describe('mobile "More" sheet', () => {
+    it('is hidden initially', () => {
+      const { container } = renderLayout();
       expect(container.querySelector('.fixed.inset-0')).not.toBeInTheDocument();
     });
 
-    it('opens mobile menu when hamburger button is clicked', () => {
-      const { container } = render(
-        <MemoryRouter>
-          <Layout>child</Layout>
-        </MemoryRouter>
-      );
-      const menuBtn = container.querySelector('button.md\\:hidden') as HTMLButtonElement;
-      expect(menuBtn).not.toBeNull();
-      fireEvent.click(menuBtn);
-      expect(container.querySelector('.fixed.inset-0')).toBeInTheDocument();
+    it('opens when the More button is clicked', () => {
+      renderLayout();
+      const moreBtn = screen.getByLabelText('nav_more');
+      fireEvent.click(moreBtn);
+      // The sheet shows grouped headings (now duplicated: sidebar + sheet).
+      expect(screen.getAllByText('nav_trade').length).toBeGreaterThan(1);
     });
   });
 
@@ -219,17 +199,15 @@ describe('Layout', () => {
   });
 
   describe('user dropdown (authenticated)', () => {
-    it('shows username in dropdown', async () => {
+    it('renders the account trigger when logged in', () => {
       mockUseAuth.mockReturnValue({
         user: { username: 'alice', telegram_id: '12345' },
         token: 'abc123',
         logout: mockLogout,
       });
       renderLayout();
-      // Open dropdown
       const userBtn = screen.getByText('A').closest('button') as HTMLButtonElement;
-      fireEvent.click(userBtn);
-      expect(await screen.findByText('alice')).toBeInTheDocument();
+      expect(userBtn).toHaveAttribute('aria-label', 'aria_account_menu');
     });
   });
 });

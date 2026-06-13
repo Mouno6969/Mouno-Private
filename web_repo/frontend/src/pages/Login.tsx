@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+import type { LoginResponse } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -24,11 +25,15 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL || ''}/api/login`, { username, password });
+      const res = await apiClient.post<LoginResponse>(
+        '/api/login',
+        { username, password },
+        { silent: true }
+      );
       login(res.data.username, res.data.token, res.data.telegram_id);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Login failed'));
     } finally {
       setLoading(false);
     }

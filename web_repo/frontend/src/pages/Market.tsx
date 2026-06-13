@@ -21,9 +21,11 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
+import { Skeleton } from '../components/ui/skeleton';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
-import { API_BASE, safeJson } from '../lib/api';
+import { API_BASE } from '../lib/api';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
 
 interface SellerNetwork {
   network: string;
@@ -52,7 +54,7 @@ const Market: React.FC = () => {
   const [bdtAmount, setBdtAmount] = useState('');
   const [trxId, setTrxId] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<any>(null);
+  const [success, setSuccess] = useState<{ order_id: string; amount_crypto: string } | null>(null);
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [refreshing, setRefreshing] = useState(false);
@@ -71,18 +73,13 @@ const Market: React.FC = () => {
 
   const fetchSellers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/sellers`);
-      const data = await safeJson(res, '/api/sellers');
-      if (!res.ok) {
-        setLoadError(data?.message || `Failed to load sellers (HTTP ${res.status})`);
-        return;
-      }
-      setSellers(Array.isArray(data) ? data : []);
+      const res = await apiClient.get<MarketSeller[]>('/api/sellers', { silent: true });
+      setSellers(Array.isArray(res.data) ? res.data : []);
       setLoadError(null);
       setLastRefresh(new Date());
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch sellers:', err);
-      setLoadError(err?.message || 'Failed to connect to the server.');
+      setLoadError(getErrorMessage(err, 'Failed to connect to the server.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -161,28 +158,20 @@ const Market: React.FC = () => {
     if (!selectedSeller) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/seller/order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const res = await apiClient.post<{ order_id: string; amount_crypto: string }>(
+        '/api/seller/order',
+        {
           seller_id: selectedSeller.seller_id,
           network,
           wallet,
           amount_bdt: bdtAmount,
           trx_id: trxId,
-        }),
-      });
-      const data = await safeJson(res, '/api/seller/order');
-      if (res.ok) {
-        setSuccess(data);
-      } else {
-        toast.error(data.message || 'Failed to place order');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to connect to server');
+        },
+        { silent: true }
+      );
+      setSuccess(res.data);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to place order'));
     } finally {
       setSubmitting(false);
     }
@@ -349,6 +338,7 @@ const Market: React.FC = () => {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          aria-label="Copy bKash number"
                           className="h-8 w-8 text-muted-foreground"
                           onClick={() => { navigator.clipboard.writeText(selectedSeller.bkash_number); toast.success(t('copy_success')); }}
                         >
@@ -449,8 +439,30 @@ const Market: React.FC = () => {
       </section>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" /> Loading sellers...
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-label="Loading sellers">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Card key={i} className="border-primary/10 flex flex-col">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3">
+                <Skeleton className="h-2.5 w-24" />
+                <div className="flex flex-wrap gap-2">
+                  <Skeleton className="h-7 w-28 rounded-full" />
+                  <Skeleton className="h-7 w-24 rounded-full" />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-10 w-full rounded-md" />
+              </CardFooter>
+            </Card>
+          ))}
         </div>
       ) : loadError ? (
         <Card className="border-destructive/30">

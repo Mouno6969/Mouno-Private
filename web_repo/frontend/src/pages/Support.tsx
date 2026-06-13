@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { AsyncButton } from '../components/ui/async-button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
 import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare, X, LifeBuoy } from 'lucide-react';
+import { apiClient } from '../lib/apiClient';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -18,8 +20,6 @@ interface ChatSession {
   title: string;
   updated_at?: string;
 }
-
-const API = process.env.REACT_APP_API_URL || '';
 
 const Support: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -46,23 +46,16 @@ const Support: React.FC = () => {
     ];
   }, [i18n.language]);
 
-  const authHeaders = useMemo(
-    () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
-    [token]
-  );
-
   // Load the list of chat sessions (logged-in users only).
   const loadSessions = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API}/api/ai/sessions`, { headers: authHeaders });
-      if (!res.ok) return;
-      const data = await res.json();
-      setSessions(Array.isArray(data?.sessions) ? data.sessions : []);
+      const res = await apiClient.get<{ sessions: ChatSession[] }>('/api/ai/sessions', { silent: true });
+      setSessions(Array.isArray(res.data?.sessions) ? res.data.sessions : []);
     } catch {
       /* offline: keep current list */
     }
-  }, [token, authHeaders]);
+  }, [token]);
 
   // Load messages for a specific session.
   const openSession = useCallback(async (sessionId: number) => {
@@ -70,20 +63,18 @@ const Support: React.FC = () => {
     setHistoryOpen(false);
     if (!token) return;
     try {
-      const res = await fetch(`${API}/api/ai/sessions/${sessionId}/messages`, { headers: authHeaders });
-      if (!res.ok) {
-        setMessages(welcomeMessages);
-        return;
-      }
-      const data = await res.json();
-      const loaded: Message[] = Array.isArray(data?.messages)
-        ? data.messages.map((m: any) => ({ role: m.role, content: m.content }))
+      const res = await apiClient.get<{ messages: { role: Message['role']; content: string }[] }>(
+        `/api/ai/sessions/${sessionId}/messages`,
+        { silent: true }
+      );
+      const loaded: Message[] = Array.isArray(res.data?.messages)
+        ? res.data.messages.map((m) => ({ role: m.role, content: m.content }))
         : [];
       setMessages(loaded.length ? [welcomeMessages[0], ...loaded] : welcomeMessages);
     } catch {
       setMessages(welcomeMessages);
     }
-  }, [token, authHeaders, welcomeMessages]);
+  }, [token, welcomeMessages]);
 
   const startNewChat = useCallback(() => {
     setActiveSessionId(null);
@@ -97,13 +88,13 @@ const Support: React.FC = () => {
     e.stopPropagation();
     if (!token) return;
     try {
-      await fetch(`${API}/api/ai/sessions/${sessionId}`, { method: 'DELETE', headers: authHeaders });
+      await apiClient.delete(`/api/ai/sessions/${sessionId}`, { silent: true });
     } catch {
       /* ignore */
     }
     setSessions(prev => prev.filter(s => s.id !== sessionId));
     if (activeSessionId === sessionId) startNewChat();
-  }, [token, authHeaders, activeSessionId, startNewChat]);
+  }, [token, activeSessionId, startNewChat]);
 
   // Initial load.
   useEffect(() => {
@@ -126,15 +117,14 @@ const Support: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API}/api/ai/chat`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ question: userMessage, session_id: activeSessionId }),
-      });
-      let data: any = null;
-      try { data = await res.json(); } catch { /* non-JSON response */ }
-      if (res.ok && data?.answer) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
+      const res = await apiClient.post<{ answer?: string; session_id?: number; suggest_escalation?: boolean; message?: string }>(
+        '/api/ai/chat',
+        { question: userMessage, session_id: activeSessionId },
+        { silent: true }
+      );
+      const data = res.data;
+      if (data?.answer) {
+        setMessages(prev => [...prev, { role: 'assistant', content: data.answer as string }]);
         if (data.session_id && data.session_id !== activeSessionId) {
           setActiveSessionId(data.session_id);
         }
@@ -142,10 +132,10 @@ const Support: React.FC = () => {
         // Refresh history so the new/updated session shows up.
         if (token) loadSessions();
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: data?.message || data?.answer || 'ERROR: UPLINK_FAILURE' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data?.message || 'ERROR: UPLINK_FAILURE' }]);
         setCanEscalate(true);
       }
-    } catch (err) {
+    } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'CRITICAL_ERROR: NETWORK_OFFLINE' }]);
       setCanEscalate(true);
     } finally {
@@ -160,14 +150,13 @@ const Support: React.FC = () => {
     setEscalating(true);
     const firstUserMsg = messages.find(m => m.role === 'user')?.content || 'Support request';
     try {
-      const res = await fetch(`${API}/api/support/tickets`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ session_id: activeSessionId, subject: firstUserMsg.slice(0, 120) }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.ticket?.id) {
-        navigate(`/tickets?open=${data.ticket.id}`);
+      const res = await apiClient.post<{ ticket?: { id: number } }>(
+        '/api/support/tickets',
+        { session_id: activeSessionId, subject: firstUserMsg.slice(0, 120) },
+        { silent: true }
+      );
+      if (res.data?.ticket?.id) {
+        navigate(`/tickets?open=${res.data.ticket.id}`);
       } else {
         setMessages(prev => [...prev, { role: 'system', content: '>>> ESCALATION_FAILED' }]);
       }
@@ -176,7 +165,7 @@ const Support: React.FC = () => {
     } finally {
       setEscalating(false);
     }
-  }, [token, escalating, messages, authHeaders, activeSessionId, navigate]);
+  }, [token, escalating, messages, activeSessionId, navigate]);
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
@@ -351,9 +340,9 @@ const Support: React.FC = () => {
                   className="pl-7 bg-transparent border-white/20 focus:border-white focus:ring-0 uppercase placeholder:opacity-30"
                 />
               </div>
-              <Button type="submit" size="icon" aria-label="send" disabled={loading || !input.trim()} className="bg-white text-black hover:bg-white/90">
+              <AsyncButton type="submit" size="icon" aria-label="send" loading={loading} disabled={!input.trim()} className="bg-white text-black hover:bg-white/90">
                 <Send className="h-4 w-4" />
-              </Button>
+              </AsyncButton>
             </form>
           </CardFooter>
         </Card>

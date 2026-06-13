@@ -11,9 +11,18 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { NETWORK_LIST, NETWORK_MAP, NetworkLogo } from '../constants/networks';
-import { safeJson, ApiUnavailableError } from '../lib/api';
+import { apiClient, ApiUnavailableError, getErrorMessage } from '../lib/apiClient';
+import type { ApiEnvelope } from '../types';
 
-const API = process.env.REACT_APP_API_URL || '';
+interface WalletBalancesData {
+  wallets: WalletItem[];
+}
+interface MasterStatusData {
+  has_master: boolean;
+}
+interface SendResultData {
+  tx_hash?: string;
+}
 
 interface WalletItem {
   id: number;
@@ -85,28 +94,28 @@ const MyWallet: React.FC = () => {
   const [delPwd, setDelPwd] = useState('');
   const [delBusy, setDelBusy] = useState(false);
 
-  const headers = useCallback((): Record<string, string> => {
-    const h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) h['Authorization'] = `Bearer ${token}`;
-    return h;
-  }, [token]);
-
   const loadMasterStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/wallets/master/status`, { headers: headers() });
-      const data = await safeJson(res, '/api/wallets/master/status');
+      const res = await apiClient.get<ApiEnvelope<MasterStatusData>>(
+        '/api/wallets/master/status',
+        { silent: true }
+      );
+      const data = res.data;
       if (data.ok) setHasMaster(!!data.data?.has_master);
     } catch (err) {
       if (err instanceof ApiUnavailableError) setBackendStale(true);
       /* otherwise ignore - balances loader surfaces connection errors */
     }
-  }, [headers]);
+  }, []);
 
   const loadBalances = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const res = await fetch(`${API}/api/wallets/balances`, { headers: headers() });
-      const data = await safeJson(res, '/api/wallets/balances');
+      const res = await apiClient.get<ApiEnvelope<WalletBalancesData>>(
+        '/api/wallets/balances',
+        { silent: true }
+      );
+      const data = res.data;
       if (data.ok) {
         setWallets(data.data?.wallets || []);
         setBackendStale(false);
@@ -117,12 +126,12 @@ const MyWallet: React.FC = () => {
       if (err instanceof ApiUnavailableError) {
         setBackendStale(true);
       } else {
-        toast.error('Connection error');
+        toast.error(getErrorMessage(err, 'Connection error'));
       }
     } finally {
       if (showSpinner) setRefreshing(false);
     }
-  }, [headers]);
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -145,18 +154,18 @@ const MyWallet: React.FC = () => {
     if (aMode === 'import' && !aPrivateKey) { toast.error('Private key is required to import'); return; }
     setABusy(true);
     try {
-      const res = await fetch(`${API}/api/wallets`, {
-        method: 'POST',
-        headers: headers(),
-        body: JSON.stringify({
+      const res = await apiClient.post<ApiEnvelope<unknown>>(
+        '/api/wallets',
+        {
           network: aNetwork,
           mode: aMode,
           private_key: aMode === 'import' ? aPrivateKey.trim() : undefined,
           label: aLabel.trim() || undefined,
           master_password: aMasterPwd,
-        }),
-      });
-      const data = await safeJson(res, '/api/wallets');
+        },
+        { silent: true }
+      );
+      const data = res.data;
       if (data.ok) {
         toast.success(hasMaster ? 'Wallet added' : 'Master password set and wallet added');
         setHasMaster(true);
@@ -167,8 +176,7 @@ const MyWallet: React.FC = () => {
         toast.error(data.message || 'Failed to add wallet');
       }
     } catch (err) {
-      if (err instanceof ApiUnavailableError) toast.error(err.message);
-      else toast.error('Connection error');
+      toast.error(getErrorMessage(err, 'Connection error'));
     } finally {
       setABusy(false);
     }
@@ -183,17 +191,17 @@ const MyWallet: React.FC = () => {
     if (!Number.isFinite(amount) || amount <= 0) { toast.error('Enter a valid amount greater than 0'); return; }
     setSBusy(true);
     try {
-      const res = await fetch(`${API}/api/wallets/${sendWallet.id}/send`, {
-        method: 'POST',
-        headers: headers(),
-        body: JSON.stringify({
+      const res = await apiClient.post<ApiEnvelope<SendResultData>>(
+        `/api/wallets/${sendWallet.id}/send`,
+        {
           to_address: sDest.trim(),
           amount,
           asset: sendWallet.asset || undefined,
           master_password: sMasterPwd,
-        }),
-      });
-      const data = await safeJson(res, `/api/wallets/${sendWallet.id}/send`);
+        },
+        { silent: true }
+      );
+      const data = res.data;
       if (data.ok) {
         toast.success(`Sent! Tx: ${truncate(data.data?.tx_hash)}`);
         setSendWallet(null);
@@ -203,8 +211,7 @@ const MyWallet: React.FC = () => {
         toast.error(data.message || 'Send failed');
       }
     } catch (err) {
-      if (err instanceof ApiUnavailableError) toast.error(err.message);
-      else toast.error('Connection error');
+      toast.error(getErrorMessage(err, 'Connection error'));
     } finally {
       setSBusy(false);
     }
@@ -217,12 +224,11 @@ const MyWallet: React.FC = () => {
     if (!delPwd) { toast.error('Master password is required'); return; }
     setDelBusy(true);
     try {
-      const res = await fetch(`${API}/api/wallets/${delWallet.id}`, {
-        method: 'DELETE',
-        headers: headers(),
-        body: JSON.stringify({ master_password: delPwd }),
-      });
-      const data = await safeJson(res, `/api/wallets/${delWallet.id}`);
+      const res = await apiClient.delete<ApiEnvelope<unknown>>(
+        `/api/wallets/${delWallet.id}`,
+        { data: { master_password: delPwd }, silent: true }
+      );
+      const data = res.data;
       if (data.ok) {
         toast.success('Wallet removed');
         setDelWallet(null);
@@ -232,8 +238,7 @@ const MyWallet: React.FC = () => {
         toast.error(data.message || 'Failed to remove wallet');
       }
     } catch (err) {
-      if (err instanceof ApiUnavailableError) toast.error(err.message);
-      else toast.error('Connection error');
+      toast.error(getErrorMessage(err, 'Connection error'));
     } finally {
       setDelBusy(false);
     }
@@ -416,7 +421,7 @@ const MyWallet: React.FC = () => {
                   onChange={(e) => setAPrivateKey(e.target.value)}
                   className="font-mono pr-10"
                 />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setAShowKey(!aShowKey)}>
+                <Button type="button" variant="ghost" size="icon" aria-label={aShowKey ? 'Hide private key' : 'Show private key'} className="absolute right-1 top-0.5 h-9 w-9" onClick={() => setAShowKey(!aShowKey)}>
                   {aShowKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>

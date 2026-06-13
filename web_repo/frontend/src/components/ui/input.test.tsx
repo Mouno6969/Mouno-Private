@@ -111,7 +111,7 @@ describe('Input', () => {
     });
 
     it('calls onChange handler when value changes', async () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       render(<Input onChange={handleChange} />);
       await userEvent.type(screen.getByRole('textbox'), 'a');
       expect(handleChange).toHaveBeenCalled();

@@ -4,15 +4,15 @@ import './index.css';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { AppSWRConfig } from './lib/swrConfig';
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-root.render(
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
-        <App />
+        <AppSWRConfig>
+          <App />
+        </AppSWRConfig>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
