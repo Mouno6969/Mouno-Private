@@ -162,6 +162,7 @@ const resources = {
       "nav_faq": "সাধারণ প্রশ্ন",
       "nav_guide": "গাইড",
       "nav_terms": "শর্তাবলী",
+      "skip_to_content": "মূল কন্টেন্টে যান",
     }
   }
 };
