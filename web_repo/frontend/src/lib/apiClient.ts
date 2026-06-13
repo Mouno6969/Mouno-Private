@@ -119,7 +119,14 @@ apiClient.interceptors.response.use(
     // API routes when running an old build. Detect that and fail loudly.
     const contentType = String(response.headers?.['content-type'] || '');
     if (contentType.includes('text/html')) {
-      throw new ApiUnavailableError(response.config?.url || 'this endpoint');
+      const err = new ApiUnavailableError(response.config?.url || 'this endpoint');
+      // Throwing here rejects the promise to the caller but bypasses the
+      // onRejected handler below, so emit the toast explicitly (unless the
+      // caller opted out via `silent`) to match the regular error path.
+      if (!response.config?.silent) {
+        toast.error(err.message);
+      }
+      throw err;
     }
     return response;
   },
@@ -146,7 +153,10 @@ apiClient.interceptors.response.use(
  * Errors propagate to SWR's `error` so components can render error states.
  */
 export async function fetcher<T = unknown>(path: string): Promise<T> {
-  const res = await apiClient.get<T>(path);
+  // Background polling renders its own error/empty states via SWR's `error`,
+  // so suppress the global toast to avoid flooding the UI with duplicate
+  // error toasts on every failed poll + retry.
+  const res = await apiClient.get<T>(path, { silent: true });
   return res.data;
 }
 

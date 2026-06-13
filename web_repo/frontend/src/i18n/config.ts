@@ -82,6 +82,10 @@ const resources = {
       "nav_guide": "Guide",
       "nav_terms": "Terms",
       "skip_to_content": "Skip to content",
+      "aria_toggle_language": "Toggle language",
+      "aria_account_menu": "Account menu",
+      "aria_close_menu": "Close menu",
+      "retry": "Retry",
     }
   },
   bn: {
@@ -143,7 +147,7 @@ const resources = {
       "create_scheduled_buy": "শিডিউল কেনা তৈরি করুন",
       "your_scheduled_buys": "আপনার শিডিউল কেনা",
       "escalate_to_human": "মানব এজেন্টের কাছে পাঠান",
-      "my_tickets": "আমার টিকেট",
+      "my_tickets": "আমার টিকে��",
       "ticket_list": "সাপোর্ট টিকেট",
       "mark_resolved": "সমাধান হিসেবে চিহ্নিত করুন",
       "nav_trade": "ট্রেড",
@@ -163,6 +167,10 @@ const resources = {
       "nav_guide": "গাইড",
       "nav_terms": "শর্তাবলী",
       "skip_to_content": "মূল কন্টেন্টে যান",
+      "aria_toggle_language": "ভাষা পরিবর্তন করুন",
+      "aria_account_menu": "একাউন্ট মেনু",
+      "aria_close_menu": "মেনু বন্ধ করুন",
+      "retry": "আবার চেষ্টা করুন",
     }
   }
 };

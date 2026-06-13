@@ -72,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               variant="ghost"
               size="sm"
               onClick={toggleLang}
-              aria-label="Toggle language"
+              aria-label={t('aria_toggle_language')}
               className="rounded-none gap-1 px-2 border border-white/10 hover:border-white"
             >
               <Languages className="h-4 w-4" />
@@ -82,7 +82,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {token ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" aria-label="Account menu" className="relative h-8 w-8 rounded-none border border-white/10 p-0">
+                  <Button variant="ghost" aria-label={t('aria_account_menu')} className="relative h-8 w-8 rounded-none border border-white/10 p-0">
                     <div className="h-full w-full bg-white/10 flex items-center justify-center font-mono text-xs">
                       {user?.username?.[0]?.toUpperCase() || 'U'}
                     </div>
@@ -195,7 +195,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="md:hidden fixed inset-0 z-[60] bg-background overflow-y-auto">
           <div className="flex items-center justify-between h-16 px-4 border-b sticky top-0 bg-background/95 backdrop-blur">
             <span className="font-mono text-sm font-bold uppercase tracking-widest">{t('nav_more')}</span>
-            <Button variant="ghost" size="icon" aria-label="Close menu" onClick={() => setIsMenuOpen(false)}>
+            <Button variant="ghost" size="icon" aria-label={t('aria_close_menu')} onClick={() => setIsMenuOpen(false)}>
               <X className="h-5 w-5" />
             </Button>
           </div>

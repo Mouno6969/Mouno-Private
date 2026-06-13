@@ -262,7 +262,7 @@ const Automation: React.FC = () => {
   };
 
   const cancelLimit = async (orderId: string) => {
-    setPendingRow(orderId);
+    setPendingRow(`${orderId}:cancel`);
     try {
       await apiClient.delete(`/api/automation/limit-orders/${orderId}`, { silent: true });
       toast.success('Limit order cancelled');
@@ -277,7 +277,7 @@ const Automation: React.FC = () => {
   const updateLimitPrice = async (orderId: string) => {
     const next = window.prompt('New target price (USD):');
     if (!next) return;
-    setPendingRow(orderId);
+    setPendingRow(`${orderId}:edit`);
     try {
       await apiClient.patch(`/api/automation/limit-orders/${orderId}`, { target_price: next }, { silent: true });
       toast.success('Target price updated');
@@ -307,7 +307,7 @@ const Automation: React.FC = () => {
 
   const toggleSched = async (schedule: Schedule) => {
     const next = schedule.status === 'paused' ? 'active' : 'paused';
-    setPendingRow(schedule.schedule_id);
+    setPendingRow(`${schedule.schedule_id}:toggle`);
     try {
       await apiClient.patch(`/api/automation/scheduled-buys/${schedule.schedule_id}`, { status: next }, { silent: true });
       toast.success(next === 'active' ? 'Resumed' : 'Paused');
@@ -320,7 +320,7 @@ const Automation: React.FC = () => {
   };
 
   const cancelSched = async (scheduleId: string) => {
-    setPendingRow(scheduleId);
+    setPendingRow(`${scheduleId}:cancel`);
     try {
       await apiClient.delete(`/api/automation/scheduled-buys/${scheduleId}`, { silent: true });
       toast.success('Auto-buy cancelled');
@@ -482,7 +482,7 @@ const Automation: React.FC = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 text-[10px] flex-1"
-                          loading={pendingRow === o.order_id}
+                          loading={pendingRow === `${o.order_id}:edit`}
                           onClick={() => updateLimitPrice(o.order_id)}
                         >
                           Edit Price
@@ -491,7 +491,7 @@ const Automation: React.FC = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 text-[10px] flex-1 text-destructive"
-                          loading={pendingRow === o.order_id}
+                          loading={pendingRow === `${o.order_id}:cancel`}
                           onClick={() => cancelLimit(o.order_id)}
                         >
                           <Trash2 className="h-3 w-3 mr-1" /> Cancel
@@ -578,7 +578,7 @@ const Automation: React.FC = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 text-[10px] flex-1"
-                          loading={pendingRow === s.schedule_id}
+                          loading={pendingRow === `${s.schedule_id}:toggle`}
                           onClick={() => toggleSched(s)}
                         >
                           {s.status === 'paused' ? <><Play className="h-3 w-3 mr-1" /> Resume</> : <><Pause className="h-3 w-3 mr-1" /> Pause</>}
@@ -587,7 +587,7 @@ const Automation: React.FC = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 text-[10px] flex-1 text-destructive"
-                          loading={pendingRow === s.schedule_id}
+                          loading={pendingRow === `${s.schedule_id}:cancel`}
                           onClick={() => cancelSched(s.schedule_id)}
                         >
                           <Trash2 className="h-3 w-3 mr-1" /> Cancel

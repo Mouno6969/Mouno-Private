@@ -43,6 +43,8 @@ interface ErrorStateProps {
   description?: string;
   onRetry?: () => void;
   retrying?: boolean;
+  /** Localized label for the retry button (defaults to English "Retry"). */
+  retryLabel?: string;
   className?: string;
 }
 
@@ -52,6 +54,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   description = 'We could not load this data. Please try again.',
   onRetry,
   retrying = false,
+  retryLabel = 'Retry',
   className,
 }) => (
   <div
@@ -74,7 +77,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           className={cn('h-4 w-4', retrying && 'animate-spin')}
           aria-hidden="true"
         />
-        Retry
+        {retryLabel}
       </Button>
     )}
   </div>

@@ -364,7 +364,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <Badge variant={act.status === 'completed' ? 'default' : 'secondary'} className="text-[8px] h-4 px-1 uppercase">
-                    {act.status}
+                    {formatActivityStatus(act.status)}
                   </Badge>
                 </div>
               )) : (

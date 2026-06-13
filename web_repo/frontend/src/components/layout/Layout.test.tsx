@@ -207,7 +207,7 @@ describe('Layout', () => {
       });
       renderLayout();
       const userBtn = screen.getByText('A').closest('button') as HTMLButtonElement;
-      expect(userBtn).toHaveAttribute('aria-label', 'Account menu');
+      expect(userBtn).toHaveAttribute('aria-label', 'aria_account_menu');
     });
   });
 });
