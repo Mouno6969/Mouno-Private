@@ -28,7 +28,10 @@ const CG = 'https://api.coingecko.com/api/v3';
 const REFRESH = 60_000; // 60s — keep modest to respect CoinGecko free-tier limits.
 
 const jsonFetcher = async (url: string) => {
-  const res = await fetch(url, { headers: { accept: 'application/json' } });
+  const res = await fetch(url, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 };
@@ -178,19 +181,16 @@ const Insights: React.FC = () => {
   const markets = useSWR<MarketCoin[]>(
     `${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h`,
     jsonFetcher,
-    { refreshInterval: REFRESH, fetcher: jsonFetcher },
+    { refreshInterval: REFRESH },
   );
   const trending = useSWR<{ coins: TrendingCoin[] }>(`${CG}/search/trending`, jsonFetcher, {
     refreshInterval: REFRESH,
-    fetcher: jsonFetcher,
   });
   const global = useSWR<GlobalData>(`${CG}/global`, jsonFetcher, {
     refreshInterval: REFRESH,
-    fetcher: jsonFetcher,
   });
   const fng = useSWR<FngData>('https://api.alternative.me/fng/?limit=1', jsonFetcher, {
     refreshInterval: REFRESH,
-    fetcher: jsonFetcher,
   });
 
   const refreshAll = () => {
@@ -203,20 +203,31 @@ const Insights: React.FC = () => {
   const refreshing =
     markets.isValidating || trending.isValidating || global.isValidating || fng.isValidating;
 
-  const coins = Array.isArray(markets.data) ? markets.data : [];
-  const movers = coins.filter((c) => Number.isFinite(c.price_change_percentage_24h));
-  const gainers = [...movers]
-    .sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h)
-    .slice(0, 8);
-  const losers = [...movers]
-    .sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h)
-    .slice(0, 8);
+  const coins = React.useMemo(
+    () => (Array.isArray(markets.data) ? markets.data : []),
+    [markets.data],
+  );
+  const { gainers, losers } = React.useMemo(() => {
+    const movers = coins.filter((c) => Number.isFinite(c.price_change_percentage_24h));
+    return {
+      gainers: [...movers]
+        .sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h)
+        .slice(0, 8),
+      losers: [...movers]
+        .sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h)
+        .slice(0, 8),
+    };
+  }, [coins]);
 
   const g = global.data?.data;
   const fngEntry = fng.data?.data?.[0];
-  const fngValue = fngEntry ? Number(fngEntry.value) : null;
+  const fngParsed = fngEntry ? Number(fngEntry.value) : NaN;
+  const fngValue = Number.isFinite(fngParsed) ? fngParsed : null;
 
-  const trendingCoins = (trending.data?.coins ?? []).slice(0, 8);
+  const trendingCoins = React.useMemo(
+    () => (trending.data?.coins ?? []).slice(0, 8),
+    [trending.data],
+  );
 
   const hardError = markets.error && coins.length === 0;
 
