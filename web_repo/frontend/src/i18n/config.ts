@@ -311,7 +311,7 @@ const resources = {
       "rises_above": "উপরে উঠলে",
       "target_price": "লক্ষ্য মূল্য (ইউএসডি)",
       "create_alert": "তৈরি করুন",
-      "supported_assets": "ল���ইভ প্রাইসিং সমর্থিত: BTC, ETH, BNB, MATIC, AVAX, SOL ও স্টেবলকয়েন।",
+      "supported_assets": "লাইভ প্রাইসিং সমর্থিত: BTC, ETH, BNB, MATIC, AVAX, SOL ও স্টেবলকয়েন।",
       "no_alerts": "এখনও কোনো প্রাইস অ্যালার্ট নেই।",
       "analytics_subtitle": "আপনার খরচ ও লেনদেনের বিশ্লেষণ",
       "analytics_login_desc": "লেনদেন বিশ্লেষণ দেখতে লগ ইন করুন।",
