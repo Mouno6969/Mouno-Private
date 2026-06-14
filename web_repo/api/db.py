@@ -2699,18 +2699,17 @@ def record_portfolio_snapshot(user_id, usd_value, min_gap_minutes=60):
 
 
 def get_portfolio_value_24h_ago(user_id):
-    """Net-worth snapshot closest to (but at least) 24h ago, else oldest available."""
+    """Most recent net-worth snapshot that is at least 24h old.
+
+    Returns None when no snapshot ≥24h old exists, so callers can report a
+    "tracking" state instead of a misleading 0% change for new portfolios or a
+    short (e.g. 2h) delta mislabelled as a 24h change.
+    """
     with closing(connect()) as con:
         row = con.execute(
             "SELECT usd_value FROM portfolio_snapshots WHERE user_id=? "
             "AND datetime(created_at) <= datetime('now', '-1 day') "
             "ORDER BY datetime(created_at) DESC LIMIT 1",
-            (str(user_id),),
-        ).fetchone()
-        if row:
-            return float(row[0])
-        row = con.execute(
-            "SELECT usd_value FROM portfolio_snapshots WHERE user_id=? ORDER BY datetime(created_at) ASC LIMIT 1",
             (str(user_id),),
         ).fetchone()
     return float(row[0]) if row else None

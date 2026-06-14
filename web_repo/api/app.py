@@ -1811,9 +1811,42 @@ _NETWORK_ASSET = {
     'ethereum_usdc': 'USDC', 'base': 'USDC',
 }
 
+# Symbols we can price live (used to validate price alerts at creation time).
+_SUPPORTED_PRICE_SYMBOLS = set(_STABLE_SYMBOLS) | set(_SYMBOL_PRICE_TOKENS.keys())
+
+# ─── Shared, short-lived price cache + per-user evaluation throttle ───
+# Polled endpoints (/api/portfolio/overview, /api/notifications) refresh every
+# ~30s. Without a cross-request cache each poll would issue a fresh blocking
+# LI.FI call per asset, which can exhaust the worker pool and hit rate limits.
+import threading
+import time as _time
+
+_PRICE_CACHE = {}                 # key -> (value, expires_at)
+_PRICE_CACHE_LOCK = threading.Lock()
+_PRICE_CACHE_TTL = 60             # seconds
+_EVAL_THROTTLE = {}               # (uid, kind) -> last_run_epoch
+_EVAL_THROTTLE_LOCK = threading.Lock()
+_EVAL_MIN_INTERVAL = 120          # seconds between on-read event evaluations per user
+
+
+def _eval_due(uid, kind, min_interval=_EVAL_MIN_INTERVAL):
+    """True at most once per `min_interval` per (uid, kind); throttles read-path work."""
+    now = _time.time()
+    key = (str(uid), kind)
+    with _EVAL_THROTTLE_LOCK:
+        last = _EVAL_THROTTLE.get(key, 0)
+        if now - last < min_interval:
+            return False
+        _EVAL_THROTTLE[key] = now
+        return True
+
 
 def _get_symbol_price_usd(symbol, chain=None):
-    """Live USD price for a symbol via LI.FI; Decimal(1) for stablecoins; None if unknown."""
+    """Live USD price for a symbol via LI.FI; Decimal(1) for stablecoins; None if unknown.
+
+    Results are cached in-process for `_PRICE_CACHE_TTL` seconds, shared across
+    requests, so frequent polling does not issue a network call every time.
+    """
     sym = str(symbol or '').upper().strip()
     if not sym:
         return None
@@ -1822,12 +1855,25 @@ def _get_symbol_price_usd(symbol, chain=None):
     mapping = _SYMBOL_PRICE_TOKENS.get(sym)
     if not mapping:
         return None
+
+    cache_key = sym
+    now = _time.time()
+    with _PRICE_CACHE_LOCK:
+        cached = _PRICE_CACHE.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
     chain_id, token = mapping
     try:
-        return fetch_token_price_usd(chain_id, token, api_key=config.LIFI_API_KEY)
+        price = fetch_token_price_usd(chain_id, token, api_key=config.LIFI_API_KEY)
     except Exception as exc:
         logger.warning("Price lookup failed for %s: %s", sym, exc)
         return None
+
+    if price is not None:
+        with _PRICE_CACHE_LOCK:
+            _PRICE_CACHE[cache_key] = (price, now + _PRICE_CACHE_TTL)
+    return price
 
 
 def _tx_user_id(current_user):
@@ -1958,14 +2004,16 @@ def portfolio_overview(current_user):
 
     change_pct = None
     try:
-        db.record_portfolio_snapshot(uid, total)
+        # Read the prior value BEFORE recording today's snapshot, otherwise the
+        # just-inserted row becomes the "24h ago" value and change is always 0%.
         prev = db.get_portfolio_value_24h_ago(uid)
+        db.record_portfolio_snapshot(uid, total)
         if prev and prev > 0:
             change_pct = round((total - prev) / prev * 100, 2)
     except Exception as exc:
         logger.warning("Portfolio snapshot/24h change failed: %s", exc)
 
-    fired = _check_price_alerts(uid)
+    fired = _check_price_alerts(uid) if _eval_due(uid, 'price_alert') else []
 
     return jsonify({'ok': True, 'message': 'ok', 'data': {
         'net_worth_usd': round(total, 2),
@@ -1995,6 +2043,9 @@ def create_price_alert_route(current_user):
     chain = data.get('chain')
     if not symbol:
         return jsonify({'ok': False, 'message': 'Please enter the asset symbol (e.g. BTC).', 'data': None}), 400
+    if symbol.upper() not in _SUPPORTED_PRICE_SYMBOLS:
+        supported = ', '.join(sorted(_SUPPORTED_PRICE_SYMBOLS))
+        return jsonify({'ok': False, 'message': f"'{symbol}' isn't supported for live pricing yet. Supported assets: {supported}.", 'data': None}), 400
     if direction not in ('above', 'below'):
         return jsonify({'ok': False, 'message': "Direction must be 'above' or 'below'.", 'data': None}), 400
     try:
@@ -2101,8 +2152,12 @@ def get_notifications(current_user):
     # Lightweight, on-demand event detection. The Telegram bot owns the shared
     # mouno.db background monitors; the web app intentionally runs no scheduler
     # (see automation note above), so we evaluate alerts/large-tx on read.
-    _sync_large_tx_notifications(uid, _tx_user_id(current_user))
-    _check_price_alerts(uid)
+    # Throttled to at most once per _EVAL_MIN_INTERVAL per user so 30s polling
+    # does not trigger blocking price lookups on every request.
+    if _eval_due(uid, 'large_tx'):
+        _sync_large_tx_notifications(uid, _tx_user_id(current_user))
+    if _eval_due(uid, 'price_alert'):
+        _check_price_alerts(uid)
     try:
         items = db.list_notifications(uid, limit=50)
         unread = db.count_unread_notifications(uid)
