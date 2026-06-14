@@ -30,6 +30,7 @@ import Market from './pages/Market';
 import Tools from './pages/Tools';
 import Portfolio from './pages/Portfolio';
 import Analytics from './pages/Analytics';
+import Insights from './pages/Insights';
 import { Toaster } from 'sonner';
 import { useAuth } from './context/AuthContext';
 
@@ -78,6 +79,7 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
         <Route path="/portfolio" element={token ? <Portfolio /> : <Navigate to="/login" />} />
         <Route path="/analytics" element={token ? <Analytics /> : <Navigate to="/login" />} />
+        <Route path="/insights" element={<Insights />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/txlog" element={token ? <TxLog /> : <Navigate to="/login" />} />
