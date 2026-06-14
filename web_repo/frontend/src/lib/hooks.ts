@@ -13,6 +13,11 @@ import type {
   BalanceResponse,
   TxEntry,
   OrdersResponse,
+  ApiEnvelope,
+  PortfolioOverview,
+  PriceAlert,
+  AnalyticsSummary,
+  NotificationsResponse,
 } from '../types';
 
 /** Normalize endpoints that may return either an array or `{ data: [] }`. */
@@ -70,4 +75,33 @@ export function useOrders(enabled = true, config?: SWRConfiguration<OrdersRespon
     ...swr,
     data: swr.data ?? { completed: [], pending: [] },
   };
+}
+
+/** Aggregated portfolio net worth + holdings breakdown. */
+export function usePortfolio(enabled = true, config?: SWRConfiguration<ApiEnvelope<PortfolioOverview>>) {
+  return useSWR<ApiEnvelope<PortfolioOverview>>(enabled ? '/api/portfolio/overview' : null, {
+    refreshInterval: REFRESH_INTERVALS.normal,
+    ...config,
+  });
+}
+
+/** User's price alerts. */
+export function usePriceAlerts(enabled = true, config?: SWRConfiguration<ApiEnvelope<{ alerts: PriceAlert[] }>>) {
+  return useSWR<ApiEnvelope<{ alerts: PriceAlert[] }>>(enabled ? '/api/price-alerts' : null, config);
+}
+
+/** Transaction analytics for a given period (week|month|quarter|year|all). */
+export function useAnalytics(period: string, enabled = true, config?: SWRConfiguration<ApiEnvelope<AnalyticsSummary>>) {
+  return useSWR<ApiEnvelope<AnalyticsSummary>>(
+    enabled ? `/api/analytics/summary?period=${encodeURIComponent(period)}` : null,
+    config,
+  );
+}
+
+/** In-app notifications with unread count (polls in the background). */
+export function useNotifications(enabled = true, config?: SWRConfiguration<ApiEnvelope<NotificationsResponse>>) {
+  return useSWR<ApiEnvelope<NotificationsResponse>>(enabled ? '/api/notifications' : null, {
+    refreshInterval: REFRESH_INTERVALS.normal,
+    ...config,
+  });
 }

@@ -461,6 +461,54 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
             ON ticket_messages(ticket_id, id)
         """)
+        # ─── Portfolio price alerts ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                chain TEXT,
+                direction TEXT NOT NULL DEFAULT 'below',
+                target_price REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                triggered_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_user
+            ON price_alerts(user_id, status)
+        """)
+        # ─── In-app notifications ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'info',
+                title TEXT NOT NULL,
+                body TEXT,
+                read INTEGER NOT NULL DEFAULT 0,
+                metadata TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_user
+            ON notifications(user_id, read, created_at DESC)
+        """)
+        # ─── Portfolio net-worth snapshots (for 24h change) ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                usd_value REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user
+            ON portfolio_snapshots(user_id, created_at DESC)
+        """)
         con.commit()
 
 
@@ -2502,6 +2550,170 @@ def update_ticket_status(ticket_id, web_user_id, status):
             (int(ticket_id),),
         ).fetchone()
         return _ticket_to_dict(row)
+
+
+# ─── Price alerts ───
+def create_price_alert(user_id, symbol, chain, direction, target_price):
+    direction = (direction or 'below').lower()
+    if direction not in ('above', 'below'):
+        direction = 'below'
+    with closing(connect()) as con:
+        cur = con.execute(
+            "INSERT INTO price_alerts (user_id, symbol, chain, direction, target_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), str(symbol).upper(), chain, direction, float(target_price)),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_price_alerts(user_id):
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, symbol, chain, direction, target_price, status, triggered_at, created_at "
+            "FROM price_alerts WHERE user_id=? ORDER BY datetime(created_at) DESC",
+            (str(user_id),),
+        ).fetchall()
+    cols = ['id', 'symbol', 'chain', 'direction', 'target_price', 'status', 'triggered_at', 'created_at']
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def list_active_price_alerts(user_id):
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, symbol, chain, direction, target_price FROM price_alerts "
+            "WHERE user_id=? AND status='active'",
+            (str(user_id),),
+        ).fetchall()
+    cols = ['id', 'symbol', 'chain', 'direction', 'target_price']
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def delete_price_alert(user_id, alert_id):
+    with closing(connect()) as con:
+        cur = con.execute(
+            "DELETE FROM price_alerts WHERE id=? AND user_id=?",
+            (int(alert_id), str(user_id)),
+        )
+        con.commit()
+        return cur.rowcount > 0
+
+
+def mark_price_alert_triggered(alert_id):
+    with closing(connect()) as con:
+        con.execute(
+            "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(alert_id),),
+        )
+        con.commit()
+
+
+# ─── Notifications ───
+def create_notification(user_id, ntype, title, body=None, metadata=None):
+    import json as _json
+    meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    with closing(connect()) as con:
+        cur = con.execute(
+            "INSERT INTO notifications (user_id, type, title, body, metadata) VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), str(ntype), str(title), body, meta),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_notifications(user_id, limit=50):
+    import json as _json
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, type, title, body, read, metadata, created_at FROM notifications "
+            "WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT ?",
+            (str(user_id), int(limit)),
+        ).fetchall()
+    out = []
+    for r in rows:
+        meta = r[5]
+        try:
+            meta = _json.loads(meta) if meta else None
+        except Exception:
+            meta = None
+        out.append({
+            'id': r[0], 'type': r[1], 'title': r[2], 'body': r[3],
+            'read': bool(r[4]), 'metadata': meta, 'created_at': r[6],
+        })
+    return out
+
+
+def count_unread_notifications(user_id):
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=? AND read=0",
+            (str(user_id),),
+        ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def mark_notifications_read(user_id, notif_id=None):
+    with closing(connect()) as con:
+        if notif_id is None:
+            con.execute("UPDATE notifications SET read=1 WHERE user_id=?", (str(user_id),))
+        else:
+            con.execute(
+                "UPDATE notifications SET read=1 WHERE user_id=? AND id=?",
+                (str(user_id), int(notif_id)),
+            )
+        con.commit()
+
+
+def notification_exists_for_ref(user_id, ntype, ref):
+    """True if a notification of `ntype` already references `ref` (dedup key)."""
+    like = f'%"ref": "{ref}"%'
+    like2 = f'%"ref":"{ref}"%'
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT 1 FROM notifications WHERE user_id=? AND type=? AND (metadata LIKE ? OR metadata LIKE ?) LIMIT 1",
+            (str(user_id), str(ntype), like, like2),
+        ).fetchone()
+    return row is not None
+
+
+# ─── Portfolio snapshots (for 24h change) ───
+def record_portfolio_snapshot(user_id, usd_value, min_gap_minutes=60):
+    """Insert a net-worth snapshot at most once per `min_gap_minutes`."""
+    with closing(connect()) as con:
+        last = con.execute(
+            "SELECT created_at FROM portfolio_snapshots WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT 1",
+            (str(user_id),),
+        ).fetchone()
+        if last and last[0]:
+            try:
+                last_dt = datetime.fromisoformat(str(last[0]).replace('T', ' ').split('.')[0])
+                if datetime.utcnow() - last_dt < timedelta(minutes=min_gap_minutes):
+                    return
+            except Exception:
+                pass
+        con.execute(
+            "INSERT INTO portfolio_snapshots (user_id, usd_value) VALUES (?, ?)",
+            (str(user_id), float(usd_value)),
+        )
+        con.commit()
+
+
+def get_portfolio_value_24h_ago(user_id):
+    """Net-worth snapshot closest to (but at least) 24h ago, else oldest available."""
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT usd_value FROM portfolio_snapshots WHERE user_id=? "
+            "AND datetime(created_at) <= datetime('now', '-1 day') "
+            "ORDER BY datetime(created_at) DESC LIMIT 1",
+            (str(user_id),),
+        ).fetchone()
+        if row:
+            return float(row[0])
+        row = con.execute(
+            "SELECT usd_value FROM portfolio_snapshots WHERE user_id=? ORDER BY datetime(created_at) ASC LIMIT 1",
+            (str(user_id),),
+        ).fetchone()
+    return float(row[0]) if row else None
 
 
 init_db()
