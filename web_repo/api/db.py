@@ -489,12 +489,23 @@ def init_db():
                 body TEXT,
                 read INTEGER NOT NULL DEFAULT 0,
                 metadata TEXT,
+                dedup_ref TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Migrate older notifications tables that predate dedup_ref.
+        ensure_column(con, 'notifications', 'dedup_ref', 'TEXT')
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_notifications_user
             ON notifications(user_id, read, created_at DESC)
+        """)
+        # Atomic dedupe: at most one notification per (user, dedup_ref). SQLite
+        # treats NULL dedup_ref values as distinct, so ad-hoc notifications
+        # (no ref) are never blocked by this constraint.
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedup
+            ON notifications(user_id, dedup_ref)
+            WHERE dedup_ref IS NOT NULL
         """)
         # ─── Portfolio net-worth snapshots (for 24h change) ───
         cur.execute("""
@@ -2614,38 +2625,63 @@ def mark_price_alert_triggered(alert_id):
 
 
 # ─── Notifications ───
-def create_notification(user_id, ntype, title, body=None, metadata=None):
+def _dedup_ref_from(metadata, explicit=None):
+    """Resolve the dedupe key: explicit arg wins, else metadata['ref']."""
+    if explicit:
+        return str(explicit)
+    if isinstance(metadata, dict) and metadata.get('ref'):
+        return str(metadata['ref'])
+    return None
+
+
+def create_notification(user_id, ntype, title, body=None, metadata=None, dedup_ref=None):
+    """Insert a notification. If a dedupe ref is supplied (or present in
+    metadata['ref']), the insert is atomic-deduped via a unique index, so
+    concurrent callers can't create duplicates. Returns the row id, or None when
+    a duplicate was ignored.
+    """
     import json as _json
     meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    ref = _dedup_ref_from(metadata, dedup_ref)
     with closing(connect()) as con:
+        verb = "INSERT OR IGNORE INTO" if ref else "INSERT INTO"
         cur = con.execute(
-            "INSERT INTO notifications (user_id, type, title, body, metadata) VALUES (?, ?, ?, ?, ?)",
-            (str(user_id), str(ntype), str(title), body, meta),
+            f"{verb} notifications (user_id, type, title, body, metadata, dedup_ref) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (str(user_id), str(ntype), str(title), body, meta, ref),
         )
         con.commit()
-        return cur.lastrowid
+        return cur.lastrowid if cur.rowcount else None
 
 
 def fire_price_alert(alert_id, user_id, title, body=None, metadata=None):
     """Mark an alert triggered AND create its notification in one transaction.
 
-    Both writes commit together (or roll back together) so an alert can never be
-    marked triggered without the user receiving the corresponding notification.
+    The status update is conditional on the alert still being 'active', so a
+    losing race (two concurrent readers) is a no-op and never double-notifies.
+    Both writes commit together (or roll back together).
     """
     import json as _json
     meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    ref = _dedup_ref_from(metadata)
     with closing(connect()) as con:
         try:
-            con.execute(
-                "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP WHERE id=?",
+            updated = con.execute(
+                "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP "
+                "WHERE id=? AND status='active'",
                 (int(alert_id),),
             )
+            if updated.rowcount == 0:
+                # Already fired by a concurrent reader; do nothing.
+                con.commit()
+                return None
             cur = con.execute(
-                "INSERT INTO notifications (user_id, type, title, body, metadata) VALUES (?, ?, ?, ?, ?)",
-                (str(user_id), 'price_alert', str(title), body, meta),
+                "INSERT OR IGNORE INTO notifications (user_id, type, title, body, metadata, dedup_ref) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (str(user_id), 'price_alert', str(title), body, meta, ref),
             )
             con.commit()
-            return cur.lastrowid
+            return cur.lastrowid if cur.rowcount else None
         except Exception:
             con.rollback()
             raise
@@ -2695,13 +2731,15 @@ def mark_notifications_read(user_id, notif_id=None):
 
 
 def notification_exists_for_ref(user_id, ntype, ref):
-    """True if a notification of `ntype` already references `ref` (dedup key)."""
-    like = f'%"ref": "{ref}"%'
-    like2 = f'%"ref":"{ref}"%'
+    """True if a notification already exists for this dedupe `ref`.
+
+    Best-effort pre-check only; the authoritative guard is the unique index on
+    (user_id, dedup_ref) enforced at INSERT time via create_notification().
+    """
     with closing(connect()) as con:
         row = con.execute(
-            "SELECT 1 FROM notifications WHERE user_id=? AND type=? AND (metadata LIKE ? OR metadata LIKE ?) LIMIT 1",
-            (str(user_id), str(ntype), like, like2),
+            "SELECT 1 FROM notifications WHERE user_id=? AND dedup_ref=? LIMIT 1",
+            (str(user_id), str(ref)),
         ).fetchone()
     return row is not None
 

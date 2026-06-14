@@ -42,9 +42,13 @@ const Portfolio: React.FC = () => {
   const hasChange = typeof change === 'number' && Number.isFinite(change);
   const isUp = hasChange && (change as number) >= 0;
 
-  const chartData = holdings
-    .filter((h) => h.usd_value > 0)
-    .map((h) => ({ name: `${h.asset} (${NETWORK_MAP[h.network]?.name || h.network})`, value: h.usd_value }));
+  // Single source of truth: the pie chart and the breakdown list must show the
+  // same rows (and stay color-synced), so derive both from positiveHoldings.
+  const positiveHoldings = holdings.filter((h) => h.usd_value > 0);
+  const chartData = positiveHoldings.map((h) => ({
+    name: `${h.asset} (${NETWORK_MAP[h.network]?.name || h.network})`,
+    value: h.usd_value,
+  }));
 
   const createAlert = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +56,8 @@ const Portfolio: React.FC = () => {
       toast.error(t('alert_symbol_required', 'Please enter an asset symbol (e.g. BTC).'));
       return;
     }
-    if (!targetPrice || parseFloat(targetPrice) <= 0) {
+    const parsedTargetPrice = Number(targetPrice);
+    if (!Number.isFinite(parsedTargetPrice) || parsedTargetPrice <= 0) {
       toast.error(t('alert_price_required', 'Enter a valid target price.'));
       return;
     }
@@ -60,7 +65,7 @@ const Portfolio: React.FC = () => {
     try {
       const res = await apiClient.post<{ ok?: boolean; message?: string }>(
         '/api/price-alerts',
-        { symbol: symbol.trim().toUpperCase(), direction, target_price: parseFloat(targetPrice) },
+        { symbol: symbol.trim().toUpperCase(), direction, target_price: parsedTargetPrice },
         { silent: true },
       );
       if (res.data.ok) {
@@ -186,7 +191,7 @@ const Portfolio: React.FC = () => {
                     </ResponsiveContainer>
                   </div>
                   <div className="space-y-2">
-                    {holdings.map((h, i) => (
+                    {positiveHoldings.map((h, i) => (
                       <div key={`${h.network}-${h.address}-${i}`} className="flex items-center justify-between gap-2 text-sm">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />

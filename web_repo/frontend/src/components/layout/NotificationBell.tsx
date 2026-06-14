@@ -25,10 +25,10 @@ const timeAgo = (iso: string, t: ReturnType<typeof useTranslation>['t']) => {
   if (Number.isNaN(secs)) return '';
   if (secs < 60) return t('just_now', 'just now');
   const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return t('time_minutes', '{{count}}m', { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
+  if (hrs < 24) return t('time_hours', '{{count}}h', { count: hrs });
+  return t('time_days', '{{count}}d', { count: Math.floor(hrs / 24) });
 };
 
 const NotificationBell: React.FC = () => {
