@@ -179,7 +179,7 @@ const Portfolio: React.FC = () => {
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(v: number) => fmtUsd(v)}
+                          formatter={(v) => fmtUsd(Number(v))}
                           contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 0, color: 'hsl(var(--popover-foreground))' }}
                         />
                       </PieChart>

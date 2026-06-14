@@ -170,7 +170,7 @@ const Analytics: React.FC = () => {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                           <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
                           <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} formatter={(v: number) => fmtUsd(v)} contentStyle={tooltipStyle} />
+                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} formatter={(v) => fmtUsd(Number(v))} contentStyle={tooltipStyle} />
                           <Bar dataKey="value" radius={[2, 2, 0, 0]}>
                             {assetData.map((_, i) => (
                               <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -197,7 +197,7 @@ const Analytics: React.FC = () => {
                               <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={(v: number) => fmtUsd(v)} contentStyle={tooltipStyle} />
+                          <Tooltip formatter={(v) => fmtUsd(Number(v))} contentStyle={tooltipStyle} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
