@@ -461,6 +461,70 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
             ON ticket_messages(ticket_id, id)
         """)
+        # ─── Portfolio price alerts ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                chain TEXT,
+                direction TEXT NOT NULL DEFAULT 'below',
+                target_price REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                triggered_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_alerts_user
+            ON price_alerts(user_id, status)
+        """)
+        # ─── In-app notifications ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'info',
+                title TEXT NOT NULL,
+                body TEXT,
+                read INTEGER NOT NULL DEFAULT 0,
+                metadata TEXT,
+                dedup_ref TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Migrate older notifications tables that predate dedup_ref.
+        ensure_column(con, 'notifications', 'dedup_ref', 'TEXT')
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_user
+            ON notifications(user_id, read, created_at DESC)
+        """)
+        # Atomic dedupe: at most one notification per (user, dedup_ref). SQLite
+        # treats NULL dedup_ref values as distinct, so ad-hoc notifications
+        # (no ref) are never blocked by this constraint.
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedup
+            ON notifications(user_id, dedup_ref)
+            WHERE dedup_ref IS NOT NULL
+        """)
+        # ─── Portfolio net-worth snapshots (for 24h change) ───
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                usd_value REAL NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user
+            ON portfolio_snapshots(user_id, created_at DESC)
+        """)
+        # Speeds up the per-user transaction reads used by analytics + notification sync.
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_status_created
+            ON transactions(user_id, status, created_at DESC)
+        """)
         con.commit()
 
 
@@ -2502,6 +2566,221 @@ def update_ticket_status(ticket_id, web_user_id, status):
             (int(ticket_id),),
         ).fetchone()
         return _ticket_to_dict(row)
+
+
+# ─── Price alerts ───
+def create_price_alert(user_id, symbol, chain, direction, target_price):
+    direction = (direction or 'below').lower()
+    if direction not in ('above', 'below'):
+        direction = 'below'
+    with closing(connect()) as con:
+        cur = con.execute(
+            "INSERT INTO price_alerts (user_id, symbol, chain, direction, target_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), str(symbol).upper(), chain, direction, float(target_price)),
+        )
+        con.commit()
+        return cur.lastrowid
+
+
+def list_price_alerts(user_id):
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, symbol, chain, direction, target_price, status, triggered_at, created_at "
+            "FROM price_alerts WHERE user_id=? ORDER BY datetime(created_at) DESC",
+            (str(user_id),),
+        ).fetchall()
+    cols = ['id', 'symbol', 'chain', 'direction', 'target_price', 'status', 'triggered_at', 'created_at']
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def list_active_price_alerts(user_id):
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, symbol, chain, direction, target_price FROM price_alerts "
+            "WHERE user_id=? AND status='active'",
+            (str(user_id),),
+        ).fetchall()
+    cols = ['id', 'symbol', 'chain', 'direction', 'target_price']
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def delete_price_alert(user_id, alert_id):
+    with closing(connect()) as con:
+        cur = con.execute(
+            "DELETE FROM price_alerts WHERE id=? AND user_id=?",
+            (int(alert_id), str(user_id)),
+        )
+        con.commit()
+        return cur.rowcount > 0
+
+
+def mark_price_alert_triggered(alert_id):
+    with closing(connect()) as con:
+        con.execute(
+            "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(alert_id),),
+        )
+        con.commit()
+
+
+# ─── Notifications ───
+def _dedup_ref_from(metadata, explicit=None):
+    """Resolve the dedupe key: explicit arg wins, else metadata['ref']."""
+    if explicit:
+        return str(explicit)
+    if isinstance(metadata, dict) and metadata.get('ref'):
+        return str(metadata['ref'])
+    return None
+
+
+def create_notification(user_id, ntype, title, body=None, metadata=None, dedup_ref=None):
+    """Insert a notification. If a dedupe ref is supplied (or present in
+    metadata['ref']), the insert is atomic-deduped via a unique index, so
+    concurrent callers can't create duplicates. Returns the row id, or None when
+    a duplicate was ignored.
+    """
+    import json as _json
+    meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    ref = _dedup_ref_from(metadata, dedup_ref)
+    with closing(connect()) as con:
+        verb = "INSERT OR IGNORE INTO" if ref else "INSERT INTO"
+        cur = con.execute(
+            f"{verb} notifications (user_id, type, title, body, metadata, dedup_ref) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (str(user_id), str(ntype), str(title), body, meta, ref),
+        )
+        con.commit()
+        return cur.lastrowid if cur.rowcount else None
+
+
+def fire_price_alert(alert_id, user_id, title, body=None, metadata=None):
+    """Mark an alert triggered AND create its notification in one transaction.
+
+    The status update is conditional on the alert still being 'active', so a
+    losing race (two concurrent readers) is a no-op and never double-notifies.
+    Both writes commit together (or roll back together).
+    """
+    import json as _json
+    meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    ref = _dedup_ref_from(metadata)
+    with closing(connect()) as con:
+        try:
+            updated = con.execute(
+                "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP "
+                "WHERE id=? AND status='active'",
+                (int(alert_id),),
+            )
+            if updated.rowcount == 0:
+                # Already fired by a concurrent reader; do nothing.
+                con.commit()
+                return None
+            cur = con.execute(
+                "INSERT OR IGNORE INTO notifications (user_id, type, title, body, metadata, dedup_ref) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (str(user_id), 'price_alert', str(title), body, meta, ref),
+            )
+            con.commit()
+            return cur.lastrowid if cur.rowcount else None
+        except Exception:
+            con.rollback()
+            raise
+
+
+def list_notifications(user_id, limit=50):
+    import json as _json
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT id, type, title, body, read, metadata, created_at FROM notifications "
+            "WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT ?",
+            (str(user_id), int(limit)),
+        ).fetchall()
+    out = []
+    for r in rows:
+        meta = r[5]
+        try:
+            meta = _json.loads(meta) if meta else None
+        except Exception:
+            meta = None
+        out.append({
+            'id': r[0], 'type': r[1], 'title': r[2], 'body': r[3],
+            'read': bool(r[4]), 'metadata': meta, 'created_at': r[6],
+        })
+    return out
+
+
+def count_unread_notifications(user_id):
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=? AND read=0",
+            (str(user_id),),
+        ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def mark_notifications_read(user_id, notif_id=None):
+    with closing(connect()) as con:
+        if notif_id is None:
+            con.execute("UPDATE notifications SET read=1 WHERE user_id=?", (str(user_id),))
+        else:
+            con.execute(
+                "UPDATE notifications SET read=1 WHERE user_id=? AND id=?",
+                (str(user_id), int(notif_id)),
+            )
+        con.commit()
+
+
+def notification_exists_for_ref(user_id, ntype, ref):
+    """True if a notification already exists for this dedupe `ref`.
+
+    Best-effort pre-check only; the authoritative guard is the unique index on
+    (user_id, dedup_ref) enforced at INSERT time via create_notification().
+    """
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT 1 FROM notifications WHERE user_id=? AND dedup_ref=? LIMIT 1",
+            (str(user_id), str(ref)),
+        ).fetchone()
+    return row is not None
+
+
+# ─── Portfolio snapshots (for 24h change) ───
+def record_portfolio_snapshot(user_id, usd_value, min_gap_minutes=60):
+    """Insert a net-worth snapshot at most once per `min_gap_minutes`."""
+    with closing(connect()) as con:
+        last = con.execute(
+            "SELECT created_at FROM portfolio_snapshots WHERE user_id=? ORDER BY datetime(created_at) DESC LIMIT 1",
+            (str(user_id),),
+        ).fetchone()
+        if last and last[0]:
+            try:
+                last_dt = datetime.fromisoformat(str(last[0]).replace('T', ' ').split('.')[0])
+                if datetime.utcnow() - last_dt < timedelta(minutes=min_gap_minutes):
+                    return
+            except Exception:
+                pass
+        con.execute(
+            "INSERT INTO portfolio_snapshots (user_id, usd_value) VALUES (?, ?)",
+            (str(user_id), float(usd_value)),
+        )
+        con.commit()
+
+
+def get_portfolio_value_24h_ago(user_id):
+    """Most recent net-worth snapshot that is at least 24h old.
+
+    Returns None when no snapshot ≥24h old exists, so callers can report a
+    "tracking" state instead of a misleading 0% change for new portfolios or a
+    short (e.g. 2h) delta mislabelled as a 24h change.
+    """
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT usd_value FROM portfolio_snapshots WHERE user_id=? "
+            "AND datetime(created_at) <= datetime('now', '-1 day') "
+            "ORDER BY datetime(created_at) DESC LIMIT 1",
+            (str(user_id),),
+        ).fetchone()
+    return float(row[0]) if row else None
 
 
 init_db()

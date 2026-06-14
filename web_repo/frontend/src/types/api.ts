@@ -93,6 +93,66 @@ export interface OrdersResponse {
   pending: OrderEntry[];
 }
 
+/** GET /api/portfolio/overview (inside ApiEnvelope.data) */
+export interface PortfolioHolding {
+  asset: string;
+  network: NetworkId;
+  label: string | null;
+  address: string | null;
+  amount: number;
+  usd_value: number;
+  pct: number;
+}
+
+export interface PortfolioOverview {
+  net_worth_usd: number;
+  change_24h_pct: number | null;
+  holdings: PortfolioHolding[];
+  alerts_triggered: number[];
+}
+
+/** Price alert record (GET /api/price-alerts) */
+export interface PriceAlert {
+  id: number;
+  symbol: string;
+  chain: string | null;
+  direction: 'above' | 'below';
+  target_price: number;
+  status: string;
+  triggered_at: string | null;
+  created_at: string;
+}
+
+/** GET /api/analytics/summary (inside ApiEnvelope.data) */
+export interface AnalyticsSummary {
+  period: string;
+  total_volume: number;
+  prev_volume: number;
+  volume_change_pct: number | null;
+  tx_count: number;
+  spend_by_asset: { asset: string; usd_value: number }[];
+  spend_by_network: { network: NetworkId; usd_value: number }[];
+  top_recipients: { address: string; count: number }[];
+}
+
+/** Notification record (GET /api/notifications) */
+export type NotificationType = 'price_alert' | 'bonus' | 'large_tx' | 'info';
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  read: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface NotificationsResponse {
+  notifications: AppNotification[];
+  unread: number;
+}
+
 /** Generic wrapped backend response: { ok, message, data }. */
 export interface ApiEnvelope<T> {
   ok?: boolean;

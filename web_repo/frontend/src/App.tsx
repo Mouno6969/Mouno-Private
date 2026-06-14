@@ -28,6 +28,8 @@ import Payout from './pages/Payout';
 import Guide from './pages/Guide';
 import Market from './pages/Market';
 import Tools from './pages/Tools';
+import Portfolio from './pages/Portfolio';
+import Analytics from './pages/Analytics';
 import { Toaster } from 'sonner';
 import { useAuth } from './context/AuthContext';
 
@@ -74,6 +76,8 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
         <Route path="/giveaway" element={<Giveaway />} />
         <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
+        <Route path="/portfolio" element={token ? <Portfolio /> : <Navigate to="/login" />} />
+        <Route path="/analytics" element={token ? <Analytics /> : <Navigate to="/login" />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/txlog" element={token ? <TxLog /> : <Navigate to="/login" />} />

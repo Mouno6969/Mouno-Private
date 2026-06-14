@@ -26,7 +26,7 @@ import db
 import config
 import notifier
 from balance import get_all_balances
-from swap_service import quote_lifi, summarize_quote, get_lifi_chains
+from swap_service import quote_lifi, summarize_quote, get_lifi_chains, fetch_token_price_usd
 from crypto_manager import (
     get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
     add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
@@ -457,6 +457,20 @@ def redeem_gift(current_user):
         )
     except Exception as exc:
         logger.warning("Gift/giveaway notification failed: %s", exc)
+
+    # In-app notification: a giveaway / referral bonus was credited to this user.
+    try:
+        if status == "completed":
+            is_giveaway = bool(giveaway_id)
+            db.create_notification(
+                _uid(current_user),
+                'bonus',
+                ('Giveaway reward received' if is_giveaway else 'Gift code redeemed'),
+                f"{amount_crypto} {str(network).upper()} has been credited to your wallet.",
+                metadata={'ref': f'gift:{code}', 'network': network, 'amount': amount_crypto},
+            )
+    except Exception as exc:
+        logger.warning("In-app bonus notification failed: %s", exc)
 
     if status == "completed":
         return jsonify({'message': f'Gift redeemed! {amount_crypto} sent to your wallet.', 'status': 'completed', 'sig': sig}), 200
@@ -1765,6 +1779,412 @@ def automation_scheduled_buy_detail(current_user, schedule_id):
     if not ok:
         return jsonify({'message': 'Could not update scheduled buy.'}), 400
     return jsonify({'message': 'Resumed.' if status == 'active' else 'Paused.'})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Portfolio dashboard, transaction analytics & notifications
+# ─────────────────────────────────────────────────────────────────────────────
+from decimal import Decimal
+
+# Stablecoins are pegged ~$1, so we skip a live lookup for them.
+_STABLE_SYMBOLS = {'USDC', 'USDT', 'DAI', 'BUSD', 'TUSD', 'USDC.E'}
+
+# Minimal symbol → (LI.FI chain id, token address) map for live USD pricing of
+# non-stable assets (used by price alerts and portfolio valuation). Native
+# tokens use the zero address; LI.FI resolves the chain's native coin.
+_SYMBOL_PRICE_TOKENS = {
+    'ETH': ('1', '0x0000000000000000000000000000000000000000'),
+    'WETH': ('1', '0x0000000000000000000000000000000000000000'),
+    'BTC': ('1', '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'),   # WBTC
+    'WBTC': ('1', '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'),
+    'BNB': ('56', '0x0000000000000000000000000000000000000000'),
+    'MATIC': ('137', '0x0000000000000000000000000000000000000000'),
+    'POL': ('137', '0x0000000000000000000000000000000000000000'),
+    'AVAX': ('43114', '0x0000000000000000000000000000000000000000'),
+    'SOL': ('1151111081099710', '11111111111111111111111111111111'),
+}
+
+# network → asset symbol (mirrors balance.get_wallet_balances asset_map).
+_NETWORK_ASSET = {
+    'solana': 'USDC', 'solana_usdt': 'USDT', 'trc20': 'USDT', 'polygon': 'USDC',
+    'bsc': 'USDT', 'ton': 'USDT', 'avalanche': 'USDT', 'ethereum': 'USDT',
+    'ethereum_usdc': 'USDC', 'base': 'USDC',
+}
+
+# Symbols we can price live (used to validate price alerts at creation time).
+_SUPPORTED_PRICE_SYMBOLS = set(_STABLE_SYMBOLS) | set(_SYMBOL_PRICE_TOKENS.keys())
+
+# ─── Shared, short-lived price cache + per-user evaluation throttle ───
+# Polled endpoints (/api/portfolio/overview, /api/notifications) refresh every
+# ~30s. Without a cross-request cache each poll would issue a fresh blocking
+# LI.FI call per asset, which can exhaust the worker pool and hit rate limits.
+import threading
+import time as _time
+
+_PRICE_CACHE = {}                 # key -> (value, expires_at)
+_PRICE_CACHE_LOCK = threading.Lock()
+_PRICE_CACHE_TTL = 60             # seconds
+_EVAL_THROTTLE = {}               # (uid, kind) -> last_run_epoch
+_EVAL_THROTTLE_LOCK = threading.Lock()
+_EVAL_MIN_INTERVAL = 120          # seconds between on-read event evaluations per user
+
+
+def _eval_due(uid, kind, min_interval=_EVAL_MIN_INTERVAL):
+    """True at most once per `min_interval` per (uid, kind); throttles read-path work."""
+    now = _time.time()
+    key = (str(uid), kind)
+    with _EVAL_THROTTLE_LOCK:
+        last = _EVAL_THROTTLE.get(key, 0)
+        if now - last < min_interval:
+            return False
+        _EVAL_THROTTLE[key] = now
+        return True
+
+
+def _get_symbol_price_usd(symbol, chain=None):
+    """Live USD price for a symbol via LI.FI; Decimal(1) for stablecoins; None if unknown.
+
+    Results are cached in-process for `_PRICE_CACHE_TTL` seconds, shared across
+    requests, so frequent polling does not issue a network call every time.
+    """
+    sym = str(symbol or '').upper().strip()
+    if not sym:
+        return None
+    if sym in _STABLE_SYMBOLS:
+        return Decimal('1')
+    mapping = _SYMBOL_PRICE_TOKENS.get(sym)
+    if not mapping:
+        return None
+
+    cache_key = sym
+    now = _time.time()
+    with _PRICE_CACHE_LOCK:
+        cached = _PRICE_CACHE.get(cache_key)
+        if cached and cached[1] > now:
+            return cached[0]
+
+    chain_id, token = mapping
+    try:
+        price = fetch_token_price_usd(chain_id, token, api_key=config.LIFI_API_KEY)
+    except Exception as exc:
+        logger.warning("Price lookup failed for %s: %s", sym, exc)
+        return None
+
+    if price is not None:
+        with _PRICE_CACHE_LOCK:
+            _PRICE_CACHE[cache_key] = (price, now + _PRICE_CACHE_TTL)
+    return price
+
+
+def _tx_user_id(current_user):
+    """Transaction-table identity (telegram id, else web_<id>), matching /api/txlog."""
+    return current_user[3] if current_user[3] else f"web_{current_user[0]}"
+
+
+def _check_price_alerts(uid):
+    """On-demand (no scheduler): fire active alerts whose target is hit.
+
+    Creates a 'price_alert' notification and marks the alert triggered. Returns
+    the list of fired alert ids. Best-effort: never raises.
+    """
+    fired = []
+    try:
+        alerts = db.list_active_price_alerts(uid)
+    except Exception:
+        return fired
+    price_cache = {}
+    for a in alerts:
+        sym = a['symbol']
+        cache_key = (sym, a.get('chain'))
+        if cache_key not in price_cache:
+            price_cache[cache_key] = _get_symbol_price_usd(sym, a.get('chain'))
+        price = price_cache[cache_key]
+        if price is None:
+            continue
+        try:
+            current = float(price)
+            target = float(a['target_price'])
+        except (TypeError, ValueError):
+            continue
+        hit = (a['direction'] == 'above' and current >= target) or \
+              (a['direction'] == 'below' and current <= target)
+        if not hit:
+            continue
+        try:
+            # Atomic: marking the alert triggered and inserting the notification
+            # commit together, so an alert can't be consumed without notifying.
+            db.fire_price_alert(
+                a['id'], uid, f"{sym} price alert",
+                f"{sym} is now ${current:,.4f}, "
+                f"{'above' if a['direction'] == 'above' else 'below'} your target of ${target:,.4f}.",
+                metadata={'ref': f"alert:{a['id']}", 'symbol': sym, 'price': current, 'target': target},
+            )
+            fired.append(a['id'])
+        except Exception as exc:
+            logger.warning("Firing price alert %s failed: %s", a.get('id'), exc)
+    return fired
+
+
+def _sync_large_tx_notifications(uid, tx_uid):
+    """On-demand: create 'large_tx' notifications for newly confirmed big transfers."""
+    try:
+        threshold = float(config.LARGE_TX_USD_THRESHOLD)
+    except Exception:
+        threshold = 100.0
+    try:
+        from contextlib import closing as _closing
+        from db import connect as _connect
+        with _closing(_connect()) as con:
+            rows = con.execute(
+                "SELECT trx_id, amount_usdc, network FROM transactions "
+                "WHERE user_id=? AND status='completed' ORDER BY datetime(created_at) DESC LIMIT 20",
+                (str(tx_uid),),
+            ).fetchall()
+        for trx_id, usdc, network in rows:
+            try:
+                usd = float(usdc or 0)
+            except (TypeError, ValueError):
+                usd = 0.0
+            if usd < threshold:
+                continue
+            if db.notification_exists_for_ref(uid, 'large_tx', f"tx:{trx_id}"):
+                continue
+            db.create_notification(
+                uid, 'large_tx', 'Large transaction confirmed',
+                f"A transaction of ${usd:,.2f} on {str(network).upper()} was confirmed.",
+                metadata={'ref': f"tx:{trx_id}", 'network': network, 'usd': usd},
+            )
+    except Exception as exc:
+        logger.warning("Large tx notification sync failed: %s", exc)
+
+
+@app.route('/api/portfolio/overview', methods=['GET'])
+@token_required
+def portfolio_overview(current_user):
+    uid = _uid(current_user)
+    try:
+        wallets = list_wallet_balances(uid)
+    except Exception as exc:
+        logger.error("Portfolio balances failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't load your portfolio right now. Please try again.", 'data': None}), 500
+
+    holdings = []
+    total = 0.0
+    price_cache = {}
+    for w in wallets:
+        bal = w.get('balance')
+        try:
+            amount = float(bal) if bal not in (None, '') else 0.0
+        except (TypeError, ValueError):
+            amount = 0.0
+        if amount <= 0:
+            continue
+        asset = w.get('asset') or _NETWORK_ASSET.get(w.get('network'), 'TOKEN')
+        if asset not in price_cache:
+            price_cache[asset] = _get_symbol_price_usd(asset, w.get('network'))
+        price = price_cache[asset]
+        if price is not None:
+            usd = amount * float(price)
+        elif asset in _STABLE_SYMBOLS:
+            usd = amount
+        else:
+            usd = 0.0
+        holdings.append({
+            'asset': asset,
+            'network': w.get('network'),
+            'label': w.get('label'),
+            'address': w.get('wallet_address'),
+            'amount': amount,
+            'usd_value': round(usd, 2),
+        })
+        total += usd
+
+    for h in holdings:
+        h['pct'] = round((h['usd_value'] / total * 100), 2) if total > 0 else 0.0
+    holdings.sort(key=lambda h: h['usd_value'], reverse=True)
+
+    change_pct = None
+    try:
+        # Read the prior value BEFORE recording today's snapshot, otherwise the
+        # just-inserted row becomes the "24h ago" value and change is always 0%.
+        prev = db.get_portfolio_value_24h_ago(uid)
+        db.record_portfolio_snapshot(uid, total)
+        if prev and prev > 0:
+            change_pct = round((total - prev) / prev * 100, 2)
+    except Exception as exc:
+        logger.warning("Portfolio snapshot/24h change failed: %s", exc)
+
+    fired = _check_price_alerts(uid) if _eval_due(uid, 'price_alert') else []
+
+    return jsonify({'ok': True, 'message': 'ok', 'data': {
+        'net_worth_usd': round(total, 2),
+        'change_24h_pct': change_pct,
+        'holdings': holdings,
+        'alerts_triggered': fired,
+    }})
+
+
+@app.route('/api/price-alerts', methods=['GET'])
+@token_required
+def list_price_alerts_route(current_user):
+    try:
+        alerts = db.list_price_alerts(_uid(current_user))
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'alerts': alerts}})
+    except Exception as exc:
+        logger.error("List price alerts failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't load your price alerts. Please try again.", 'data': None}), 500
+
+
+@app.route('/api/price-alerts', methods=['POST'])
+@token_required
+def create_price_alert_route(current_user):
+    data = request.get_json() or {}
+    symbol = (data.get('symbol') or '').strip()
+    direction = (data.get('direction') or 'below').lower()
+    chain = data.get('chain')
+    if not symbol:
+        return jsonify({'ok': False, 'message': 'Please enter the asset symbol (e.g. BTC).', 'data': None}), 400
+    if symbol.upper() not in _SUPPORTED_PRICE_SYMBOLS:
+        supported = ', '.join(sorted(_SUPPORTED_PRICE_SYMBOLS))
+        return jsonify({'ok': False, 'message': f"'{symbol}' isn't supported for live pricing yet. Supported assets: {supported}.", 'data': None}), 400
+    if direction not in ('above', 'below'):
+        return jsonify({'ok': False, 'message': "Direction must be 'above' or 'below'.", 'data': None}), 400
+    try:
+        target = float(data.get('target_price'))
+        if target <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'message': 'Please enter a valid target price greater than zero.', 'data': None}), 400
+    try:
+        alert_id = db.create_price_alert(_uid(current_user), symbol, chain, direction, target)
+        return jsonify({'ok': True, 'message': 'Price alert created.', 'data': {'id': alert_id}})
+    except Exception as exc:
+        logger.error("Create price alert failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't create that price alert. Please try again.", 'data': None}), 500
+
+
+@app.route('/api/price-alerts/<int:alert_id>', methods=['DELETE'])
+@token_required
+def delete_price_alert_route(current_user, alert_id):
+    try:
+        ok = db.delete_price_alert(_uid(current_user), alert_id)
+        if not ok:
+            return jsonify({'ok': False, 'message': 'That alert was not found. It may already be removed.', 'data': None}), 404
+        return jsonify({'ok': True, 'message': 'Price alert cancelled.', 'data': None})
+    except Exception as exc:
+        logger.error("Delete price alert failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't cancel that alert. Please try again.", 'data': None}), 500
+
+
+@app.route('/api/analytics/summary', methods=['GET'])
+@token_required
+def analytics_summary(current_user):
+    tx_uid = _tx_user_id(current_user)
+    period = (request.args.get('period') or 'month').lower()
+    days_map = {'week': 7, 'month': 30, 'quarter': 90, 'year': 365, 'all': 36500}
+    days = days_map.get(period, 30)
+    try:
+        from contextlib import closing as _closing
+        from db import connect as _connect
+        with _closing(_connect()) as con:
+            rows = con.execute(
+                "SELECT amount_usdc, amount_bdt, network, wallet, created_at FROM transactions "
+                "WHERE user_id=? AND status='completed' AND datetime(created_at) >= datetime('now', ?)",
+                (str(tx_uid), f'-{days} days'),
+            ).fetchall()
+            prev_rows = con.execute(
+                "SELECT amount_usdc FROM transactions WHERE user_id=? AND status='completed' "
+                "AND datetime(created_at) >= datetime('now', ?) AND datetime(created_at) < datetime('now', ?)",
+                (str(tx_uid), f'-{days * 2} days', f'-{days} days'),
+            ).fetchall()
+
+        by_asset, by_network, recipients = {}, {}, {}
+        total_volume = 0.0
+        for usdc, _bdt, network, wallet, _created in rows:
+            try:
+                amt = float(usdc or 0)
+            except (TypeError, ValueError):
+                amt = 0.0
+            total_volume += amt
+            asset = _NETWORK_ASSET.get(network, 'TOKEN')
+            by_asset[asset] = by_asset.get(asset, 0.0) + amt
+            by_network[network or 'unknown'] = by_network.get(network or 'unknown', 0.0) + amt
+            if wallet:
+                recipients[wallet] = recipients.get(wallet, 0) + 1
+
+        prev_volume = 0.0
+        for (usdc,) in prev_rows:
+            try:
+                prev_volume += float(usdc or 0)
+            except (TypeError, ValueError):
+                pass
+
+        spend_by_asset = sorted(
+            [{'asset': k, 'usd_value': round(v, 2)} for k, v in by_asset.items()],
+            key=lambda x: x['usd_value'], reverse=True)
+        spend_by_network = sorted(
+            [{'network': k, 'usd_value': round(v, 2)} for k, v in by_network.items()],
+            key=lambda x: x['usd_value'], reverse=True)
+        top_recipients = sorted(
+            [{'address': k, 'count': v} for k, v in recipients.items()],
+            key=lambda x: x['count'], reverse=True)[:10]
+
+        change = round((total_volume - prev_volume) / prev_volume * 100, 2) if prev_volume > 0 else None
+
+        return jsonify({'ok': True, 'message': 'ok', 'data': {
+            'period': period,
+            'total_volume': round(total_volume, 2),
+            'prev_volume': round(prev_volume, 2),
+            'volume_change_pct': change,
+            'tx_count': len(rows),
+            'spend_by_asset': spend_by_asset,
+            'spend_by_network': spend_by_network,
+            'top_recipients': top_recipients,
+        }})
+    except Exception as exc:
+        logger.error("Analytics summary failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't load your analytics right now. Please try again.", 'data': None}), 500
+
+
+@app.route('/api/notifications', methods=['GET'])
+@token_required
+def get_notifications(current_user):
+    uid = _uid(current_user)
+    # Lightweight, on-demand event detection. The Telegram bot owns the shared
+    # mouno.db background monitors; the web app intentionally runs no scheduler
+    # (see automation note above), so we evaluate alerts/large-tx on read.
+    # Throttled to at most once per _EVAL_MIN_INTERVAL per user so 30s polling
+    # does not trigger blocking price lookups on every request.
+    if _eval_due(uid, 'large_tx'):
+        _sync_large_tx_notifications(uid, _tx_user_id(current_user))
+    if _eval_due(uid, 'price_alert'):
+        _check_price_alerts(uid)
+    try:
+        items = db.list_notifications(uid, limit=50)
+        unread = db.count_unread_notifications(uid)
+        return jsonify({'ok': True, 'message': 'ok', 'data': {'notifications': items, 'unread': unread}})
+    except Exception as exc:
+        logger.error("List notifications failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't load your notifications right now. Please try again.", 'data': None}), 500
+
+
+@app.route('/api/notifications/read', methods=['POST'])
+@token_required
+def mark_notifications_read_route(current_user):
+    uid = _uid(current_user)
+    data = request.get_json(silent=True) or {}
+    notif_id = data.get('id')
+    # Validate client input separately so a malformed id is a 400, not a 500.
+    try:
+        notif_id = int(notif_id) if notif_id is not None else None
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'message': 'Invalid notification id.', 'data': None}), 400
+    try:
+        db.mark_notifications_read(uid, notif_id)
+        return jsonify({'ok': True, 'message': 'Marked as read', 'data': {'unread': db.count_unread_notifications(uid)}})
+    except Exception as exc:
+        logger.error("Mark notifications read failed: %s", exc)
+        return jsonify({'ok': False, 'message': "We couldn't update your notifications. Please try again.", 'data': None}), 500
 
 
 if __name__ == '__main__':

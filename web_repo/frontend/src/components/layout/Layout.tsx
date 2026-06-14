@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { NAV_GROUPS } from './navConfig';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -78,6 +79,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Languages className="h-4 w-4" />
               <span className="text-xs font-mono">{i18n.language === 'bn' ? 'EN' : 'বাং'}</span>
             </Button>
+
+            {token && <NotificationBell />}
 
             {token ? (
               <DropdownMenu>
