@@ -509,6 +509,11 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_user
             ON portfolio_snapshots(user_id, created_at DESC)
         """)
+        # Speeds up the per-user transaction reads used by analytics + notification sync.
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_status_created
+            ON transactions(user_id, status, created_at DESC)
+        """)
         con.commit()
 
 
@@ -2619,6 +2624,31 @@ def create_notification(user_id, ntype, title, body=None, metadata=None):
         )
         con.commit()
         return cur.lastrowid
+
+
+def fire_price_alert(alert_id, user_id, title, body=None, metadata=None):
+    """Mark an alert triggered AND create its notification in one transaction.
+
+    Both writes commit together (or roll back together) so an alert can never be
+    marked triggered without the user receiving the corresponding notification.
+    """
+    import json as _json
+    meta = _json.dumps(metadata) if isinstance(metadata, (dict, list)) else metadata
+    with closing(connect()) as con:
+        try:
+            con.execute(
+                "UPDATE price_alerts SET status='triggered', triggered_at=CURRENT_TIMESTAMP WHERE id=?",
+                (int(alert_id),),
+            )
+            cur = con.execute(
+                "INSERT INTO notifications (user_id, type, title, body, metadata) VALUES (?, ?, ?, ?, ?)",
+                (str(user_id), 'price_alert', str(title), body, meta),
+            )
+            con.commit()
+            return cur.lastrowid
+        except Exception:
+            con.rollback()
+            raise
 
 
 def list_notifications(user_id, limit=50):

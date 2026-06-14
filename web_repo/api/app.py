@@ -1911,9 +1911,10 @@ def _check_price_alerts(uid):
         if not hit:
             continue
         try:
-            db.mark_price_alert_triggered(a['id'])
-            db.create_notification(
-                uid, 'price_alert', f"{sym} price alert",
+            # Atomic: marking the alert triggered and inserting the notification
+            # commit together, so an alert can't be consumed without notifying.
+            db.fire_price_alert(
+                a['id'], uid, f"{sym} price alert",
                 f"{sym} is now ${current:,.4f}, "
                 f"{'above' if a['direction'] == 'above' else 'below'} your target of ${target:,.4f}.",
                 metadata={'ref': f"alert:{a['id']}", 'symbol': sym, 'price': current, 'target': target},
@@ -2173,8 +2174,13 @@ def mark_notifications_read_route(current_user):
     uid = _uid(current_user)
     data = request.get_json(silent=True) or {}
     notif_id = data.get('id')
+    # Validate client input separately so a malformed id is a 400, not a 500.
     try:
-        db.mark_notifications_read(uid, int(notif_id) if notif_id is not None else None)
+        notif_id = int(notif_id) if notif_id is not None else None
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'message': 'Invalid notification id.', 'data': None}), 400
+    try:
+        db.mark_notifications_read(uid, notif_id)
         return jsonify({'ok': True, 'message': 'Marked as read', 'data': {'unread': db.count_unread_notifications(uid)}})
     except Exception as exc:
         logger.error("Mark notifications read failed: %s", exc)

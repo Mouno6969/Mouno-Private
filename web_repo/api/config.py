@@ -61,8 +61,12 @@ TON_API_KEY = os.getenv("TON_API_KEY")
 TON_RPC = os.getenv("TON_RPC", "https://toncenter.com")
 LOW_BALANCE_THRESHOLD = float(os.getenv("LOW_BALANCE_THRESHOLD", "1.0"))
 # USD value at/above which a confirmed transaction triggers a "large transaction"
-# in-app notification. Configurable via env.
-LARGE_TX_USD_THRESHOLD = float(os.getenv("LARGE_TX_USD_THRESHOLD", "100"))
+# in-app notification. Configurable via env. Parsed defensively so an empty or
+# malformed env value can't crash the API at import time.
+try:
+    LARGE_TX_USD_THRESHOLD = float(os.getenv("LARGE_TX_USD_THRESHOLD", "100") or "100")
+except (TypeError, ValueError):
+    LARGE_TX_USD_THRESHOLD = 100.0
 DEFAULT_COST_RATE_BDT = float(os.getenv("DEFAULT_COST_RATE_BDT", "0") or 0)
 LOW_GAS_THRESHOLD_SOLANA = float(os.getenv("LOW_GAS_THRESHOLD_SOLANA", "0.01"))
 LOW_GAS_THRESHOLD_BSC = float(os.getenv("LOW_GAS_THRESHOLD_BSC", "0.003"))
