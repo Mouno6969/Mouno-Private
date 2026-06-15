@@ -303,7 +303,7 @@ const resources = {
       "triggered": "ট্রিগার হয়েছে",
       "login_required": "অনুগ্রহ করে লগ ইন করুন",
       "notifications": "নোটিফিকেশন",
-      "no_notifications": "এখনও কোনো ���োটিফিকেশন নেই",
+      "no_notifications": "এখনও কোনো নোটিফিকেশন নেই",
       "mark_all_read": "সব পঠিত হিসেবে চিহ্নিত করুন",
       "just_now": "এইমাত্র",
       "aria_notifications": "নোটিফিকেশন",
