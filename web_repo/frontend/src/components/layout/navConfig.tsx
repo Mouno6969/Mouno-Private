@@ -6,6 +6,7 @@ import {
   Store,
   History,
   Wallet,
+  Layers,
   Coins,
   Banknote,
   PieChart,
@@ -55,6 +56,7 @@ export const NAV_GROUPS: NavGroup[] = [
     titleKey: 'nav_wallet',
     items: [
       { labelKey: 'wallet', icon: <Wallet className="h-4 w-4" />, path: '/wallet' },
+      { labelKey: 'nav_unified', icon: <Layers className="h-4 w-4" />, path: '/unified' },
       { labelKey: 'nav_portfolio', icon: <PieChart className="h-4 w-4" />, path: '/portfolio' },
       { labelKey: 'nav_balance', icon: <Coins className="h-4 w-4" />, path: '/balance' },
       { labelKey: 'nav_analytics', icon: <BarChart3 className="h-4 w-4" />, path: '/analytics' },

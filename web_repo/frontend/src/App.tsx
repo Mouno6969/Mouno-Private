@@ -20,6 +20,7 @@ import Seller from './pages/Seller';
 import LinkTelegram from './pages/LinkTelegram';
 import Giveaway from './pages/Giveaway';
 import Balance from './pages/Balance';
+import UnifiedWallet from './pages/UnifiedWallet';
 import FAQ from './pages/FAQ';
 import Terms from './pages/Terms';
 import TxLog from './pages/TxLog';
@@ -77,6 +78,7 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/link-telegram" element={token ? <LinkTelegram /> : <Navigate to="/login" />} />
         <Route path="/giveaway" element={<Giveaway />} />
         <Route path="/balance" element={token ? <Balance /> : <Navigate to="/login" />} />
+        <Route path="/unified" element={token ? <UnifiedWallet /> : <Navigate to="/login" />} />
         <Route path="/portfolio" element={token ? <Portfolio /> : <Navigate to="/login" />} />
         <Route path="/analytics" element={token ? <Analytics /> : <Navigate to="/login" />} />
         <Route path="/insights" element={<Insights />} />
