@@ -86,6 +86,18 @@ TELEGRAM_AUTH_BASE_URL = os.getenv("TELEGRAM_AUTH_BASE_URL", SCB_FORWARDER_SERVE
 BACKUP_UPLOAD_URL = os.getenv("BACKUP_UPLOAD_URL")
 SELLER_WALLET_MASTER_KEY = os.getenv("SELLER_WALLET_MASTER_KEY")
 
+# ─── Web app CORS / origins ───
+# Comma-separated list of origins allowed to call the API and open WebSocket
+# connections. Defaults to the known production origin so a fresh deploy is
+# locked down by default; override via env (e.g. for staging or a custom
+# domain). Set to "*" ONLY for local development — never in production, since
+# the API performs authenticated money operations.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", SCB_FORWARDER_SERVER_URL).split(",")
+    if o.strip()
+]
+
 # ─── Webhook notifications (Telegram / Discord) ───
 # TELEGRAM_CHAT_ID is the channel the bot posts all web updates to. Telegram
 # channel ids must be prefixed with -100 for the Bot API, so the raw channel id

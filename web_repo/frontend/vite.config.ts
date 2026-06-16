@@ -34,7 +34,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'build',
-    sourcemap: true,
+    // Don't ship readable source maps to production — they expose the full
+    // frontend source (auth flow, API client) to anyone who opens devtools.
+    // Keep them in dev/preview builds for debuggability.
+    sourcemap: process.env.NODE_ENV !== 'production',
   },
   test: {
     globals: true,
