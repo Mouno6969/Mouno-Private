@@ -2229,4 +2229,6 @@ def mark_notifications_read_route(current_user):
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5001)
+    # Bind to loopback only: reverse proxies (Caddy, cloudflared) connect from
+    # localhost, so the app must not be exposed on the public interface.
+    socketio.run(app, host='127.0.0.1', port=5001)
