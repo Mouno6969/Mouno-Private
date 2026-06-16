@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 // The Flask backend serves the production SPA from `frontend/build`
 // (see web_repo/api/main.py), so we keep Vite's output directory as `build`
 // instead of the default `dist` to avoid touching the backend.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   // Re-run dependency pre-bundling on startup to keep the optimizer cache fresh.
   optimizeDeps: {
@@ -36,8 +36,10 @@ export default defineConfig({
     outDir: 'build',
     // Don't ship readable source maps to production — they expose the full
     // frontend source (auth flow, API client) to anyone who opens devtools.
-    // Keep them in dev/preview builds for debuggability.
-    sourcemap: process.env.NODE_ENV !== 'production',
+    // Keep them in dev/preview builds for debuggability. Gate on Vite's `mode`
+    // (always 'production' for `vite build`) rather than NODE_ENV, which a CI
+    // or base image could set to 'development' and leak maps into prod.
+    sourcemap: mode !== 'production',
   },
   test: {
     globals: true,
@@ -45,4 +47,4 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
     css: true,
   },
-});
+}));
