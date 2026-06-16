@@ -30,4 +30,6 @@ def serve(path):
     return f"Not Found: {path}", 404
 
 if __name__ == '__main__':
-    socketio.run(api_app, host='0.0.0.0', port=5001)
+    # Bind to loopback only: Caddy and cloudflared both proxy from localhost,
+    # so the app must not be reachable directly on the public interface.
+    socketio.run(api_app, host='127.0.0.1', port=5001)
