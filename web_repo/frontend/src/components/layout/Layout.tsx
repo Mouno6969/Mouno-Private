@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -34,21 +34,60 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation();
   const { user, logout, token } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const searchRef = React.useRef<HTMLInputElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   React.useEffect(() => {
     setIsMenuOpen(false);
+    setQuery('');
   }, [location.pathname]);
 
   React.useEffect(() => {
     document.documentElement.lang = i18n.language === 'bn' ? 'bn' : 'en';
   }, [i18n.language]);
 
+  // Press "/" anywhere (outside a field) to focus the sidebar search.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === 'bn' ? 'en' : 'bn');
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  // Treat "/" and "/dashboard" as the same route (dashboard aliasing).
+  const isActive = (path: string) => {
+    const normalized = location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/') return normalized === '/' || normalized === '/dashboard';
+    return normalized === path;
+  };
+
+  // Live nav search: match dashboard + every nav item by its translated label.
+  const searchResults = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const items = [
+      { labelKey: 'nav_dashboard', path: '/', icon: <Home className="h-4 w-4" /> },
+      ...ALL_NAV_ITEMS,
+    ];
+    return items.filter((i) => t(i.labelKey).toLowerCase().includes(q)).slice(0, 6);
+  }, [query, t]);
+
+  const goToResult = (path: string) => {
+    setQuery('');
+    searchRef.current?.blur();
+    navigate(path);
+  };
 
   // Resolve a human title for the current route for the header.
   const currentTitle = (() => {
@@ -86,16 +125,51 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Search */}
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-[1.25rem] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
+              ref={searchRef}
               type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchResults.length > 0) goToResult(searchResults[0].path);
+                if (e.key === 'Escape') {
+                  setQuery('');
+                  searchRef.current?.blur();
+                }
+              }}
               placeholder={t('search', 'Search') as string}
               className="h-10 w-full rounded-xl border border-border/60 bg-secondary/40 pl-9 pr-10 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t('search', 'Search') as string}
             />
-            <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 select-none rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground lg:inline-block">
-              /K
+            <kbd className="pointer-events-none absolute right-2.5 top-[1.25rem] hidden -translate-y-1/2 select-none rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground lg:inline-block">
+              /
             </kbd>
+
+            {query.trim() && (
+              <div
+                className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-border/60 bg-popover/95 shadow-xl backdrop-blur-xl"
+                role="listbox"
+              >
+                {searchResults.length > 0 ? (
+                  searchResults.map((item) => (
+                    <button
+                      key={item.path}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => goToResult(item.path)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary/60"
+                    >
+                      <span className="text-muted-foreground">{item.icon}</span>
+                      {t(item.labelKey)}
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-3 py-2.5 text-sm text-muted-foreground">{t('no_results', 'No results')}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Nav */}
