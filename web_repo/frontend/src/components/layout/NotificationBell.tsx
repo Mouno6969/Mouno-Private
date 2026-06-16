@@ -50,10 +50,10 @@ const NotificationBell: React.FC = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
           aria-label={t('aria_notifications', 'Notifications')}
-          className="relative h-8 w-8 rounded-none border border-white/10 hover:border-white"
+          className="relative h-9 w-9 rounded-xl"
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
