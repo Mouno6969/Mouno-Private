@@ -83,7 +83,17 @@ def broadcast_sellers_update():
         logger.error("Broadcast sellers update failed: %s", exc)
 
 app = Flask(__name__, static_folder=None)
-CORS(app)
+
+# Restrict CORS to known origins instead of allowing every site to make
+# credentialed requests to a money-handling API. Origins come from config
+# (env-overridable); "*" should only ever be used for local development.
+#
+# Note: the CORS spec forbids combining a "*" origin with credentials, and
+# browsers reject such responses outright. So we only enable credentials when
+# we have an explicit allow-list; the wildcard dev fallback runs without them.
+_ALLOWED_ORIGINS = config.ALLOWED_ORIGINS or ["*"]
+_CORS_SUPPORTS_CREDENTIALS = _ALLOWED_ORIGINS != ["*"]
+CORS(app, origins=_ALLOWED_ORIGINS, supports_credentials=_CORS_SUPPORTS_CREDENTIALS)
 
 
 class _NoopSocketIO:
@@ -106,7 +116,7 @@ class _NoopSocketIO:
 
 
 if _SOCKETIO_AVAILABLE:
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+    socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS, async_mode='threading')
 else:
     logger.warning(
         "flask_socketio is not installed - realtime updates disabled. "
@@ -117,6 +127,37 @@ _SECRET = os.getenv("WEB_SECRET_KEY")
 if not _SECRET:
     raise RuntimeError("WEB_SECRET_KEY must be set in the environment")
 app.config['SECRET_KEY'] = _SECRET
+
+
+@app.after_request
+def set_security_headers(response):
+    """Attach baseline security headers to every response.
+
+    Defends against clickjacking, MIME sniffing and referrer leakage, and asks
+    browsers to pin HTTPS. The CSP is intentionally permissive about styles
+    (Tailwind injects inline styles) but blocks framing and restricts default
+    sources to same-origin. Tune as needed for any future third-party embeds.
+    """
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault(
+        'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+    )
+    response.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; "
+        "img-src 'self' data: https:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "connect-src 'self' https: wss:; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'"
+    )
+    return response
+
 
 # Ensure automation tables exist on startup. These share the same SQLite DB
 # (mouno.db) as the Telegram bot, whose limit_order_monitor / scheduled_buy_runner
