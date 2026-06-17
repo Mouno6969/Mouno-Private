@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
@@ -55,14 +56,16 @@ def _friendly_lifi_message(message, status):
     text = str(message or "").lower()
     if status == 429:
         return "The swap service is busy right now. Please try again in a moment."
+    if "same token" in text or "both the source and destination" in text:
+        return "Source and destination are the same token. Pick two different tokens."
     if any(s in text for s in ("no available", "no route", "could not find a", "no quote")):
         return "No swap route is available for this pair and amount right now."
-    if "invalid fromaddress" in text or "invalid toaddress" in text:
+    if "invalid fromaddress" in text or "invalid toaddress" in text or "extended address" in text:
         return "A wallet address for one of the selected networks is missing or invalid."
-    if "token" in text and ("not" in text or "invalid" in text or "unknown" in text):
-        return "One of the selected tokens is not supported on its network."
     if "amount" in text:
         return "The amount is too small or invalid for this swap."
+    if "token" in text and ("not" in text or "invalid" in text or "unknown" in text):
+        return "One of the selected tokens is not supported on its network."
     if status == 404:
         return "No swap route is available for this pair right now."
     return "Unable to get a swap quote for this pair right now. Please try again."
@@ -164,50 +167,67 @@ def chain_ecosystem(chain_id):
     return "EVM"
 
 
+_EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+_BTC_ADDRESS_RE = re.compile(r"^(bc1[02-9ac-hj-np-z]{6,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$")
+_SVM_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+
+
 def _is_evm_address(address):
+    return bool(_EVM_ADDRESS_RE.match(str(address or "").strip()))
+
+
+def _is_utxo_address(address):
+    return bool(_BTC_ADDRESS_RE.match(str(address or "").strip()))
+
+
+def _is_svm_address(address):
     a = str(address or "").strip()
-    if not (a.startswith("0x") and len(a) == 42):
-        return False
-    try:
-        int(a, 16)
-    except ValueError:
-        return False
-    return True
+    # Solana base58 pubkeys are 32-44 chars. Exclude anything that looks like a
+    # Bitcoin address so a UTXO address is never accepted for an SVM leg.
+    return bool(_SVM_ADDRESS_RE.match(a)) and not a.startswith(("bc1", "tb1"))
+
+
+_ADDRESS_VALIDATORS = {
+    "EVM": _is_evm_address,
+    "SVM": _is_svm_address,
+    "UTXO": _is_utxo_address,
+}
 
 
 def _pick_address(explicit, ecosystem):
-    """Return a chain-appropriate address.
+    """Return (address, is_real) for a chain leg.
 
-    Use the caller-supplied address only when it matches the chain's ecosystem
-    (so a real EVM wallet is used for EVM legs, enabling executable quotes);
-    otherwise fall back to a valid placeholder so cross-ecosystem quotes still
-    price correctly.
+    The caller-supplied address is used only when it is a valid address for
+    *this leg's specific ecosystem* (so a real wallet enables an executable
+    quote). Otherwise a valid per-ecosystem placeholder is returned and
+    is_real is False — meaning the quote can only be used for pricing, never
+    for execution (executing with a placeholder destination would send funds
+    to an address the user does not control).
     """
     address = str(explicit or "").strip()
-    if address:
-        is_evm = _is_evm_address(address)
-        if ecosystem == "EVM" and is_evm:
-            return address
-        if ecosystem != "EVM" and not is_evm:
-            return address
-    return ECOSYSTEM_PLACEHOLDER[ecosystem]
+    validator = _ADDRESS_VALIDATORS[ecosystem]
+    if address and validator(address):
+        return address, True
+    return ECOSYSTEM_PLACEHOLDER[ecosystem], False
 
 
 def resolve_quote_addresses(intent):
-    """Choose fromAddress and toAddress that match each leg's ecosystem.
+    """Choose fromAddress/toAddress matching each leg's ecosystem.
 
     Accepts an intent that may carry `from_address`, `to_address`, and/or the
-    legacy single `wallet`. Falls back to per-ecosystem placeholders so any
-    network-to-any-network quote succeeds.
+    legacy single `wallet`. Returns (from_address, to_address, from_is_real,
+    to_is_real); a placeholder is substituted (is_real=False) when no valid
+    address for that leg's ecosystem was supplied, so any-network-to-any-network
+    quotes still *price* while only fully-addressed quotes are executable.
     """
     from_eco = chain_ecosystem(intent.get("from_chain_id"))
     to_eco = chain_ecosystem(intent.get("to_chain_id"))
     wallet = intent.get("wallet")
     explicit_from = intent.get("from_address") or wallet
     explicit_to = intent.get("to_address") or wallet
-    from_address = _pick_address(explicit_from, from_eco)
-    to_address = _pick_address(explicit_to, to_eco)
-    return from_address, to_address
+    from_address, from_real = _pick_address(explicit_from, from_eco)
+    to_address, to_real = _pick_address(explicit_to, to_eco)
+    return from_address, to_address, from_real, to_real
 
 
 def normalize_token_input(token, chain_id=None):
@@ -285,9 +305,14 @@ def get_lifi_status(chain_id, tx_hash, api_key=None):
 def quote_lifi(intent, api_key=None, timeout=35):
     from_token = fetch_token(intent["from_chain_id"], intent["from_token"], api_key=api_key)
     to_token = fetch_token(intent["to_chain_id"], intent["to_token"], api_key=api_key)
+    if (
+        str(intent["from_chain_id"]) == str(intent["to_chain_id"])
+        and str(from_token.get("address") or "").lower() == str(to_token.get("address") or "").lower()
+    ):
+        raise SwapError("Source and destination are the same token. Pick two different tokens.", 400)
     from_amount_raw = decimal_amount_to_raw(intent["amount"], from_token["decimals"])
     order = "FASTEST" if intent.get("preference") == "fastest" else "CHEAPEST"
-    from_address, to_address = resolve_quote_addresses(intent)
+    from_address, to_address, from_real, to_real = resolve_quote_addresses(intent)
     params = {
         "fromChain": str(intent["from_chain_id"]),
         "toChain": str(intent["to_chain_id"]),
@@ -308,6 +333,11 @@ def quote_lifi(intent, api_key=None, timeout=35):
     quote = _lifi_get("/quote", params, api_key, timeout)
     quote["_fromTokenInfo"] = from_token
     quote["_toTokenInfo"] = to_token
+    # A quote is only executable when BOTH legs used a real, ecosystem-matched
+    # address. With any placeholder in play the returned transactionRequest
+    # would send funds to an address the user does not control, so it must be
+    # treated as pricing-only by callers.
+    quote["_executable"] = bool(from_real and to_real)
     return quote
 
 
@@ -325,7 +355,11 @@ def summarize_quote(quote):
     from_addr = str(from_token.get("address") or "").lower()
     approval_needed = bool(approval_address and from_addr not in NATIVE_TOKEN_ADDRESSES)
     tx = quote.get("transactionRequest") or {}
-    return {
+    # Only expose signable transaction fields when the quote was built with real
+    # source AND destination addresses. Default True so any other caller of this
+    # helper keeps its previous behaviour; quote_lifi always sets the flag.
+    executable = bool(quote.get("_executable", True))
+    summary = {
         "tool": quote.get("toolDetails", {}).get("name") or quote.get("tool") or "LI.FI",
         "from_symbol": from_token.get("symbol") or "from token",
         "to_symbol": to_token.get("symbol") or "to token",
@@ -334,13 +368,21 @@ def summarize_quote(quote):
         "gas_usd": format(gas_usd, "f"),
         "fee_usd": format(fee_usd, "f"),
         "duration": duration,
-        "approval_needed": approval_needed,
-        "approval_address": approval_address,
-        "tx_to": tx.get("to"),
-        "tx_value": tx.get("value"),
-        "tx_data": tx.get("data"),
-        "chain_id": tx.get("chainId"),
+        "executable": executable,
+        "approval_needed": approval_needed if executable else False,
+        "approval_address": approval_address if executable else None,
+        "tx_to": tx.get("to") if executable else None,
+        "tx_value": tx.get("value") if executable else None,
+        "tx_data": tx.get("data") if executable else None,
+        "chain_id": tx.get("chainId") if executable else None,
     }
+    if not executable:
+        summary["pricing_only"] = True
+        summary["execution_note"] = (
+            "Price estimate only. Provide a wallet address for both the source "
+            "and destination networks to get an executable swap."
+        )
+    return summary
 
 
 def build_lifi_widget_url(intent, quote=None, base_url="https://jumper.exchange/"):

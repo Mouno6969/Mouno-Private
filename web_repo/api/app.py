@@ -379,7 +379,13 @@ def swap_quote():
     try:
         quote = quote_lifi(intent, api_key=config.LIFI_API_KEY)
         summary = summarize_quote(quote)
-        return jsonify({**quote, "summary": summary})
+        payload = {**quote, "summary": summary}
+        # Pricing-only quotes (built with a placeholder address) must not carry a
+        # signable transaction — executing it would send funds to an address the
+        # user does not control.
+        if not summary.get("executable", True):
+            payload.pop("transactionRequest", None)
+        return jsonify(payload)
     except SwapError as e:
         return jsonify({'error': e.message}), e.status
     except ValueError as e:
