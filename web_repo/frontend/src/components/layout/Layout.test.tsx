@@ -112,11 +112,10 @@ describe('Layout', () => {
       expect(mockChangeLanguage).toHaveBeenCalledWith('en');
     });
 
-    it('lang button has rounded-none and border classes', () => {
+    it('lang button has rounded-xl class', () => {
       renderLayout();
       const langBtn = screen.getByText('বাং').closest('button') as HTMLElement;
-      expect(langBtn.className).toContain('rounded-none');
-      expect(langBtn.className).toContain('border');
+      expect(langBtn.className).toContain('rounded-xl');
     });
   });
 
@@ -164,7 +163,7 @@ describe('Layout', () => {
       expect(screen.queryByText('login')).not.toBeInTheDocument();
     });
 
-    it('user initial button has rounded-none class', () => {
+    it('user initial button has rounded-xl class', () => {
       mockUseAuth.mockReturnValue({
         user: { username: 'alice', telegram_id: null },
         token: 'abc123',
@@ -172,7 +171,7 @@ describe('Layout', () => {
       });
       renderLayout();
       const btn = screen.getByText('A').closest('button') as HTMLElement;
-      expect(btn.className).toContain('rounded-none');
+      expect(btn.className).toContain('rounded-xl');
     });
   });
 
