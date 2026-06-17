@@ -12,9 +12,9 @@ import { apiClient } from '../../lib/apiClient';
 import type { AppNotification, NotificationType } from '../../types';
 
 const ICONS: Record<NotificationType, React.ReactNode> = {
-  price_alert: <TrendingUp className="h-4 w-4 text-blue-400" />,
-  bonus: <Gift className="h-4 w-4 text-green-400" />,
-  large_tx: <ArrowUpRight className="h-4 w-4 text-yellow-400" />,
+  price_alert: <TrendingUp className="h-4 w-4 text-info" />,
+  bonus: <Gift className="h-4 w-4 text-success" />,
+  large_tx: <ArrowUpRight className="h-4 w-4 text-warning" />,
   info: <Info className="h-4 w-4 text-muted-foreground" />,
 };
 

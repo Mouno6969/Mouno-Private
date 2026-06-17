@@ -32,7 +32,11 @@
     --destructive-foreground: 0 0% 100%;
 
     --success: 152 62% 46%;
+    --success-foreground: 0 0% 100%;
     --warning: 38 92% 58%;
+    --warning-foreground: 38 95% 8%;
+    --info: 205 90% 60%;
+    --info-foreground: 0 0% 100%;
 
     --border: 225 22% 20%;
     --input: 225 22% 20%;
@@ -104,7 +108,36 @@
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid hsl(var(--border) / 0.8);
   }
+
+  /* ── Semantic status pills ──
+     Consistent success / warning / danger / info treatments so pages stop
+     reaching for raw Tailwind palette colors (green-500, red-500, etc). */
+  .pill-success {
+    background-color: hsl(var(--success) / 0.12);
+    color: hsl(var(--success));
+    border: 1px solid hsl(var(--success) / 0.25);
+  }
+  .pill-warning {
+    background-color: hsl(var(--warning) / 0.12);
+    color: hsl(var(--warning));
+    border: 1px solid hsl(var(--warning) / 0.25);
+  }
+  .pill-danger {
+    background-color: hsl(var(--destructive) / 0.12);
+    color: hsl(var(--destructive));
+    border: 1px solid hsl(var(--destructive) / 0.25);
+  }
+  .pill-info {
+    background-color: hsl(var(--info) / 0.12);
+    color: hsl(var(--info));
+    border: 1px solid hsl(var(--info) / 0.25);
+  }
 }
+
+/* Semantic text/accent helpers usable anywhere */
+.text-success { color: hsl(var(--success)); }
+.text-warning { color: hsl(var(--warning)); }
+.text-info { color: hsl(var(--info)); }
 
 .font-mono {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Noto Sans Bengali", "Courier New", monospace;
