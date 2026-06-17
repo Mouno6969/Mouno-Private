@@ -1,7 +1,13 @@
+import re
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
 import requests
+
+try:
+    import base58 as _base58
+except Exception:  # pragma: no cover - base58 is an optional hardening dep
+    _base58 = None
 
 
 LIFI_BASE_URL = "https://li.quest/v1"
@@ -10,7 +16,33 @@ NATIVE_TOKEN_ADDRESSES = {
     "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "11111111111111111111111111111111",
 }
-DEFAULT_WALLET = "0x0000000000000000000000000000000000000001"
+
+# Per-ecosystem placeholder addresses used when the caller has not supplied a
+# real wallet of the matching type. LI.FI validates that fromAddress/toAddress
+# are well-formed for their chain, so a quote across ecosystems (e.g. BTC -> ETH
+# or SOL -> USDC) fails with "Invalid fromAddress" unless each side gets an
+# address of the correct format. These are valid, well-known placeholder
+# addresses good enough to *price* a route; real execution still requires the
+# user's own addresses (passed through as from_address / to_address).
+ECOSYSTEM_PLACEHOLDER = {
+    "EVM": "0x000000000000000000000000000000000000dEaD",
+    "SVM": "11111111111111111111111111111111",
+    "UTXO": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+}
+DEFAULT_WALLET = ECOSYSTEM_PLACEHOLDER["EVM"]
+
+# Non-EVM chains LI.FI supports. Everything else is treated as EVM.
+SVM_CHAIN_IDS = {"1151111081099710", "sol", "solana", "sol-mainnet"}
+UTXO_CHAIN_IDS = {"20000000000001", "btc", "bitcoin"}
+
+
+class SwapError(Exception):
+    """A swap failure with a safe, user-facing message (no internal details)."""
+
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.message = message
+        self.status = status
 
 
 def _headers(api_key=None):
@@ -20,11 +52,70 @@ def _headers(api_key=None):
     return headers
 
 
+def _friendly_lifi_message(message, status):
+    """Translate a raw LI.FI error into a safe, user-facing message.
+
+    Never echoes the request URL or parameters (which contain wallet
+    addresses) back to the client.
+    """
+    text = str(message or "").lower()
+    if status == 429:
+        return "The swap service is busy right now. Please try again in a moment."
+    if "same token" in text or "both the source and destination" in text:
+        return "Source and destination are the same token. Pick two different tokens."
+    if any(s in text for s in ("no available", "no route", "could not find a", "no quote")):
+        return "No swap route is available for this pair and amount right now."
+    if "invalid fromaddress" in text or "invalid toaddress" in text or "extended address" in text:
+        return "A wallet address for one of the selected networks is missing or invalid."
+    if "amount" in text:
+        return "The amount is too small or invalid for this swap."
+    if "token" in text and ("not" in text or "invalid" in text or "unknown" in text):
+        return "One of the selected tokens is not supported on its network."
+    if status == 404:
+        return "No swap route is available for this pair right now."
+    return "Unable to get a swap quote for this pair right now. Please try again."
+
+
+def _lifi_get(path, params, api_key=None, timeout=20):
+    """GET a LI.FI endpoint and translate failures into SwapError.
+
+    Returns the parsed JSON body on success. On any HTTP/network error raises
+    SwapError with a message that is safe to show to end users.
+    """
+    try:
+        response = requests.get(
+            f"{LIFI_BASE_URL}{path}",
+            params=params,
+            headers=_headers(api_key),
+            timeout=timeout,
+        )
+    except requests.Timeout:
+        raise SwapError("The swap service timed out. Please try again.", 504)
+    except requests.RequestException:
+        raise SwapError("Could not reach the swap service. Please try again.", 502)
+
+    if response.status_code == 429:
+        raise SwapError(_friendly_lifi_message(None, 429), 429)
+
+    if not response.ok:
+        lifi_message = None
+        try:
+            lifi_message = response.json().get("message")
+        except ValueError:
+            lifi_message = None
+        raise SwapError(_friendly_lifi_message(lifi_message, response.status_code), 400)
+
+    try:
+        return response.json()
+    except ValueError:
+        raise SwapError("The swap service returned an invalid response. Please try again.", 502)
+
+
 def get_lifi_chains(api_key=None, timeout=20):
-    params = {"chainTypes": "EVM,SVM"}
-    response = requests.get(f"{LIFI_BASE_URL}/chains", params=params, headers=_headers(api_key), timeout=timeout)
-    response.raise_for_status()
-    chains = response.json().get("chains", [])
+    # Include UTXO (Bitcoin) and SVM (Solana) so any supported network can be
+    # selected as a source or destination, not just EVM chains.
+    data = _lifi_get("/chains", {"chainTypes": "EVM,SVM,UTXO"}, api_key, timeout)
+    chains = data.get("chains", [])
     return [chain for chain in chains if chain.get("mainnet") and chain.get("id")]
 
 
@@ -42,6 +133,8 @@ def fallback_chains():
         {"id": 59144, "key": "lna", "name": "Linea", "coin": "ETH"},
         {"id": 534352, "key": "scl", "name": "Scroll", "coin": "ETH"},
         {"id": 81457, "key": "bls", "name": "Blast", "coin": "ETH"},
+        {"id": 1151111081099710, "key": "sol", "name": "Solana", "coin": "SOL"},
+        {"id": 20000000000001, "key": "btc", "name": "Bitcoin", "coin": "BTC"},
     ]
 
 
@@ -69,22 +162,105 @@ def find_chain(chains, query):
     return None
 
 
+def chain_ecosystem(chain_id):
+    """Classify a chain as EVM, SVM (Solana) or UTXO (Bitcoin)."""
+    cid = str(chain_id or "").strip().lower()
+    if cid in SVM_CHAIN_IDS:
+        return "SVM"
+    if cid in UTXO_CHAIN_IDS:
+        return "UTXO"
+    return "EVM"
+
+
+_EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+_BTC_ADDRESS_RE = re.compile(r"^(bc1[02-9ac-hj-np-z]{6,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$")
+_SVM_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+
+
+def _is_evm_address(address):
+    return bool(_EVM_ADDRESS_RE.match(str(address or "").strip()))
+
+
+def _is_utxo_address(address):
+    return bool(_BTC_ADDRESS_RE.match(str(address or "").strip()))
+
+
+def _is_svm_address(address):
+    a = str(address or "").strip()
+    # Solana pubkeys are base58 that decode to exactly 32 bytes. Decoding (not
+    # just a length regex) is what reliably rejects Bitcoin base58 addresses,
+    # which decode to ~25 bytes and would otherwise be accepted for an SVM leg.
+    if not _SVM_ADDRESS_RE.match(a) or a.startswith(("bc1", "tb1")):
+        return False
+    if _base58 is not None:
+        try:
+            return len(_base58.b58decode(a)) == 32
+        except Exception:
+            return False
+    # Fallback if base58 is unavailable: never accept something that also parses
+    # as a Bitcoin address.
+    return not _is_utxo_address(a)
+
+
+_ADDRESS_VALIDATORS = {
+    "EVM": _is_evm_address,
+    "SVM": _is_svm_address,
+    "UTXO": _is_utxo_address,
+}
+
+
+def _pick_address(explicit, ecosystem):
+    """Return (address, is_real) for a chain leg.
+
+    The caller-supplied address is used only when it is a valid address for
+    *this leg's specific ecosystem* (so a real wallet enables an executable
+    quote). Otherwise a valid per-ecosystem placeholder is returned and
+    is_real is False — meaning the quote can only be used for pricing, never
+    for execution (executing with a placeholder destination would send funds
+    to an address the user does not control).
+    """
+    address = str(explicit or "").strip()
+    validator = _ADDRESS_VALIDATORS[ecosystem]
+    if address and validator(address):
+        return address, True
+    return ECOSYSTEM_PLACEHOLDER[ecosystem], False
+
+
+def resolve_quote_addresses(intent):
+    """Choose fromAddress/toAddress matching each leg's ecosystem.
+
+    Accepts an intent that may carry `from_address`, `to_address`, and/or the
+    legacy single `wallet`. Returns (from_address, to_address, from_is_real,
+    to_is_real); a placeholder is substituted (is_real=False) when no valid
+    address for that leg's ecosystem was supplied, so any-network-to-any-network
+    quotes still *price* while only fully-addressed quotes are executable.
+    """
+    from_eco = chain_ecosystem(intent.get("from_chain_id"))
+    to_eco = chain_ecosystem(intent.get("to_chain_id"))
+    wallet = intent.get("wallet")
+    explicit_from = intent.get("from_address") or wallet
+    explicit_to = intent.get("to_address") or wallet
+    from_address, from_real = _pick_address(explicit_from, from_eco)
+    to_address, to_real = _pick_address(explicit_to, to_eco)
+    return from_address, to_address, from_real, to_real
+
+
 def normalize_token_input(token, chain_id=None):
     token = str(token or "").strip()
-    is_native = token.lower() in {"native", "eth", "bnb", "matic", "avax", "sol"}
+    is_native = token.lower() in {"native", "eth", "bnb", "matic", "avax", "sol", "btc"}
     if is_native:
-        sol_identifiers = {"1151111081099710", "sol"}
-        if chain_id and str(chain_id).lower() in sol_identifiers:
+        ecosystem = chain_ecosystem(chain_id) if chain_id is not None else "EVM"
+        if ecosystem == "SVM":
             return "11111111111111111111111111111111"
+        if ecosystem == "UTXO":
+            return "bitcoin"
         return "0x0000000000000000000000000000000000000000"
     return token
 
 
 def fetch_token(chain_id, token, api_key=None, timeout=20):
     params = {"chain": str(chain_id), "token": normalize_token_input(token, chain_id)}
-    response = requests.get(f"{LIFI_BASE_URL}/token", params=params, headers=_headers(api_key), timeout=timeout)
-    response.raise_for_status()
-    return response.json()
+    return _lifi_get("/token", params, api_key, timeout)
 
 
 def fetch_token_price_usd(chain_id, token, api_key=None, timeout=20):
@@ -144,29 +320,39 @@ def get_lifi_status(chain_id, tx_hash, api_key=None):
 def quote_lifi(intent, api_key=None, timeout=35):
     from_token = fetch_token(intent["from_chain_id"], intent["from_token"], api_key=api_key)
     to_token = fetch_token(intent["to_chain_id"], intent["to_token"], api_key=api_key)
+    if (
+        str(intent["from_chain_id"]) == str(intent["to_chain_id"])
+        and str(from_token.get("address") or "").lower() == str(to_token.get("address") or "").lower()
+    ):
+        raise SwapError("Source and destination are the same token. Pick two different tokens.", 400)
     from_amount_raw = decimal_amount_to_raw(intent["amount"], from_token["decimals"])
     order = "FASTEST" if intent.get("preference") == "fastest" else "CHEAPEST"
-    wallet = intent.get("wallet") or DEFAULT_WALLET
+    from_address, to_address, from_real, to_real = resolve_quote_addresses(intent)
     params = {
         "fromChain": str(intent["from_chain_id"]),
         "toChain": str(intent["to_chain_id"]),
         "fromToken": from_token["address"],
         "toToken": to_token["address"],
         "fromAmount": from_amount_raw,
-        "fromAddress": wallet,
-        "toAddress": wallet,
+        "fromAddress": from_address,
+        "toAddress": to_address,
         "slippage": str(intent.get("slippage") or 0.005),
         "order": order,
         # Enable true multi-leg routing: allow mid-route chain switches and
         # multi-step (chained) swaps so any asset can convert to any other
-        # (e.g. BTC -> ETH) in a single quote.
+        # (e.g. BTC -> ETH) in a single quote. We intentionally do NOT pass
+        # allowBridges=[] or otherwise force single-hop, so LI.FI keeps the
+        # cheapest/fastest route across all bridges and DEXs.
         "allowSwitchChain": "true",
     }
-    response = requests.get(f"{LIFI_BASE_URL}/quote", params=params, headers=_headers(api_key), timeout=timeout)
-    response.raise_for_status()
-    quote = response.json()
+    quote = _lifi_get("/quote", params, api_key, timeout)
     quote["_fromTokenInfo"] = from_token
     quote["_toTokenInfo"] = to_token
+    # A quote is only executable when BOTH legs used a real, ecosystem-matched
+    # address. With any placeholder in play the returned transactionRequest
+    # would send funds to an address the user does not control, so it must be
+    # treated as pricing-only by callers.
+    quote["_executable"] = bool(from_real and to_real)
     return quote
 
 
@@ -184,7 +370,11 @@ def summarize_quote(quote):
     from_addr = str(from_token.get("address") or "").lower()
     approval_needed = bool(approval_address and from_addr not in NATIVE_TOKEN_ADDRESSES)
     tx = quote.get("transactionRequest") or {}
-    return {
+    # Only expose signable transaction fields when the quote was built with real
+    # source AND destination addresses. Default True so any other caller of this
+    # helper keeps its previous behaviour; quote_lifi always sets the flag.
+    executable = bool(quote.get("_executable", True))
+    summary = {
         "tool": quote.get("toolDetails", {}).get("name") or quote.get("tool") or "LI.FI",
         "from_symbol": from_token.get("symbol") or "from token",
         "to_symbol": to_token.get("symbol") or "to token",
@@ -193,13 +383,21 @@ def summarize_quote(quote):
         "gas_usd": format(gas_usd, "f"),
         "fee_usd": format(fee_usd, "f"),
         "duration": duration,
-        "approval_needed": approval_needed,
-        "approval_address": approval_address,
-        "tx_to": tx.get("to"),
-        "tx_value": tx.get("value"),
-        "tx_data": tx.get("data"),
-        "chain_id": tx.get("chainId"),
+        "executable": executable,
+        "approval_needed": approval_needed if executable else False,
+        "approval_address": approval_address if executable else None,
+        "tx_to": tx.get("to") if executable else None,
+        "tx_value": tx.get("value") if executable else None,
+        "tx_data": tx.get("data") if executable else None,
+        "chain_id": tx.get("chainId") if executable else None,
     }
+    if not executable:
+        summary["pricing_only"] = True
+        summary["execution_note"] = (
+            "Price estimate only. Provide a wallet address for both the source "
+            "and destination networks to get an executable swap."
+        )
+    return summary
 
 
 def build_lifi_widget_url(intent, quote=None, base_url="https://jumper.exchange/"):

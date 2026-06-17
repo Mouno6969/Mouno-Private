@@ -7762,6 +7762,15 @@ async def handle_swap_text(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi"))
         )
         summary = summarize_quote(quote)
+        # Never broadcast a quote whose destination is a placeholder (cross-network
+        # swap without a destination address on the target network) — it would
+        # send funds to an address the user does not control.
+        if not summary.get("executable", False):
+            await context.bot.send_message(chat_id, ltext(lang,
+                "❌ This is a cross-network swap. In-bot execution needs a receiving address on the destination network, which isn't supported here yet. Please use the Connect-Wallet swap option instead.",
+                "❌ এটি ক্রস-নেটওয়ার্ক swap। বটের মাধ্যমে করতে গন্তব্য নেটওয়ার্কে একটি receiving address লাগবে, যা এখানে এখনও সম্ভব নয়। অনুগ্রহ করে Connect-Wallet swap option ব্যবহার করুন।"),
+                reply_markup=main_menu(user_id, lang))
+            return True
         await context.bot.send_message(chat_id, ltext(lang, "⏳ Processing in-bot swap... Please wait.", "⏳ বটের মাধ্যমে Swap করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।"))
 
         try:
@@ -7928,6 +7937,11 @@ async def execute_automation_swap(bot, app, user_id, intent, password, lang):
         intent["wallet"] = signer_address  # fromAddress must match the signer
         quote = await loop.run_in_executor(None, lambda: quote_lifi(intent, api_key=swap_provider_key("lifi")))
         summary = summarize_quote(quote)
+        # Refuse to auto-execute a quote with a placeholder destination (cross-network
+        # without a receiving address on the target network) — broadcasting it would
+        # send funds to an address the user does not control.
+        if not summary.get("executable", False):
+            return False, "Cross-network swaps need a receiving address on the destination network and can't be auto-executed yet."
 
         rpc_url = None
         if from_chain:
