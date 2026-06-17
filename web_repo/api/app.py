@@ -26,7 +26,7 @@ import db
 import config
 import notifier
 from balance import get_all_balances
-from swap_service import quote_lifi, summarize_quote, get_lifi_chains, fetch_token_price_usd
+from swap_service import quote_lifi, summarize_quote, get_lifi_chains, fetch_token_price_usd, fallback_chains, SwapError
 from crypto_manager import (
     get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
     add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
@@ -347,32 +347,46 @@ def get_chains():
     try:
         chains = get_lifi_chains(api_key=config.LIFI_API_KEY)
         return jsonify(chains)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+    except SwapError as e:
+        # Keep the swap UI usable even if LI.FI is briefly unavailable.
+        return jsonify(fallback_chains())
+    except Exception:
+        logger.exception("get_chains failed")
+        return jsonify(fallback_chains())
 
 @app.route('/api/swap/quote', methods=['GET'])
 def swap_quote():
-    fromChain = request.args.get('fromChain')
-    toChain = request.args.get('toChain')
-    fromToken = request.args.get('fromToken')
-    toToken = request.args.get('toToken')
-    amount = request.args.get('amount')
-    fromAddress = request.args.get('fromAddress')
+    intent = {
+        "from_chain_id": request.args.get('fromChain'),
+        "to_chain_id": request.args.get('toChain'),
+        "from_token": request.args.get('fromToken'),
+        "to_token": request.args.get('toToken'),
+        "amount": request.args.get('amount'),
+        # Source/destination addresses are optional: when omitted (or when they
+        # do not match a leg's network), the service falls back to a valid
+        # per-ecosystem placeholder so the quote still prices. Real execution
+        # should pass the user's own address for each side.
+        "from_address": request.args.get('fromAddress'),
+        "to_address": request.args.get('toAddress'),
+        "wallet": request.args.get('fromAddress'),
+    }
+
+    required = ('from_chain_id', 'to_chain_id', 'from_token', 'to_token', 'amount')
+    missing = [name for name in required if not intent.get(name)]
+    if missing:
+        return jsonify({'error': 'Missing required fields: ' + ', '.join(missing)}), 400
 
     try:
-        intent = {
-            "from_chain_id": fromChain,
-            "to_chain_id": toChain,
-            "from_token": fromToken,
-            "to_token": toToken,
-            "amount": amount,
-            "wallet": fromAddress
-        }
         quote = quote_lifi(intent, api_key=config.LIFI_API_KEY)
         summary = summarize_quote(quote)
         return jsonify({**quote, "summary": summary})
-    except Exception as e:
+    except SwapError as e:
+        return jsonify({'error': e.message}), e.status
+    except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except Exception:
+        logger.exception("swap_quote failed")
+        return jsonify({'error': 'Unable to get a swap quote right now. Please try again.'}), 502
 
 @app.route('/api/referral', methods=['GET'])
 @token_required
