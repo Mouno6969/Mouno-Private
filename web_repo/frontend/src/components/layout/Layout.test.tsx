@@ -45,12 +45,12 @@ describe('Layout', () => {
   });
 
   describe('logo image', () => {
-    it('renders the logo image with rounded-none + border-white', () => {
+    it('renders the logo image with rounded-xl + primary ring', () => {
       renderLayout();
       const logo = screen.getByAltText('Logo');
-      expect(logo.className).toContain('rounded-none');
+      expect(logo.className).toContain('rounded-xl');
       expect(logo.className).not.toContain('rounded-full');
-      expect(logo.className).toContain('border-white');
+      expect(logo.className).toContain('ring-primary/40');
     });
 
     it('logo links to /', () => {

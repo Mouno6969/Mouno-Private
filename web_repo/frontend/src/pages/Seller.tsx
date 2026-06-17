@@ -218,7 +218,7 @@ const Seller: React.FC = () => {
     return (
       <Card className="max-w-md mx-auto">
         <CardHeader className="text-center">
-          <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <Clock className="h-12 w-12 text-warning mx-auto mb-4" />
           <CardTitle>Application Pending</CardTitle>
           <CardDescription>
             Your application to become a seller is currently being reviewed by our team.

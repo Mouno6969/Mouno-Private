@@ -41,9 +41,9 @@ const Register: React.FC = () => {
   if (success) {
     return (
       <div className="flex justify-center items-center py-20 px-4">
-        <Card className="w-full max-w-md text-center border-green-500/50 bg-green-500/5">
+        <Card className="w-full max-w-md text-center border-success/50 bg-success/5">
           <CardContent className="pt-10 pb-10">
-            <div className="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+            <div className="w-16 h-16 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
               <CheckCircle size={32} />
             </div>
             <CardTitle className="text-2xl font-bold mb-2">Registration Successful!</CardTitle>

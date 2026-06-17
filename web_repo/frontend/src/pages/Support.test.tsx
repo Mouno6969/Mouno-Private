@@ -142,14 +142,14 @@ describe('Support', () => {
       });
     });
 
-    it('assistant message bubble has black background and white text', async () => {
+    it('assistant message bubble has background and foreground text tokens', async () => {
       renderSupport();
       await waitFor(() => {
         const msgEl = screen.getByText(
           'System Online. I am your AI Support assistant. How can I help you today?'
         ).closest('div.inline-block') as HTMLElement;
-        expect(msgEl.className).toContain('bg-black');
-        expect(msgEl.className).toContain('text-white');
+        expect(msgEl.className).toContain('bg-background');
+        expect(msgEl.className).toContain('text-foreground');
       });
     });
   });

@@ -140,7 +140,7 @@ const Portfolio: React.FC = () => {
                 {isLoading && !overview ? (
                   <SkeletonText className="mt-2 h-9 w-28" />
                 ) : hasChange ? (
-                  <p className={`text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
+                  <p className={`text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
                     {isUp ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
                     {isUp ? '+' : ''}{(change as number).toFixed(2)}%
                   </p>

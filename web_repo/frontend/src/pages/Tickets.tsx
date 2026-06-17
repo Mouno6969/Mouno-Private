@@ -144,7 +144,7 @@ const Tickets: React.FC = () => {
   if (!token) {
     return (
       <div className="max-w-2xl mx-auto font-mono">
-        <Card className="bg-black border-white/20">
+        <Card className="bg-background border-border">
           <CardContent className="p-8 text-center text-muted-foreground text-sm">
             {bn ? 'টিকেট দেখতে লগইন করুন।' : 'Log in to view your support tickets.'}
           </CardContent>
@@ -160,15 +160,15 @@ const Tickets: React.FC = () => {
           <LifeBuoy className="h-4 w-4" /> {t('my_tickets')}
         </h1>
         {!active && (
-          <Button onClick={loadTickets} size="sm" variant="ghost" className="h-8 gap-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-white">
+          <Button onClick={loadTickets} size="sm" variant="ghost" className="h-8 gap-1 text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
             <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> {bn ? 'রিফ্রেশ' : 'Refresh'}
           </Button>
         )}
       </div>
 
       {!active ? (
-        <Card className="bg-black border-white/20">
-          <CardHeader className="border-b border-white/10 py-3">
+        <Card className="bg-background border-border">
+          <CardHeader className="border-b border-border py-3">
             <CardTitle className="text-xs uppercase tracking-tighter">{t('ticket_list')}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -177,15 +177,15 @@ const Tickets: React.FC = () => {
                 {bn ? 'এখনো কোনো টিকেট নেই। সাপোর্ট চ্যাট থেকে এজেন্টের কাছে এসকেলেট করুন।' : 'No tickets yet. Escalate from the support chat to reach a human agent.'}
               </p>
             ) : (
-              <ul className="divide-y divide-white/10">
+              <ul className="divide-y divide-border">
                 {tickets.map((ticket) => (
                   <li key={ticket.id}>
                     <button
                       onClick={() => openTicket(ticket.id)}
-                      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm text-white truncate">#{ticket.id} · {ticket.subject}</p>
+                        <p className="text-sm text-foreground truncate">#{ticket.id} · {ticket.subject}</p>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
                           {ticket.updated_at || ticket.created_at}
                         </p>
@@ -201,9 +201,9 @@ const Tickets: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        <Card className="bg-black border-white/20 flex flex-col h-[calc(100dvh-14rem)]">
-          <CardHeader className="border-b border-white/10 py-3 flex-row items-center justify-between gap-2">
-            <Button onClick={backToList} size="sm" variant="ghost" className="h-7 px-2 text-[10px] uppercase tracking-widest gap-1 text-white">
+        <Card className="bg-background border-border flex flex-col h-[calc(100dvh-14rem)]">
+          <CardHeader className="border-b border-border py-3 flex-row items-center justify-between gap-2">
+            <Button onClick={backToList} size="sm" variant="ghost" className="h-7 px-2 text-[10px] uppercase tracking-widest gap-1 text-foreground">
               <ArrowLeft className="h-3 w-3" /> {bn ? 'ফিরে যান' : 'Back'}
             </Button>
             <CardTitle className="text-xs uppercase tracking-tighter truncate flex-1 text-center">
@@ -220,10 +220,10 @@ const Tickets: React.FC = () => {
                 <div key={i} className={`flex ${m.sender_role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[90%] inline-block px-3 py-2 text-sm border break-words whitespace-pre-wrap ${
                     m.sender_role === 'user'
-                      ? 'bg-white text-black border-white'
+                      ? 'bg-foreground text-background border-foreground'
                       : m.sender_role === 'agent'
-                        ? 'bg-primary/10 text-white border-primary/40'
-                        : 'bg-black text-muted-foreground border-white/10 text-[11px]'
+                        ? 'bg-primary/10 text-foreground border-primary/40'
+                        : 'bg-background text-muted-foreground border-border text-[11px]'
                   }`}>
                     {m.sender_role === 'agent' && <span className="text-primary mr-2">◈</span>}
                     {m.body}
@@ -233,12 +233,12 @@ const Tickets: React.FC = () => {
             </div>
           </CardContent>
 
-          <CardFooter className="p-4 border-t border-white/10 bg-black flex-col gap-2 items-stretch">
+          <CardFooter className="p-4 border-t border-border bg-background flex-col gap-2 items-stretch">
             {(active.status === 'open' || active.status === 'pending') && (
               <Button
                 onClick={() => markStatus('resolved')}
                 variant="ghost"
-                className="w-full gap-2 uppercase text-[10px] tracking-widest h-8 text-muted-foreground border border-white/10 hover:text-white"
+                className="w-full gap-2 uppercase text-[10px] tracking-widest h-8 text-muted-foreground border border-border hover:text-foreground"
               >
                 <CheckCircle2 className="h-3 w-3" /> {t('mark_resolved')}
               </Button>
@@ -249,9 +249,9 @@ const Tickets: React.FC = () => {
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 disabled={sending}
-                className="flex-1 bg-transparent border-white/20 focus:border-white focus:ring-0"
+                className="flex-1 bg-transparent border-border focus:border-foreground focus:ring-0"
               />
-              <Button type="submit" size="icon" aria-label="send reply" disabled={sending || !reply.trim()} className="bg-white text-black hover:bg-white/90">
+              <Button type="submit" size="icon" aria-label="send reply" disabled={sending || !reply.trim()} className="bg-foreground text-background hover:bg-foreground/90">
                 <Send className="h-4 w-4" />
               </Button>
             </form>

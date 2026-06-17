@@ -121,10 +121,10 @@ const OrderStatus: React.FC = () => {
       )}
 
       {receipt && (
-        <Card className="border-green-500/20 bg-green-500/5">
+        <Card className="border-success/20 bg-success/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4 text-green-500" /> Receipt
+              <FileText className="h-4 w-4 text-success" /> Receipt
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">

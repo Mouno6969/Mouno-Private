@@ -79,12 +79,12 @@ const Landing: React.FC = () => {
   return (
     <div className="space-y-16 md:space-y-24 animate-in fade-in duration-500 -mt-2">
       {/* Hero */}
-      <section className="relative border border-white/15 bg-card/40 backdrop-blur overflow-hidden">
+      <section className="relative border border-border bg-card/40 backdrop-blur overflow-hidden">
         <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
         <div className="scanline" />
         <div className="relative z-10 px-5 py-12 sm:px-10 sm:py-16 lg:py-24 flex flex-col items-start gap-6">
-          <span className="inline-flex items-center gap-2 border border-green-500/30 bg-green-500/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-green-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="inline-flex items-center gap-2 border border-success/30 bg-success/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
             NEW // BGC CRYPTO V2.0 IS LIVE
           </span>
 
@@ -104,7 +104,7 @@ const Landing: React.FC = () => {
                 CREATE ACCOUNT <ArrowRight size={18} />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 font-bold w-full sm:w-auto border-white/30 hover:bg-white/10">
+            <Button asChild variant="outline" size="lg" className="h-12 font-bold w-full sm:w-auto">
               <Link to="/login" className="flex items-center justify-center gap-2">
                 LOGIN
               </Link>
@@ -124,7 +124,7 @@ const Landing: React.FC = () => {
         </p>
         <Marquee
           speed={30}
-          containerClassName="border-y border-white/10 py-3 -mx-3 sm:-mx-5 lg:-mx-8"
+          containerClassName="border-y border-border py-3 -mx-3 sm:-mx-5 lg:-mx-8"
           className=""
         >
           <span className="flex items-center gap-8 px-4">
@@ -148,7 +148,7 @@ const Landing: React.FC = () => {
             size={0.9}
           />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-white/10 border border-white/10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border">
           {FEATURES.map((f) => (
             <div
               key={f.id}
@@ -179,7 +179,7 @@ const Landing: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {STEPS.map((s) => (
-            <div key={s.id} className="border border-white/10 bg-card/40 p-6 flex flex-col gap-3">
+            <div key={s.id} className="border border-border bg-card/40 p-6 flex flex-col gap-3">
               <span className="font-mono text-3xl font-bold text-muted-foreground/40">{s.id}</span>
               <h3 className="text-lg font-bold uppercase tracking-tight">{s.title}</h3>
               <p className="text-xs leading-relaxed text-muted-foreground">{s.desc}</p>
@@ -189,9 +189,9 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Stats */}
-      <section className="relative border border-white/10 bg-card/40 overflow-hidden">
+      <section className="relative border border-border bg-card/40 overflow-hidden">
         <div className="absolute inset-0 dot-matrix-fine pointer-events-none" aria-hidden="true" />
-        <div className="relative grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-white/10">
+        <div className="relative grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border">
           {STATS.map((stat) => (
             <div key={stat.label} className="p-6 sm:p-8 flex flex-col gap-1.5 items-center text-center">
               <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">{stat.value}</span>
@@ -221,7 +221,7 @@ const Landing: React.FC = () => {
               'BANGLA + ENGLISH INTERFACE',
             ].map((item) => (
               <li key={item} className="flex items-center gap-3">
-                <span className="flex h-5 w-5 items-center justify-center border border-white/20 text-foreground shrink-0">
+                <span className="flex h-5 w-5 items-center justify-center border border-border text-foreground shrink-0">
                   <Check className="h-3 w-3" />
                 </span>
                 <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
@@ -231,7 +231,7 @@ const Landing: React.FC = () => {
             ))}
           </ul>
         </div>
-        <div className="grid grid-cols-2 gap-px bg-white/10 border border-white/10">
+        <div className="grid grid-cols-2 gap-px bg-border border border-border">
           <div className="bg-background p-6 flex flex-col gap-2">
             <Zap className="h-5 w-5 text-foreground" />
             <p className="text-sm font-bold uppercase tracking-tight">FAST DELIVERY</p>
@@ -256,7 +256,7 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Final CTA */}
-      <section className="relative border border-white/15 bg-card/40 overflow-hidden px-5 py-12 sm:px-10 sm:py-16 text-center flex flex-col items-center gap-6">
+      <section className="relative border border-border bg-card/40 overflow-hidden px-5 py-12 sm:px-10 sm:py-16 text-center flex flex-col items-center gap-6">
         <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
         <h2 className="relative max-w-2xl text-3xl sm:text-4xl font-extrabold uppercase tracking-tight text-balance">
           READY TO MOVE YOUR MONEY?
@@ -270,7 +270,7 @@ const Landing: React.FC = () => {
               GET STARTED — FREE <ArrowRight size={18} />
             </Link>
           </Button>
-          <Button asChild variant="outline" size="lg" className="h-12 font-bold w-full sm:w-auto border-white/30 hover:bg-white/10">
+          <Button asChild variant="outline" size="lg" className="h-12 font-bold w-full sm:w-auto">
             <Link to="/login">I ALREADY HAVE AN ACCOUNT</Link>
           </Button>
         </div>

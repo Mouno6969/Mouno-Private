@@ -51,7 +51,7 @@ const Guide: React.FC = () => {
           <p><strong>৪)</strong> bKash number-এ exact amount পাঠান</p>
           <p><strong>৫)</strong> bKash TrxID লিখে Submit করুন</p>
           <p><strong>৬)</strong> TrxID verify হলে crypto automatically আপনার wallet-এ পৌঁছে যাবে</p>
-          <p className="text-xs text-yellow-500">💡 Order ID ও TrxID সংরক্ষণ করুন। Order Status পেজে যেকোনো সময় চেক করতে পারবেন।</p>
+          <p className="text-xs text-warning">💡 Order ID ও TrxID সংরক্ষণ করুন। Order Status পেজে যেকোনো সময় চেক করতে পারবেন।</p>
         </CardContent>
       </Card>
 
