@@ -4,6 +4,11 @@ from urllib.parse import urlencode
 
 import requests
 
+try:
+    import base58 as _base58
+except Exception:  # pragma: no cover - base58 is an optional hardening dep
+    _base58 = None
+
 
 LIFI_BASE_URL = "https://li.quest/v1"
 NATIVE_TOKEN_ADDRESSES = {
@@ -182,9 +187,19 @@ def _is_utxo_address(address):
 
 def _is_svm_address(address):
     a = str(address or "").strip()
-    # Solana base58 pubkeys are 32-44 chars. Exclude anything that looks like a
-    # Bitcoin address so a UTXO address is never accepted for an SVM leg.
-    return bool(_SVM_ADDRESS_RE.match(a)) and not a.startswith(("bc1", "tb1"))
+    # Solana pubkeys are base58 that decode to exactly 32 bytes. Decoding (not
+    # just a length regex) is what reliably rejects Bitcoin base58 addresses,
+    # which decode to ~25 bytes and would otherwise be accepted for an SVM leg.
+    if not _SVM_ADDRESS_RE.match(a) or a.startswith(("bc1", "tb1")):
+        return False
+    if _base58 is not None:
+        try:
+            return len(_base58.b58decode(a)) == 32
+        except Exception:
+            return False
+    # Fallback if base58 is unavailable: never accept something that also parses
+    # as a Bitcoin address.
+    return not _is_utxo_address(a)
 
 
 _ADDRESS_VALIDATORS = {
