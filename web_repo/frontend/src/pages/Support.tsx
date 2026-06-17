@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { AsyncButton } from '../components/ui/async-button';
 import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
@@ -179,12 +180,12 @@ const Support: React.FC = () => {
         <div className="hidden md:flex flex-col gap-4 md:min-h-0">
           <Button
             onClick={startNewChat}
-            className="w-full uppercase text-xs tracking-widest gap-2 h-9"
+            className="w-full bg-white text-black hover:bg-white/90 uppercase text-xs tracking-widest gap-2 h-9"
           >
             <Plus className="h-4 w-4" /> {i18n.language === 'bn' ? 'নতুন চ্যাট' : 'New Chat'}
           </Button>
 
-          <Card className="glass-panel flex-1 min-h-0 flex flex-col">
+          <Card className="bg-black/50 border-white/10 flex-1 min-h-0 flex flex-col">
             <CardHeader className="p-4">
               <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
                 <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'চ্যাট হিস্টোরি' : 'Chat History'}
@@ -207,13 +208,13 @@ const Support: React.FC = () => {
                       onClick={() => openSession(s.id)}
                       className={`group w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left text-[11px] border transition-colors ${
                         activeSessionId === s.id
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-transparent hover:border-border hover:bg-muted/50 text-muted-foreground'
+                          ? 'border-white/40 bg-white/10 text-white'
+                          : 'border-transparent hover:border-white/20 hover:bg-white/5 text-muted-foreground'
                       }`}
                     >
                       <span className="truncate flex-1">{s.title || 'New chat'}</span>
                       <Trash2
-                        className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-destructive"
+                        className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red-400"
                         onClick={(e) => deleteSession(s.id, e)}
                       />
                     </button>
@@ -223,7 +224,7 @@ const Support: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="glass-panel">
+          <Card className="bg-black/50 border-white/10">
             <CardHeader className="p-4">
               <CardTitle className="text-xs uppercase tracking-tighter flex items-center gap-2">
                 <Cpu className="h-3 w-3" /> System Status
@@ -232,7 +233,7 @@ const Support: React.FC = () => {
             <CardContent className="p-4 pt-0 space-y-2">
               <div className="flex justify-between text-[10px]">
                 <span className="text-muted-foreground uppercase">AI Node</span>
-                <span className="text-success animate-pulse">● ACTIVE</span>
+                <span className="text-green-500 animate-pulse">● ACTIVE</span>
               </div>
               <div className="flex justify-between text-[10px]">
                 <span className="text-muted-foreground uppercase flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> E2E</span>
@@ -243,8 +244,8 @@ const Support: React.FC = () => {
         </div>
 
         {/* Main Chat Area */}
-        <Card className="md:col-span-3 h-[calc(100dvh-13rem)] md:h-full flex flex-col glass-strong">
-          <CardHeader className="border-b border-border py-3 flex-row items-center justify-between">
+        <Card className="md:col-span-3 h-[calc(100dvh-13rem)] md:h-full flex flex-col bg-black border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
+          <CardHeader className="border-b border-white/10 py-3 flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-[0.2em]">
               <Terminal className="h-4 w-4" />
               {t('support')} OS
@@ -289,8 +290,8 @@ const Support: React.FC = () => {
                       ) : (
                         <div className={`inline-block px-3 py-2 text-sm border break-words whitespace-pre-wrap ${
                           m.role === 'user'
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-card text-card-foreground border-border'
+                          ? 'bg-white text-black border-white'
+                          : 'bg-black text-white border-white/20'
                         }`}>
                           {m.role === 'assistant' && <span className="text-primary mr-2">◈</span>}
                           {m.content}
@@ -309,7 +310,7 @@ const Support: React.FC = () => {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="p-4 border-t border-border flex-col gap-2 items-stretch">
+          <CardFooter className="p-4 border-t border-white/10 bg-black flex-col gap-2 items-stretch">
             {token && (
               <Button
                 type="button"
@@ -318,8 +319,8 @@ const Support: React.FC = () => {
                 variant={canEscalate ? 'default' : 'ghost'}
                 className={`w-full gap-2 uppercase text-[10px] tracking-widest h-8 ${
                   canEscalate
-                    ? 'animate-pulse'
-                    : ''
+                    ? 'bg-primary text-white hover:bg-primary/90 animate-pulse'
+                    : 'text-muted-foreground border border-white/10 hover:text-white'
                 }`}
               >
                 <LifeBuoy className="h-3 w-3" />
@@ -336,12 +337,12 @@ const Support: React.FC = () => {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   disabled={loading}
-                  className="pl-7 uppercase placeholder:opacity-30"
+                  className="pl-7 bg-transparent border-white/20 focus:border-white focus:ring-0 uppercase placeholder:opacity-30"
                 />
               </div>
-              <Button type="submit" size="icon" aria-label="send" disabled={loading || !input.trim()}>
+              <AsyncButton type="submit" size="icon" aria-label="send" loading={loading} disabled={!input.trim()} className="bg-white text-black hover:bg-white/90">
                 <Send className="h-4 w-4" />
-              </Button>
+              </AsyncButton>
             </form>
           </CardFooter>
         </Card>
@@ -351,13 +352,13 @@ const Support: React.FC = () => {
       {historyOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
-            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/70"
             onClick={() => setHistoryOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute left-0 top-0 h-full w-[80%] max-w-xs glass-strong border-r border-border flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <span className="text-xs uppercase tracking-tighter flex items-center gap-2 text-foreground">
+          <div className="absolute left-0 top-0 h-full w-[80%] max-w-xs bg-black border-r border-white/20 flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <span className="text-xs uppercase tracking-tighter flex items-center gap-2 text-white">
                 <MessageSquare className="h-3 w-3" /> {i18n.language === 'bn' ? 'চ্যাট হিস্টোরি' : 'Chat History'}
               </span>
               <Button
@@ -365,16 +366,16 @@ const Support: React.FC = () => {
                 size="icon"
                 variant="ghost"
                 aria-label="close history"
-                className="h-7 w-7"
+                className="h-7 w-7 text-white"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="p-3 border-b border-border">
+            <div className="p-3 border-b border-white/10">
               <Button
                 onClick={startNewChat}
-                className="w-full uppercase text-xs tracking-widest gap-2 h-9"
+                className="w-full bg-white text-black hover:bg-white/90 uppercase text-xs tracking-widest gap-2 h-9"
               >
                 <Plus className="h-4 w-4" /> {i18n.language === 'bn' ? 'নতুন চ্যাট' : 'New Chat'}
               </Button>
@@ -397,13 +398,13 @@ const Support: React.FC = () => {
                       onClick={() => openSession(s.id)}
                       className={`group w-full flex items-center justify-between gap-2 px-2 py-2 text-left text-[11px] border transition-colors ${
                         activeSessionId === s.id
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-transparent hover:border-border hover:bg-muted/50 text-muted-foreground'
+                          ? 'border-white/40 bg-white/10 text-white'
+                          : 'border-transparent hover:border-white/20 hover:bg-white/5 text-muted-foreground'
                       }`}
                     >
                       <span className="truncate flex-1">{s.title || 'New chat'}</span>
                       <Trash2
-                        className="h-3 w-3 shrink-0 opacity-60 hover:!opacity-100 hover:text-destructive"
+                        className="h-3 w-3 shrink-0 opacity-60 hover:!opacity-100 hover:text-red-400"
                         onClick={(e) => deleteSession(s.id, e)}
                       />
                     </button>
