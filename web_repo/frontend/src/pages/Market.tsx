@@ -180,11 +180,11 @@ const Market: React.FC = () => {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 animate-in zoom-in duration-300">
-        <div className="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8">
+        <div className="w-24 h-24 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-8">
           <CheckCircle className="h-12 w-12" />
         </div>
         <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Seller Order Placed!</h2>
-        <Card className="mb-8 border-green-500/30 bg-green-500/5">
+        <Card className="mb-8 border-success/30 bg-success/5">
           <CardContent className="py-6">
             <p className="text-muted-foreground mb-2 text-sm uppercase font-bold tracking-widest">Your Order ID</p>
             <p className="text-2xl sm:text-3xl font-mono font-black text-primary break-all">{success.order_id}</p>
@@ -320,7 +320,7 @@ const Market: React.FC = () => {
                     </div>
                   </div>
 
-                  <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+                  <Alert className="bg-warning/5 border-warning/20 text-warning">
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
                       Pay the seller&apos;s bKash number below, not the platform number. Crypto transactions are irreversible.
