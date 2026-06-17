@@ -133,7 +133,7 @@ const Analytics: React.FC = () => {
                 {isLoading && !data ? (
                   <SkeletonText className="mt-2 h-8 w-24" />
                 ) : hasChange ? (
-                  <p className={`text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
+                  <p className={`text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
                     {isUp ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
                     {isUp ? '+' : ''}{(change as number).toFixed(1)}%
                   </p>

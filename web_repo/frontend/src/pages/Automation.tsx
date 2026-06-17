@@ -344,10 +344,10 @@ const Automation: React.FC = () => {
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
-      active: 'bg-green-500/10 text-green-500 border-green-500/20',
-      filled: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      triggered: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      paused: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+      active: 'bg-success/10 text-success border-success/20',
+      filled: 'bg-info/10 text-info border-info/20',
+      triggered: 'bg-info/10 text-info border-info/20',
+      paused: 'bg-warning/10 text-warning border-warning/20',
       failed: 'bg-destructive/10 text-destructive border-destructive/20',
       cancelled: 'bg-muted text-muted-foreground border-muted',
     };
@@ -372,8 +372,8 @@ const Automation: React.FC = () => {
 
       {/* Auto-sign reminder */}
       {configured === false && (
-        <Alert className="bg-amber-500/5 border-amber-500/20">
-          <AlertCircle className="h-4 w-4 text-amber-500" />
+        <Alert className="bg-warning/5 border-warning/20">
+          <AlertCircle className="h-4 w-4 text-warning" />
           <AlertDescription className="text-xs text-muted-foreground">
             Auto-sign is not set up yet. Configure it in the <button className="font-bold text-primary underline" onClick={() => setTab('setup')}>Auto-Sign Setup</button> tab before creating automations.
           </AlertDescription>

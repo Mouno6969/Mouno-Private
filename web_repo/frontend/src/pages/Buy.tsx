@@ -70,11 +70,11 @@ const Buy: React.FC = () => {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 animate-in zoom-in duration-300">
-        <div className="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8">
+        <div className="w-24 h-24 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-8">
           <CheckCircle className="h-12 w-12" />
         </div>
         <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Order Received!</h2>
-        <Card className="mb-8 border-green-500/30 bg-green-500/5">
+        <Card className="mb-8 border-success/30 bg-success/5">
           <CardContent className="py-6">
             <p className="text-muted-foreground mb-2 text-sm uppercase font-bold tracking-widest">Your Order ID</p>
             <p className="text-4xl font-mono font-black text-primary">{success}</p>
@@ -184,7 +184,7 @@ const Buy: React.FC = () => {
                 </div>
               </div>
 
-              <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+              <Alert className="bg-warning/5 border-warning/20">
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
                   Double-check your wallet address. Crypto transactions are irreversible.
@@ -267,7 +267,7 @@ const Buy: React.FC = () => {
                  <CardTitle className="text-2xl font-black text-primary">৳{marketData?.rates?.[selectedNetwork] || '...'}</CardTitle>
               </CardHeader>
               <CardContent>
-                 <div className="flex items-center gap-1 text-[10px] text-green-500 font-bold uppercase">
+                 <div className="flex items-center gap-1 text-[10px] text-success font-bold uppercase">
                     <TrendingUp className="h-3 w-3" /> Best rate in Bangladesh
                  </div>
               </CardContent>

@@ -103,7 +103,7 @@ const ChangeBadge: React.FC<{ value?: number }> = ({ value }) => {
   return (
     <span
       className={`inline-flex items-center gap-1 font-mono text-sm font-semibold ${
-        up ? 'text-green-500' : 'text-red-500'
+        up ? 'text-success' : 'text-destructive'
       }`}
     >
       {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
@@ -161,18 +161,18 @@ const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) 
 
 // ── Fear & Greed gauge ──
 const sentimentColor = (v: number) => {
-  if (v >= 75) return 'text-green-500';
-  if (v >= 55) return 'text-green-400';
-  if (v >= 45) return 'text-yellow-400';
-  if (v >= 25) return 'text-orange-400';
-  return 'text-red-500';
+  if (v >= 75) return 'text-success';
+  if (v >= 55) return 'text-success';
+  if (v >= 45) return 'text-warning';
+  if (v >= 25) return 'text-warning';
+  return 'text-destructive';
 };
 const sentimentBar = (v: number) => {
-  if (v >= 75) return 'bg-green-500';
-  if (v >= 55) return 'bg-green-400';
-  if (v >= 45) return 'bg-yellow-400';
-  if (v >= 25) return 'bg-orange-400';
-  return 'bg-red-500';
+  if (v >= 75) return 'bg-success';
+  if (v >= 55) return 'bg-success';
+  if (v >= 45) return 'bg-warning';
+  if (v >= 25) return 'bg-warning';
+  return 'bg-destructive';
 };
 
 const Insights: React.FC = () => {
@@ -407,7 +407,7 @@ const Insights: React.FC = () => {
             <Card className="border-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-green-500" /> {t('top_gainers', 'Top Gainers')}
+                  <TrendingUp className="h-5 w-5 text-success" /> {t('top_gainers', 'Top Gainers')}
                 </CardTitle>
                 <CardDescription>{t('gainers_desc', 'Biggest 24h price increases (top 100 by cap)')}</CardDescription>
               </CardHeader>
@@ -421,7 +421,7 @@ const Insights: React.FC = () => {
             <Card className="border-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingDown className="h-5 w-5 text-red-500" /> {t('top_losers', 'Top Losers')}
+                  <TrendingDown className="h-5 w-5 text-destructive" /> {t('top_losers', 'Top Losers')}
                 </CardTitle>
                 <CardDescription>{t('losers_desc', 'Biggest 24h price drops (top 100 by cap)')}</CardDescription>
               </CardHeader>
