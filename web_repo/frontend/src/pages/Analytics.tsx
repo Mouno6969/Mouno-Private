@@ -113,7 +113,7 @@ const Analytics: React.FC = () => {
                 {isLoading && !data ? (
                   <SkeletonText className="mt-2 h-8 w-32" />
                 ) : (
-                  <p className="text-2xl font-extrabold tracking-tight mt-1">{fmtUsd(data?.total_volume ?? 0)}</p>
+                  <p className="text-2xl font-extrabold tracking-tight mt-1 num">{fmtUsd(data?.total_volume ?? 0)}</p>
                 )}
               </CardContent>
             </Card>
@@ -123,7 +123,7 @@ const Analytics: React.FC = () => {
                 {isLoading && !data ? (
                   <SkeletonText className="mt-2 h-8 w-16" />
                 ) : (
-                  <p className="text-2xl font-extrabold tracking-tight mt-1">{data?.tx_count ?? 0}</p>
+                  <p className="text-2xl font-extrabold tracking-tight mt-1 num">{data?.tx_count ?? 0}</p>
                 )}
               </CardContent>
             </Card>
@@ -133,7 +133,7 @@ const Analytics: React.FC = () => {
                 {isLoading && !data ? (
                   <SkeletonText className="mt-2 h-8 w-24" />
                 ) : hasChange ? (
-                  <p className={`text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
+                  <p className={`text-2xl font-extrabold tracking-tight mt-1 num flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
                     {isUp ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
                     {isUp ? '+' : ''}{(change as number).toFixed(1)}%
                   </p>

@@ -4,7 +4,9 @@
 
 @layer base {
   :root {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Bengali", sans-serif;
+    --font-sans: 'Inter', 'Hind Siliguri', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Bengali", sans-serif;
+    /* Tabular figures so prices, balances and amounts align in columns */
+    --font-num: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
     /* ── Apex space palette ── */
     --background: 230 38% 6%;
@@ -139,8 +141,31 @@
 .text-warning { color: hsl(var(--warning)); }
 .text-info { color: hsl(var(--info)); }
 
+/* ── Numbers ──
+   Tabular, lining figures so prices, balances and amounts align in columns
+   and don't jitter as values change. Apply to any numeric value. */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* ── Typography scale ──
+   One consistent eyebrow/label treatment so pages stop hand-rolling
+   text-[10px] uppercase tracking-widest variants. */
+.label-eyebrow {
+  font-size: 0.6875rem;       /* 11px */
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
 .font-mono {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Noto Sans Bengali", "Courier New", monospace;
+  /* Prices/amounts in mono should also use tabular lining figures so columns
+     of numbers line up and don't shift width as digits change. */
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* Hide scrollbar for horizontal nav */

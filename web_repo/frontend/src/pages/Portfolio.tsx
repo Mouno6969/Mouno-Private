@@ -130,7 +130,7 @@ const Portfolio: React.FC = () => {
                 {isLoading && !overview ? (
                   <SkeletonText className="mt-2 h-9 w-40" />
                 ) : (
-                  <p className="text-3xl font-extrabold tracking-tight mt-1">{fmtUsd(overview?.net_worth_usd ?? 0)}</p>
+                  <p className="text-3xl font-extrabold tracking-tight mt-1 num">{fmtUsd(overview?.net_worth_usd ?? 0)}</p>
                 )}
               </CardContent>
             </Card>
@@ -140,7 +140,7 @@ const Portfolio: React.FC = () => {
                 {isLoading && !overview ? (
                   <SkeletonText className="mt-2 h-9 w-28" />
                 ) : hasChange ? (
-                  <p className={`text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
+                  <p className={`text-3xl font-extrabold tracking-tight mt-1 num flex items-center gap-2 ${isUp ? 'text-success' : 'text-destructive'}`}>
                     {isUp ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
                     {isUp ? '+' : ''}{(change as number).toFixed(2)}%
                   </p>
