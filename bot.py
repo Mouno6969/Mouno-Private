@@ -9542,8 +9542,18 @@ async def main():
 
     init_automation_tables()
 
-    request = HTTPXRequest(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
-    app = Application.builder().token(BOT_TOKEN).request(request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
+    # Telegram is blocked at the network/ISP level on some hosts. When
+    # TELEGRAM_PROXY is set (e.g. socks5://127.0.0.1:40000 via Cloudflare WARP),
+    # route BOTH the API client and the getUpdates poller through it; PTB uses a
+    # separate request object for polling, so both must carry the proxy or the
+    # bot connects but never receives updates. Unset/empty = direct connection.
+    _tg_proxy = os.getenv("TELEGRAM_PROXY") or None
+    _req_kwargs = dict(connection_pool_size=8, read_timeout=60, write_timeout=60, connect_timeout=60, pool_timeout=60)
+    if _tg_proxy:
+        _req_kwargs["proxy"] = _tg_proxy
+    request = HTTPXRequest(**_req_kwargs)
+    get_updates_request = HTTPXRequest(**_req_kwargs)
+    app = Application.builder().token(BOT_TOKEN).request(request).get_updates_request(get_updates_request).concurrent_updates(ChatScopedUpdateProcessor(8)).build()
 
     buy_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(button_handler, pattern="^network_(solana|polygon|bsc|avalanche|ethereum|ethereum_usdc|base|trc20|ton)$")],
