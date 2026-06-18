@@ -281,9 +281,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Content */}
+        {/* Content — one consistent max-width container for every page */}
         <main id="main-content" className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-10">
-          {children}
+          <div className="mx-auto w-full max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
 
