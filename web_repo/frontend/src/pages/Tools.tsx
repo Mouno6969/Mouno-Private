@@ -278,7 +278,7 @@ const AtaRefundTool: React.FC = () => {
           <CardDescription>Check empty Associated Token Accounts and reclaim rent SOL</CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
-          <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+          <Alert className="bg-warning/5 border-warning/20 text-warning">
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle className="text-sm">Security</AlertTitle>
             <AlertDescription className="text-xs">
@@ -342,18 +342,18 @@ const AtaRefundTool: React.FC = () => {
           )}
 
           {refundResult && (
-            <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-5 space-y-3 animate-in fade-in">
-              <div className="flex items-center gap-2 text-green-500 font-bold">
+            <div className="rounded-xl border border-success/30 bg-success/5 p-5 space-y-3 animate-in fade-in">
+              <div className="flex items-center gap-2 text-success font-bold">
                 <CheckCircle className="h-5 w-5" /> Refund complete
               </div>
               <p className="text-sm text-muted-foreground">
                 Closed {refundResult.refunded_count ?? 0} accounts, returned ~{Number(refundResult.total_sol ?? 0).toFixed(6)} SOL.
               </p>
               {refundResult.failed_batches && refundResult.failed_batches.length > 0 && (
-                <div className="text-amber-600 text-sm border-t border-green-500/20 pt-2 mt-2">
+                <div className="text-warning text-sm border-t border-success/20 pt-2 mt-2">
                   <p className="font-semibold">{refundResult.failed_batches.length} batch(es) encountered issues:</p>
                   {refundResult.failed_batches.slice(0, 3).map((batch: any, i: number) => (
-                    <p key={i} className="text-xs text-amber-600/70">{batch.error}</p>
+                    <p key={i} className="text-xs text-warning/70">{batch.error}</p>
                   ))}
                 </div>
               )}
@@ -430,7 +430,7 @@ const ForwarderTool: React.FC = () => {
           <CardDescription>One-time broadcast to your groups/channels using your own bot token</CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
-          <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+          <Alert className="bg-warning/5 border-warning/20 text-warning">
             <ShieldAlert className="h-4 w-4" />
             <AlertDescription className="text-xs">
               Your bot token is used only for this request and never stored. Your bot must be a member
@@ -496,18 +496,18 @@ const ForwarderTool: React.FC = () => {
           {results && (
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 space-y-2 animate-in fade-in">
               <div className="flex items-center gap-3 mb-2">
-                <Badge variant="outline" className="font-mono text-green-500 border-green-500/30">{results.sent} sent</Badge>
+                <Badge variant="outline" className="font-mono text-success border-success/30">{results.sent} sent</Badge>
                 {results.failed > 0 && (
-                  <Badge variant="outline" className="font-mono text-red-500 border-red-500/30">{results.failed} failed</Badge>
+                  <Badge variant="outline" className="font-mono text-destructive border-destructive/30">{results.failed} failed</Badge>
                 )}
               </div>
               {results.results?.map((r, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-white/5 last:border-0">
+                <div key={i} className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/50 last:border-0">
                   <span className="font-mono truncate">{r.chat}</span>
                   {r.ok ? (
-                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-success shrink-0" />
                   ) : (
-                    <span className="flex items-center gap-1 text-red-400 shrink-0">
+                    <span className="flex items-center gap-1 text-destructive shrink-0">
                       <XCircle className="h-4 w-4" />
                       <span className="max-w-40 truncate">{r.error}</span>
                     </span>

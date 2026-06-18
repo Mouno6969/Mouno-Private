@@ -13,7 +13,7 @@ const Marquee: React.FC<MarqueeProps> = ({
   speed = 20,
   pauseOnHover = true,
   className = "",
-  containerClassName = "bg-white/5 border-y border-white/10 py-1"
+  containerClassName = "bg-secondary/40 border-y border-border py-1"
 }) => {
   return (
     <div className={`overflow-hidden flex select-none ${containerClassName} ${className}`}>

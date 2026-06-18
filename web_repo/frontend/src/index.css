@@ -113,22 +113,22 @@
      Consistent success / warning / danger / info treatments so pages stop
      reaching for raw Tailwind palette colors (green-500, red-500, etc). */
   .pill-success {
-    background-color: hsl(var(--success) / 0.12);
+    background-color: hsl(var(--success) / 0.1);
     color: hsl(var(--success));
     border: 1px solid hsl(var(--success) / 0.25);
   }
   .pill-warning {
-    background-color: hsl(var(--warning) / 0.12);
+    background-color: hsl(var(--warning) / 0.1);
     color: hsl(var(--warning));
     border: 1px solid hsl(var(--warning) / 0.25);
   }
   .pill-danger {
-    background-color: hsl(var(--destructive) / 0.12);
+    background-color: hsl(var(--destructive) / 0.1);
     color: hsl(var(--destructive));
     border: 1px solid hsl(var(--destructive) / 0.25);
   }
   .pill-info {
-    background-color: hsl(var(--info) / 0.12);
+    background-color: hsl(var(--info) / 0.1);
     color: hsl(var(--info));
     border: 1px solid hsl(var(--info) / 0.25);
   }
