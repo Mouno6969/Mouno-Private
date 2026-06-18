@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../lib/hooks';
 import type { OrderEntry } from '../types';
 import { SkeletonTableRows } from '../components/ui/skeleton';
-import { ErrorState } from '../components/ui/states';
+import { ErrorState, EmptyState, LoadingSkeleton } from '../components/common';
 
 const StatusBadge = ({ status }: { status: string | null | undefined }) => {
   if (!status) {
@@ -113,7 +113,9 @@ const Orders: React.FC = () => {
               onRetry={() => mutate()}
             />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Desktop / tablet: table */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/20 hover:bg-muted/20 border-muted/50">
@@ -171,6 +173,39 @@ const Orders: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile: card list instead of horizontal scroll */}
+            <div className="md:hidden p-3 space-y-2">
+              {isLoading ? (
+                <LoadingSkeleton variant="list" rows={4} />
+              ) : filteredCompleted.length === 0 ? (
+                <EmptyState
+                  icon={<History className="h-6 w-6" aria-hidden="true" />}
+                  title="No completed orders found."
+                  description={searchTerm ? 'Try a different search term.' : 'Start trading to see your transaction history here.'}
+                />
+              ) : (
+                filteredCompleted.map((order: OrderEntry) => (
+                  <div key={order.trx_id} className="rounded-xl border border-border bg-card/50 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold text-sm">{order.order_id}</span>
+                      <StatusBadge status={order.status} />
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-2">
+                      <div>
+                        <div className="num font-bold text-base">৳{order.amount_bdt}</div>
+                        <div className="text-[10px] font-medium text-muted-foreground uppercase">{order.amount_usdc} USDC</div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline" className="font-mono border-primary/20 bg-primary/5 text-primary">{order.network}</Badge>
+                        <div className="text-[10px] text-muted-foreground mt-1.5">{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

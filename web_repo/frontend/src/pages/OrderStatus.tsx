@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Search, Loader2, FileText } from 'lucide-react';
 import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { PageHeader } from '../components/common';
 
 interface OrderLookup {
   found?: boolean;
@@ -62,15 +63,15 @@ const OrderStatus: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Search className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Order Status</h1>
-          <p className="text-muted-foreground text-sm">Search by Order ID or TrxID</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Search className="h-7 w-7" />}
+        title="Order Status"
+        description="Search by Order ID or TrxID"
+        breadcrumbs={[
+          { label: 'Orders', to: '/orders' },
+          { label: 'Status' },
+        ]}
+      />
 
       <Card className="border-primary/10">
         <CardContent className="p-4">

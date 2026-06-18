@@ -281,8 +281,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Content — one consistent max-width container for every page */}
-        <main id="main-content" className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-10">
+        {/* Content — one consistent max-width container for every page.
+           Extra bottom padding clears the fixed mobile nav + the device
+           safe-area (home indicator). */}
+        <main
+          id="main-content"
+          className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10"
+        >
           <div className="mx-auto w-full max-w-7xl">
             {children}
           </div>
@@ -291,7 +296,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/80 backdrop-blur-xl"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
         aria-label="Primary"
       >
         <div className="flex items-center justify-around h-16 px-2">
