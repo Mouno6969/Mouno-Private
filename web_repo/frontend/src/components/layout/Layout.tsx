@@ -288,7 +288,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           id="main-content"
           className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10"
         >
-          <div className="mx-auto w-full max-w-7xl">
+          <div key={location.pathname} className="mx-auto w-full max-w-7xl animate-in fade-in duration-200">
             {children}
           </div>
         </main>

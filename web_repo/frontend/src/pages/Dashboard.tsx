@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
 import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
-import { FlashValue } from '../components/common';
+import { FlashValue, Freshness } from '../components/common';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -111,9 +111,7 @@ const Dashboard: React.FC = () => {
              <div className="mr-2 h-2 w-2 rounded-full bg-success animate-pulse" />
              System: Online
            </Badge>
-           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-             Refreshed: {lastUpdated.toLocaleTimeString()}
-           </span>
+           <Freshness updatedAt={lastUpdated} label="Rates updated" />
         </div>
       </section>
 
