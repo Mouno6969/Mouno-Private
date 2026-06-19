@@ -29,18 +29,20 @@ export const FlashValue: React.FC<FlashValueProps> = ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    if (
-      !reduce &&
-      typeof value === 'number' &&
-      typeof prev.current === 'number' &&
-      value !== prev.current
-    ) {
-      setFlash(value > prev.current ? 'up' : 'down');
-      const id = window.setTimeout(() => setFlash(null), duration);
-      prev.current = value;
-      return () => window.clearTimeout(id);
+    const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+    const shouldFlash =
+      !reduce && isNum(value) && isNum(prev.current) && value !== prev.current;
+
+    if (shouldFlash) {
+      setFlash((value as number) > (prev.current as number) ? 'up' : 'down');
     }
-    prev.current = value;
+    // Only remember finite values so a transient null/NaN can't poison the
+    // next comparison (which would otherwise fire a spurious flash).
+    if (isNum(value)) prev.current = value;
+
+    if (!shouldFlash) return;
+    const id = window.setTimeout(() => setFlash(null), duration);
+    return () => window.clearTimeout(id);
   }, [value, duration]);
 
   return (

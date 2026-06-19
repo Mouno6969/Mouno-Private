@@ -256,7 +256,7 @@ const Dashboard: React.FC = () => {
                         </TableCell>
                         <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <FlashValue value={typeof rate === 'number' ? rate : Number(rate)} className="inline-block px-1 -mx-1">
+                            <FlashValue value={rate} className="inline-block px-1 -mx-1">
                               <span className="num text-sm font-bold text-foreground">৳{rate || '...'}</span>
                             </FlashValue>
                             {hasNumericChange && (
