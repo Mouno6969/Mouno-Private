@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, CreditCard, Loader2 } from 'lucide-react';
+import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,10 +12,14 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { useMarket } from '../lib/hooks';
+import { CopyButton } from '../components/common';
 
 interface BuyResponse {
   order_id: string;
 }
+
+const MIN_BDT = 500;
+const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 const Buy: React.FC = () => {
   const { t } = useTranslation();
@@ -30,18 +34,36 @@ const Buy: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Real-time validation: surface why the amount is invalid as the user types.
+  const bdtNum = parseFloat(bdtAmount);
+  const amountError =
+    bdtAmount === ''
+      ? null
+      : !Number.isFinite(bdtNum)
+        ? 'Enter a valid amount'
+        : bdtNum < MIN_BDT
+          ? `Minimum is ৳${MIN_BDT}`
+          : null;
+
+  const recalc = (val: string, networkId: string) => {
+    const rate = marketData?.rates?.[networkId] || 137;
+    return val && Number.isFinite(parseFloat(val)) ? (parseFloat(val) / rate).toFixed(2) : '0';
+  };
+
   const handleBdtChange = (val: string) => {
     setBdtAmount(val);
-    const rate = marketData?.rates?.[selectedNetwork] || 137;
-    const crypto = val ? (parseFloat(val) / rate).toFixed(2) : '0';
-    setCryptoAmount(crypto);
+    setCryptoAmount(recalc(val, selectedNetwork));
+  };
+
+  const setQuickAmount = (amount: number) => {
+    const val = String(amount);
+    setBdtAmount(val);
+    setCryptoAmount(recalc(val, selectedNetwork));
   };
 
   const handleNetworkChange = (id: string) => {
     setSelectedNetwork(id);
-    const rate = marketData?.rates?.[id] || 137;
-    const crypto = bdtAmount ? (parseFloat(bdtAmount) / rate).toFixed(2) : '0';
-    setCryptoAmount(crypto);
+    setCryptoAmount(recalc(bdtAmount, id));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +99,10 @@ const Buy: React.FC = () => {
         <Card className="mb-8 border-success/30 bg-success/5">
           <CardContent className="py-6">
             <p className="text-muted-foreground mb-2 text-sm uppercase font-bold tracking-widest">Your Order ID</p>
-            <p className="text-4xl font-mono font-black text-primary">{success}</p>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-4xl font-mono font-black text-primary">{success}</p>
+              <CopyButton value={success} label="Copy order ID" withText className="px-2 py-1 rounded-md border border-border" />
+            </div>
           </CardContent>
         </Card>
         <p className="text-muted-foreground mb-8 text-lg">
@@ -147,14 +172,36 @@ const Buy: React.FC = () => {
                     <Input
                       id="bdt"
                       type="number"
-                      className="pl-10 h-14 text-xl font-bold font-mono bg-muted/20"
-                      placeholder="Min 500"
+                      inputMode="numeric"
+                      aria-invalid={!!amountError}
+                      aria-describedby="bdt-help"
+                      className={`pl-10 h-14 text-xl font-bold num bg-muted/20 ${amountError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      placeholder={`Min ${MIN_BDT}`}
                       value={bdtAmount}
                       onChange={(e) => handleBdtChange(e.target.value)}
                       required
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground italic">Approx. rate: ৳{marketData?.rates?.[selectedNetwork] || '...'}</p>
+                  {/* Quick-amount chips */}
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_AMOUNTS.map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setQuickAmount(amt)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          bdtAmount === String(amt)
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        ৳{amt.toLocaleString('en-US')}
+                      </button>
+                    ))}
+                  </div>
+                  <p id="bdt-help" className={`text-[10px] ${amountError ? 'text-destructive font-medium' : 'text-muted-foreground italic'}`}>
+                    {amountError ?? `Approx. rate: ৳${marketData?.rates?.[selectedNetwork] || '...'}`}
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -198,9 +245,7 @@ const Buy: React.FC = () => {
                     </div>
                     <div className="text-3xl font-black font-mono tracking-widest text-primary flex items-center gap-3">
                        {marketData?.bKash || '01XXXXXXXXX'}
-                       <Button variant="ghost" size="icon" aria-label="Copy bKash number" className="h-8 w-8 text-muted-foreground" onClick={() => navigator.clipboard.writeText(marketData?.bKash || '')}>
-                          <CreditCard className="h-4 w-4" />
-                       </Button>
+                       <CopyButton value={marketData?.bKash || ''} label="Copy bKash number" className="h-8 w-8 justify-center" />
                     </div>
                     <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">Personal (Send Money / Cash In)</Badge>
                  </div>
@@ -219,7 +264,7 @@ const Buy: React.FC = () => {
               </div>
             </CardContent>
             <CardFooter className="bg-muted/20 p-6">
-              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
+              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount || !!amountError} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
                 {loading ? (
                    <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
