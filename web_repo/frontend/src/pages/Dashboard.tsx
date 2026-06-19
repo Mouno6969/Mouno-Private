@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
 import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
+import { FlashValue } from '../components/common';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -129,9 +130,11 @@ const Dashboard: React.FC = () => {
                 {marketLoading && !marketData ? (
                   <SkeletonText className="mt-1 h-5 w-16" />
                 ) : (
-                  <p className="text-base sm:text-lg font-bold tracking-tight truncate">
-                    {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
-                  </p>
+                  <FlashValue value={marketData?.rates?.solana} className="inline-block px-1 -mx-1">
+                    <p className="num text-base sm:text-lg font-bold tracking-tight truncate">
+                      {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
+                    </p>
+                  </FlashValue>
                 )}
               </div>
             </div>
@@ -253,7 +256,9 @@ const Dashboard: React.FC = () => {
                         </TableCell>
                         <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-sm font-bold text-foreground">৳{rate || '...'}</span>
+                            <FlashValue value={typeof rate === 'number' ? rate : Number(rate)} className="inline-block px-1 -mx-1">
+                              <span className="num text-sm font-bold text-foreground">৳{rate || '...'}</span>
+                            </FlashValue>
                             {hasNumericChange && (
                               <Badge
                                 className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}

@@ -17,6 +17,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ErrorState } from '../components/ui/states';
+import { Sparkline } from '../components/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public market-data APIs (free, no key, CORS-enabled). These are intentionally
@@ -47,6 +48,7 @@ interface MarketCoin {
   total_volume: number;
   market_cap_rank: number;
   price_change_percentage_24h: number;
+  sparkline_in_7d?: { price: number[] };
 }
 
 interface TrendingCoin {
@@ -152,9 +154,18 @@ const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) 
         <p className="font-mono text-xs uppercase text-muted-foreground">{coin.symbol}</p>
       </div>
     </div>
-    <div className="text-right">
-      <p className="font-mono text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
-      <ChangeBadge value={coin.price_change_percentage_24h} />
+    <div className="flex items-center gap-3">
+      {coin.sparkline_in_7d?.price && coin.sparkline_in_7d.price.length > 1 && (
+        <Sparkline
+          data={coin.sparkline_in_7d.price}
+          className="hidden sm:block"
+          aria-label={`${coin.name} 7-day price trend`}
+        />
+      )}
+      <div className="text-right">
+        <p className="num text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
+        <ChangeBadge value={coin.price_change_percentage_24h} />
+      </div>
     </div>
   </div>
 );
@@ -177,7 +188,7 @@ const Insights: React.FC = () => {
   const { t } = useTranslation();
 
   const markets = useSWR<MarketCoin[]>(
-    `${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h`,
+    `${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h&sparkline=true`,
     jsonFetcher,
     { refreshInterval: REFRESH },
   );
