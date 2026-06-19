@@ -36,8 +36,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const searchRef = React.useRef<HTMLInputElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Subtle per-navigation fade WITHOUT remounting the page (so SWR-cached
+  // state and scroll aren't discarded). Uses the Web Animations API, which the
+  // CSS prefers-reduced-motion rule can't reach — so guard it explicitly.
+  React.useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+  }, [location.pathname]);
 
   React.useEffect(() => {
     setIsMenuOpen(false);
@@ -288,7 +300,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           id="main-content"
           className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10"
         >
-          <div key={location.pathname} className="mx-auto w-full max-w-7xl animate-in fade-in duration-200">
+          <div ref={contentRef} className="mx-auto w-full max-w-7xl">
             {children}
           </div>
         </main>

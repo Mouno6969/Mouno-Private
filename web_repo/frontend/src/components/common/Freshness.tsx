@@ -55,7 +55,7 @@ export const Freshness: React.FC<FreshnessProps> = ({
 
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 text-[10px]', stale ? 'text-warning' : 'text-muted-foreground', className)}
+      className={cn('inline-flex items-center gap-1.5 text-[10px] tabular-nums', stale ? 'text-warning' : 'text-muted-foreground', className)}
       title={date.toLocaleString()}
     >
       <span className={cn('h-1.5 w-1.5 rounded-full', stale ? 'bg-warning' : 'bg-success animate-pulse')} />
