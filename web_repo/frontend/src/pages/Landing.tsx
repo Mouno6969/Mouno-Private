@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Marquee from '../components/ui/marquee';
-import { ASCIIText } from '../components/ui/ascii-text';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 
 const FEATURES = [
@@ -80,7 +79,7 @@ const Landing: React.FC = () => {
     <div className="space-y-16 md:space-y-24 animate-in fade-in duration-500 -mt-2">
       {/* Hero */}
       <section className="relative border border-border bg-card/40 backdrop-blur overflow-hidden">
-        <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
+        <div className="absolute inset-0 dot-matrix-primary dot-matrix-fade pointer-events-none" aria-hidden="true" />
         <div className="scanline" />
         <div className="relative z-10 px-5 py-12 sm:px-10 sm:py-16 lg:py-24 flex flex-col items-start gap-6">
           <span className="inline-flex items-center gap-2 border border-success/30 bg-success/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-success">
@@ -139,16 +138,17 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Features */}
-      <section className="space-y-8">
-        <div className="space-y-2">
-          <ASCIIText 
-            text="FEATURES" 
-            className="text-primary"
-            animationDelay={60}
-            size={0.9}
-          />
+      <section className="relative space-y-8 overflow-hidden">
+        <div className="absolute inset-0 dot-matrix-fine dot-matrix-fade-top pointer-events-none" aria-hidden="true" />
+        <div className="relative space-y-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+            [01] // FEATURES
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-balance">
+            ONE PLATFORM. EVERY TOOL.
+          </h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border">
+        <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border">
           {FEATURES.map((f) => (
             <div
               key={f.id}
@@ -257,7 +257,7 @@ const Landing: React.FC = () => {
 
       {/* Final CTA */}
       <section className="relative border border-border bg-card/40 overflow-hidden px-5 py-12 sm:px-10 sm:py-16 text-center flex flex-col items-center gap-6">
-        <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
+        <div className="absolute inset-0 dot-matrix-primary dot-matrix-fade pointer-events-none" aria-hidden="true" />
         <h2 className="relative max-w-2xl text-3xl sm:text-4xl font-extrabold uppercase tracking-tight text-balance">
           READY TO MOVE YOUR MONEY?
         </h2>
