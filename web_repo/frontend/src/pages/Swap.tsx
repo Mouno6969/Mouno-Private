@@ -157,7 +157,7 @@ const Swap: React.FC = () => {
                    </div>
                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Gas Fees</span>
-                      <span className="font-mono text-amber-500 font-bold">${quote.summary?.gas_usd}</span>
+                      <span className="font-mono text-warning font-bold">${quote.summary?.gas_usd}</span>
                    </div>
                 </div>
               )}
@@ -181,7 +181,7 @@ const Swap: React.FC = () => {
 
             {quote && (
                <div className="p-6 pt-0 space-y-4">
-                  <Button className="w-full h-14 rounded-2xl bg-white text-black hover:bg-white/90 font-black text-lg transition-all group">
+                  <Button className="w-full h-14 rounded-2xl bg-success text-success-foreground hover:bg-success/90 font-black text-lg transition-all group">
                     Execute Swap In-Bot <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
                   </Button>
                   <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Powered by Li.Fi Aggregator</p>
@@ -202,7 +202,7 @@ const Swap: React.FC = () => {
                    We aggregate liquidity from multiple bridges (Hop, Stargate, Across) and DEXs (Uniswap, PancakeSwap) to ensure you get the maximum output for your cross-chain transfer.
                  </p>
                  <div className="p-4 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
-                    <ShieldCheck className="h-5 w-5 text-green-500 shrink-0" />
+                    <ShieldCheck className="h-5 w-5 text-success shrink-0" />
                     <div>
                        <p className="text-xs font-bold mb-1 uppercase tracking-tighter">Secure & Audited</p>
                        <p className="text-[10px] text-muted-foreground opacity-80 leading-tight">All bridge routes used are fully audited and battle-tested on-chain protocols.</p>
@@ -211,8 +211,8 @@ const Swap: React.FC = () => {
               </CardContent>
            </Card>
 
-           <Alert className="bg-blue-500/5 border-blue-500/10">
-              <Info className="h-4 w-4 text-blue-400" />
+           <Alert className="bg-info/5 border-info/10">
+              <Info className="h-4 w-4 text-info" />
               <AlertDescription className="text-xs text-muted-foreground">
                  Cross-chain swaps can take anywhere from 2 to 20 minutes depending on the network congestion and destination chain.
               </AlertDescription>

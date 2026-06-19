@@ -36,8 +36,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const searchRef = React.useRef<HTMLInputElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Subtle per-navigation fade WITHOUT remounting the page (so SWR-cached
+  // state and scroll aren't discarded). Uses the Web Animations API, which the
+  // CSS prefers-reduced-motion rule can't reach — so guard it explicitly.
+  React.useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+  }, [location.pathname]);
 
   React.useEffect(() => {
     setIsMenuOpen(false);
@@ -281,15 +293,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Content */}
-        <main id="main-content" className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-10">
-          {children}
+        {/* Content — one consistent max-width container for every page.
+           Extra bottom padding clears the fixed mobile nav + the device
+           safe-area (home indicator). */}
+        <main
+          id="main-content"
+          className="min-w-0 px-4 py-6 md:px-8 md:py-8 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10"
+        >
+          <div ref={contentRef} className="mx-auto w-full max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
 
       {/* ── Mobile bottom nav ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/80 backdrop-blur-xl"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/80 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]"
         aria-label="Primary"
       >
         <div className="flex items-center justify-around h-16 px-2">

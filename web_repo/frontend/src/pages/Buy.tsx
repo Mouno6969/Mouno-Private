@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, CreditCard, Loader2 } from 'lucide-react';
+import { ShoppingCart, Smartphone, CheckCircle, Info, TrendingUp, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,13 +12,21 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { useMarket } from '../lib/hooks';
+import { CopyButton } from '../components/common';
+import { formatBDT, formatCrypto } from '../lib/format';
 
 interface BuyResponse {
   order_id: string;
 }
 
+const MIN_BDT = 500;
+const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
+// Above this, ask the user to review before submitting an irreversible order.
+const CONFIRM_THRESHOLD_BDT = 50000;
+
 const Buy: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const networks = NETWORK_LIST;
 
   const { data: marketData } = useMarket();
@@ -29,23 +37,53 @@ const Buy: React.FC = () => {
   const [trxId, setTrxId] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+
+  // Real-time validation: surface why the amount is invalid as the user types.
+  const bdtNum = parseFloat(bdtAmount);
+  const amountError =
+    bdtAmount === ''
+      ? null
+      : !Number.isFinite(bdtNum)
+        ? 'Enter a valid amount'
+        : bdtNum < MIN_BDT
+          ? `Minimum is ৳${MIN_BDT}`
+          : null;
+
+  const recalc = (val: string, networkId: string) => {
+    const rate = marketData?.rates?.[networkId] || 137;
+    return val && Number.isFinite(parseFloat(val)) ? (parseFloat(val) / rate).toFixed(2) : '0';
+  };
 
   const handleBdtChange = (val: string) => {
     setBdtAmount(val);
-    const rate = marketData?.rates?.[selectedNetwork] || 137;
-    const crypto = val ? (parseFloat(val) / rate).toFixed(2) : '0';
-    setCryptoAmount(crypto);
+    setCryptoAmount(recalc(val, selectedNetwork));
+  };
+
+  const setQuickAmount = (amount: number) => {
+    const val = String(amount);
+    setBdtAmount(val);
+    setCryptoAmount(recalc(val, selectedNetwork));
   };
 
   const handleNetworkChange = (id: string) => {
     setSelectedNetwork(id);
-    const rate = marketData?.rates?.[id] || 137;
-    const crypto = bdtAmount ? (parseFloat(bdtAmount) / rate).toFixed(2) : '0';
-    setCryptoAmount(crypto);
+    setCryptoAmount(recalc(bdtAmount, id));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Intercept submit: large orders get a review/confirm step first.
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (amountError) return;
+    if (Number.isFinite(bdtNum) && bdtNum >= CONFIRM_THRESHOLD_BDT) {
+      setReviewing(true);
+      return;
+    }
+    void submitOrder();
+  };
+
+  const submitOrder = async () => {
+    setReviewing(false);
     setLoading(true);
     try {
       const res = await apiClient.post<BuyResponse>('/api/buy', {
@@ -70,14 +108,17 @@ const Buy: React.FC = () => {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 animate-in zoom-in duration-300">
-        <div className="w-24 h-24 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8">
+        <div className="w-24 h-24 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-8">
           <CheckCircle className="h-12 w-12" />
         </div>
         <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Order Received!</h2>
-        <Card className="mb-8 border-green-500/30 bg-green-500/5">
+        <Card className="mb-8 border-success/30 bg-success/5">
           <CardContent className="py-6">
             <p className="text-muted-foreground mb-2 text-sm uppercase font-bold tracking-widest">Your Order ID</p>
-            <p className="text-4xl font-mono font-black text-primary">{success}</p>
+            <div className="flex items-center justify-center gap-3">
+              <p className="text-4xl font-mono font-black text-primary">{success}</p>
+              <CopyButton value={success} label="Copy order ID" withText className="px-2 py-1 rounded-md border border-border" />
+            </div>
           </CardContent>
         </Card>
         <p className="text-muted-foreground mb-8 text-lg">
@@ -104,7 +145,7 @@ const Buy: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-2 space-y-6">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleFormSubmit}>
           <Card className="shadow-xl border-primary/10 overflow-hidden">
             <CardHeader className="bg-muted/30">
                <CardTitle className="text-lg">Order Details</CardTitle>
@@ -147,20 +188,42 @@ const Buy: React.FC = () => {
                     <Input
                       id="bdt"
                       type="number"
-                      className="pl-10 h-14 text-xl font-bold font-mono bg-muted/20"
-                      placeholder="Min 500"
+                      inputMode="numeric"
+                      aria-invalid={!!amountError}
+                      aria-describedby="bdt-help"
+                      className={`pl-10 h-14 text-xl font-bold num bg-muted/20 ${amountError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      placeholder={`Min ${MIN_BDT}`}
                       value={bdtAmount}
                       onChange={(e) => handleBdtChange(e.target.value)}
                       required
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground italic">Approx. rate: ৳{marketData?.rates?.[selectedNetwork] || '...'}</p>
+                  {/* Quick-amount chips */}
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_AMOUNTS.map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setQuickAmount(amt)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          bdtAmount === String(amt)
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        {formatBDT(amt, lang)}
+                      </button>
+                    ))}
+                  </div>
+                  <p id="bdt-help" className={`text-[10px] ${amountError ? 'text-destructive font-medium' : 'text-muted-foreground italic'}`}>
+                    {amountError ?? `Approx. rate: ${marketData?.rates?.[selectedNetwork] ? formatBDT(marketData.rates[selectedNetwork], lang) : '...'}`}
+                  </p>
                 </div>
 
                 <div className="space-y-3">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t('crypto_amount')} (Receive)</Label>
                   <div className="h-14 flex items-center justify-between px-4 rounded-md border bg-primary/5 border-primary/20">
-                    <span className="text-2xl font-black font-mono text-primary">{cryptoAmount}</span>
+                    <span className="text-2xl font-black num text-primary">{formatCrypto(cryptoAmount, lang)}</span>
                     <Badge variant="outline" className="font-mono bg-primary/10 border-primary/30">
                       {networks.find(n => n.id === selectedNetwork)?.asset}
                     </Badge>
@@ -184,7 +247,7 @@ const Buy: React.FC = () => {
                 </div>
               </div>
 
-              <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+              <Alert className="bg-warning/5 border-warning/20 text-warning">
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
                   Double-check your wallet address. Crypto transactions are irreversible.
@@ -198,9 +261,7 @@ const Buy: React.FC = () => {
                     </div>
                     <div className="text-3xl font-black font-mono tracking-widest text-primary flex items-center gap-3">
                        {marketData?.bKash || '01XXXXXXXXX'}
-                       <Button variant="ghost" size="icon" aria-label="Copy bKash number" className="h-8 w-8 text-muted-foreground" onClick={() => navigator.clipboard.writeText(marketData?.bKash || '')}>
-                          <CreditCard className="h-4 w-4" />
-                       </Button>
+                       <CopyButton value={marketData?.bKash || ''} label="Copy bKash number" className="h-8 w-8 justify-center" />
                     </div>
                     <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">Personal (Send Money / Cash In)</Badge>
                  </div>
@@ -219,7 +280,7 @@ const Buy: React.FC = () => {
               </div>
             </CardContent>
             <CardFooter className="bg-muted/20 p-6">
-              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
+              <Button type="submit" disabled={loading || !wallet || !trxId || !bdtAmount || !!amountError} className="w-full h-14 text-lg font-bold rounded-xl shadow-lg shadow-primary/20">
                 {loading ? (
                    <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -264,16 +325,60 @@ const Buy: React.FC = () => {
            <Card className="bg-primary/5 border-primary/20">
               <CardHeader className="pb-2">
                  <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Live Exchange Rate</CardDescription>
-                 <CardTitle className="text-2xl font-black text-primary">৳{marketData?.rates?.[selectedNetwork] || '...'}</CardTitle>
+                 <CardTitle className="text-2xl font-black num text-primary">{marketData?.rates?.[selectedNetwork] ? formatBDT(marketData.rates[selectedNetwork], lang) : '...'}</CardTitle>
               </CardHeader>
               <CardContent>
-                 <div className="flex items-center gap-1 text-[10px] text-green-500 font-bold uppercase">
+                 <div className="flex items-center gap-1 text-[10px] text-success font-bold uppercase">
                     <TrendingUp className="h-3 w-3" /> Best rate in Bangladesh
                  </div>
               </CardContent>
            </Card>
         </div>
       </div>
+
+      {/* Large-order review / confirmation step */}
+      {reviewing && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="review-title">
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={() => setReviewing(false)} aria-hidden="true" />
+          <div className="relative w-full max-w-md glass-strong rounded-2xl border border-border shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 mb-4">
+              <ShieldCheck className="h-5 w-5 text-warning" />
+              <h2 id="review-title" className="text-lg font-bold tracking-tight">Review your order</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              This is a large order. Please confirm the details — crypto transactions are irreversible.
+            </p>
+            <dl className="space-y-2.5 text-sm rounded-xl border border-border bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">You pay</dt>
+                <dd className="num font-bold">{formatBDT(bdtNum, lang)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">You receive</dt>
+                <dd className="num font-bold text-primary">
+                  {formatCrypto(cryptoAmount, lang)} {networks.find((n) => n.id === selectedNetwork)?.asset}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Network</dt>
+                <dd className="font-medium">{networks.find((n) => n.id === selectedNetwork)?.name}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-muted-foreground shrink-0">To wallet</dt>
+                <dd className="font-mono text-xs text-right break-all">{wallet}</dd>
+              </div>
+            </dl>
+            <div className="flex gap-3 mt-5">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setReviewing(false)} disabled={loading}>
+                Go back
+              </Button>
+              <Button type="button" className="flex-1" onClick={() => void submitOrder()} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm & submit'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

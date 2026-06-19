@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BarChart3, TrendingUp, TrendingDown, Users, Loader2 } from 'lucide-react';
+import { BarChart3, Users, Loader2 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
 import { SkeletonText } from '../components/ui/skeleton';
-import { EmptyState, ErrorState } from '../components/ui/states';
+import { EmptyState, ErrorState, PageHeader, StatCard, PriceChange } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import { useAnalytics } from '../lib/hooks';
 
@@ -57,30 +57,26 @@ const Analytics: React.FC = () => {
   const hasData = (data?.tx_count ?? 0) > 0;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <BarChart3 className="h-6 w-6 text-primary" />
+    <div className="space-y-6">
+      <PageHeader
+        icon={<BarChart3 className="h-7 w-7" />}
+        title={t('nav_analytics', 'Analytics')}
+        description={t('analytics_subtitle', 'Your spending and transaction insights')}
+        actions={
+          <div className="flex items-center gap-1 flex-wrap">
+            {periods.map((p) => (
+              <Button
+                key={p.key}
+                variant={period === p.key ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setPeriod(p.key)}
+              >
+                {p.label}
+              </Button>
+            ))}
           </div>
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">{t('nav_analytics', 'Analytics')}</h1>
-            <p className="text-muted-foreground text-sm">{t('analytics_subtitle', 'Your spending and transaction insights')}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 flex-wrap">
-          {periods.map((p) => (
-            <Button
-              key={p.key}
-              variant={period === p.key ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPeriod(p.key)}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       {!isLoggedIn ? (
         <Card>
@@ -107,41 +103,27 @@ const Analytics: React.FC = () => {
         <>
           {/* Volume summary */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border-primary/10 bg-card/50 backdrop-blur">
-              <CardContent className="p-5">
-                <p className="text-sm font-medium text-muted-foreground">{t('total_volume', 'Total Volume')}</p>
-                {isLoading && !data ? (
-                  <SkeletonText className="mt-2 h-8 w-32" />
+            <StatCard
+              label={t('total_volume', 'Total Volume')}
+              loading={isLoading && !data}
+              value={fmtUsd(data?.total_volume ?? 0)}
+            />
+            <StatCard
+              label={t('transactions', 'Transactions')}
+              loading={isLoading && !data}
+              value={data?.tx_count ?? 0}
+            />
+            <StatCard
+              label={t('vs_previous', 'vs Previous Period')}
+              loading={isLoading && !data}
+              value={
+                hasChange ? (
+                  <PriceChange value={change as number} decimals={1} className="text-2xl" />
                 ) : (
-                  <p className="text-2xl font-extrabold tracking-tight mt-1">{fmtUsd(data?.total_volume ?? 0)}</p>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="border-primary/10 bg-card/50 backdrop-blur">
-              <CardContent className="p-5">
-                <p className="text-sm font-medium text-muted-foreground">{t('transactions', 'Transactions')}</p>
-                {isLoading && !data ? (
-                  <SkeletonText className="mt-2 h-8 w-16" />
-                ) : (
-                  <p className="text-2xl font-extrabold tracking-tight mt-1">{data?.tx_count ?? 0}</p>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="border-primary/10 bg-card/50 backdrop-blur">
-              <CardContent className="p-5">
-                <p className="text-sm font-medium text-muted-foreground">{t('vs_previous', 'vs Previous Period')}</p>
-                {isLoading && !data ? (
-                  <SkeletonText className="mt-2 h-8 w-24" />
-                ) : hasChange ? (
-                  <p className={`text-2xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
-                    {isUp ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-                    {isUp ? '+' : ''}{(change as number).toFixed(1)}%
-                  </p>
-                ) : (
-                  <p className="text-base text-muted-foreground mt-2">{t('no_comparison', 'No prior data')}</p>
-                )}
-              </CardContent>
-            </Card>
+                  <span className="text-base font-normal text-muted-foreground">{t('no_comparison', 'No prior data')}</span>
+                )
+              }
+            />
           </div>
 
           {!hasData ? (

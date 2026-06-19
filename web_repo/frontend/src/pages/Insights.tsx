@@ -17,6 +17,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ErrorState } from '../components/ui/states';
+import { Sparkline } from '../components/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public market-data APIs (free, no key, CORS-enabled). These are intentionally
@@ -47,6 +48,7 @@ interface MarketCoin {
   total_volume: number;
   market_cap_rank: number;
   price_change_percentage_24h: number;
+  sparkline_in_7d?: { price: number[] };
 }
 
 interface TrendingCoin {
@@ -103,7 +105,7 @@ const ChangeBadge: React.FC<{ value?: number }> = ({ value }) => {
   return (
     <span
       className={`inline-flex items-center gap-1 font-mono text-sm font-semibold ${
-        up ? 'text-green-500' : 'text-red-500'
+        up ? 'text-success' : 'text-destructive'
       }`}
     >
       {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
@@ -152,34 +154,41 @@ const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) 
         <p className="font-mono text-xs uppercase text-muted-foreground">{coin.symbol}</p>
       </div>
     </div>
-    <div className="text-right">
-      <p className="font-mono text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
-      <ChangeBadge value={coin.price_change_percentage_24h} />
+    <div className="flex items-center gap-3">
+      {coin.sparkline_in_7d?.price && coin.sparkline_in_7d.price.length > 1 && (
+        <Sparkline
+          data={coin.sparkline_in_7d.price}
+          className="hidden sm:block"
+          aria-label={`${coin.name} 7-day price trend`}
+        />
+      )}
+      <div className="text-right">
+        <p className="num text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
+        <ChangeBadge value={coin.price_change_percentage_24h} />
+      </div>
     </div>
   </div>
 );
 
 // ── Fear & Greed gauge ──
 const sentimentColor = (v: number) => {
-  if (v >= 75) return 'text-green-500';
-  if (v >= 55) return 'text-green-400';
-  if (v >= 45) return 'text-yellow-400';
-  if (v >= 25) return 'text-orange-400';
-  return 'text-red-500';
+  if (v >= 55) return 'text-success';
+  if (v >= 45) return 'text-warning';
+  if (v >= 25) return 'text-warning';
+  return 'text-destructive';
 };
 const sentimentBar = (v: number) => {
-  if (v >= 75) return 'bg-green-500';
-  if (v >= 55) return 'bg-green-400';
-  if (v >= 45) return 'bg-yellow-400';
-  if (v >= 25) return 'bg-orange-400';
-  return 'bg-red-500';
+  if (v >= 55) return 'bg-success';
+  if (v >= 45) return 'bg-warning';
+  if (v >= 25) return 'bg-warning';
+  return 'bg-destructive';
 };
 
 const Insights: React.FC = () => {
   const { t } = useTranslation();
 
   const markets = useSWR<MarketCoin[]>(
-    `${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h`,
+    `${CG}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&price_change_percentage=24h&sparkline=true`,
     jsonFetcher,
     { refreshInterval: REFRESH },
   );
@@ -349,7 +358,7 @@ const Insights: React.FC = () => {
             <Card className="border-primary/10 lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Flame className="h-5 w-5 text-orange-400" /> {t('trending_tokens', 'Trending Tokens')}
+                  <Flame className="h-5 w-5 text-warning" /> {t('trending_tokens', 'Trending Tokens')}
                 </CardTitle>
                 <CardDescription>{t('trending_desc', 'Most searched coins right now')}</CardDescription>
               </CardHeader>
@@ -407,7 +416,7 @@ const Insights: React.FC = () => {
             <Card className="border-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-green-500" /> {t('top_gainers', 'Top Gainers')}
+                  <TrendingUp className="h-5 w-5 text-success" /> {t('top_gainers', 'Top Gainers')}
                 </CardTitle>
                 <CardDescription>{t('gainers_desc', 'Biggest 24h price increases (top 100 by cap)')}</CardDescription>
               </CardHeader>
@@ -421,7 +430,7 @@ const Insights: React.FC = () => {
             <Card className="border-primary/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingDown className="h-5 w-5 text-red-500" /> {t('top_losers', 'Top Losers')}
+                  <TrendingDown className="h-5 w-5 text-destructive" /> {t('top_losers', 'Top Losers')}
                 </CardTitle>
                 <CardDescription>{t('losers_desc', 'Biggest 24h price drops (top 100 by cap)')}</CardDescription>
               </CardHeader>

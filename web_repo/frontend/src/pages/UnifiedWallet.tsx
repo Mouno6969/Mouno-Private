@@ -119,7 +119,7 @@ const UnifiedWallet: React.FC = () => {
                 <SkeletonText className="mt-2 h-10 w-48" />
               ) : (
                 <>
-                  <p className="text-4xl font-extrabold tracking-tight mt-1">{fmtUsd(netWorthUsd)}</p>
+                  <p className="text-4xl font-extrabold tracking-tight mt-1 num">{fmtUsd(netWorthUsd)}</p>
                   {bdtPerUsd ? (
                     <p className="text-sm text-muted-foreground mt-1 font-mono">
                       {'\u2248'} {'\u09F3'}{(netWorthUsd * bdtPerUsd).toLocaleString(undefined, { maximumFractionDigits: 0 })}

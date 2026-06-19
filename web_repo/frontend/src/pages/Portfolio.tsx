@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PieChart as PieChartIcon, TrendingUp, TrendingDown, Wallet, Bell, Loader2, Trash2 } from 'lucide-react';
+import { PieChart as PieChartIcon, Wallet, Bell, Loader2, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -9,7 +9,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
 import { SkeletonText } from '../components/ui/skeleton';
-import { EmptyState, ErrorState } from '../components/ui/states';
+import { EmptyState, ErrorState, PageHeader, StatCard, PriceChange } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import { usePortfolio, usePriceAlerts } from '../lib/hooks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
@@ -94,21 +94,17 @@ const Portfolio: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <PieChartIcon className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">{t('nav_portfolio', 'Portfolio')}</h1>
-            <p className="text-muted-foreground text-sm">{t('portfolio_subtitle', 'Your total net worth across all wallets')}</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => mutate()} disabled={isValidating}>
-          {isValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : t('refresh', 'Refresh')}
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={<PieChartIcon className="h-7 w-7" />}
+        title={t('nav_portfolio', 'Portfolio')}
+        description={t('portfolio_subtitle', 'Your total net worth across all wallets')}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => mutate()} disabled={isValidating}>
+            {isValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : t('refresh', 'Refresh')}
+          </Button>
+        }
+      />
 
       {!isLoggedIn ? (
         <Card>
@@ -124,31 +120,22 @@ const Portfolio: React.FC = () => {
         <>
           {/* Net worth + 24h change */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card className="border-primary/10 bg-card/50 backdrop-blur">
-              <CardContent className="p-5">
-                <p className="text-sm font-medium text-muted-foreground">{t('net_worth', 'Total Net Worth')}</p>
-                {isLoading && !overview ? (
-                  <SkeletonText className="mt-2 h-9 w-40" />
+            <StatCard
+              label={t('net_worth', 'Total Net Worth')}
+              loading={isLoading && !overview}
+              value={fmtUsd(overview?.net_worth_usd ?? 0)}
+            />
+            <StatCard
+              label={t('change_24h', '24h Change')}
+              loading={isLoading && !overview}
+              value={
+                hasChange ? (
+                  <PriceChange value={change as number} className="text-2xl" />
                 ) : (
-                  <p className="text-3xl font-extrabold tracking-tight mt-1">{fmtUsd(overview?.net_worth_usd ?? 0)}</p>
-                )}
-              </CardContent>
-            </Card>
-            <Card className="border-primary/10 bg-card/50 backdrop-blur">
-              <CardContent className="p-5">
-                <p className="text-sm font-medium text-muted-foreground">{t('change_24h', '24h Change')}</p>
-                {isLoading && !overview ? (
-                  <SkeletonText className="mt-2 h-9 w-28" />
-                ) : hasChange ? (
-                  <p className={`text-3xl font-extrabold tracking-tight mt-1 flex items-center gap-2 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
-                    {isUp ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
-                    {isUp ? '+' : ''}{(change as number).toFixed(2)}%
-                  </p>
-                ) : (
-                  <p className="text-base text-muted-foreground mt-2">{t('change_pending', 'Tracking — available after 24h')}</p>
-                )}
-              </CardContent>
-            </Card>
+                  <span className="text-base font-normal text-muted-foreground">{t('change_pending', 'Tracking — available after 24h')}</span>
+                )
+              }
+            />
           </div>
 
           {/* Holdings pie + breakdown */}

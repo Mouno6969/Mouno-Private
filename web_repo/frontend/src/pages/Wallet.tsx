@@ -277,7 +277,7 @@ const MyWallet: React.FC = () => {
         </div>
       </div>
 
-      <Alert className="bg-amber-500/5 border-amber-500/20 text-amber-200">
+      <Alert className="bg-warning/5 border-warning/20 text-warning">
         <Shield className="h-4 w-4" />
         <AlertTitle className="text-xs font-bold">One master password</AlertTitle>
         <AlertDescription className="text-xs">

@@ -344,10 +344,10 @@ const Automation: React.FC = () => {
 
   const statusBadge = (status: string) => {
     const map: Record<string, string> = {
-      active: 'bg-green-500/10 text-green-500 border-green-500/20',
-      filled: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      triggered: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      paused: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+      active: 'bg-success/10 text-success border-success/20',
+      filled: 'bg-info/10 text-info border-info/20',
+      triggered: 'bg-info/10 text-info border-info/20',
+      paused: 'bg-warning/10 text-warning border-warning/20',
       failed: 'bg-destructive/10 text-destructive border-destructive/20',
       cancelled: 'bg-muted text-muted-foreground border-muted',
     };
@@ -372,8 +372,8 @@ const Automation: React.FC = () => {
 
       {/* Auto-sign reminder */}
       {configured === false && (
-        <Alert className="bg-amber-500/5 border-amber-500/20">
-          <AlertCircle className="h-4 w-4 text-amber-500" />
+        <Alert className="bg-warning/5 border-warning/20">
+          <AlertCircle className="h-4 w-4 text-warning" />
           <AlertDescription className="text-xs text-muted-foreground">
             Auto-sign is not set up yet. Configure it in the <button className="font-bold text-primary underline" onClick={() => setTab('setup')}>Auto-Sign Setup</button> tab before creating automations.
           </AlertDescription>
@@ -616,10 +616,10 @@ const Automation: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {configured && (
-                <Alert className="bg-green-500/5 border-green-500/20">
-                  <ShieldCheck className="h-4 w-4 text-green-500" />
+                <Alert className="bg-success/5 border-success/20">
+                  <ShieldCheck className="h-4 w-4 text-success" />
                   <AlertDescription className="text-xs text-muted-foreground">
-                    Auto-sign is currently <span className="font-bold text-green-500">enabled</span>. Re-enter your password below to update it.
+                    Auto-sign is currently <span className="font-bold text-success">enabled</span>. Re-enter your password below to update it.
                   </AlertDescription>
                 </Alert>
               )}
@@ -643,7 +643,7 @@ const Automation: React.FC = () => {
                 <ShieldCheck className="h-5 w-5 mr-2" /> {configured ? 'Update Auto-Sign' : 'Enable Auto-Sign'}
               </AsyncButton>
               <div className="p-4 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 text-green-500 shrink-0" />
+                <ShieldCheck className="h-5 w-5 text-success shrink-0" />
                 <p className="text-[10px] text-muted-foreground leading-tight">
                   Your password is never stored in plaintext and never returned by the API. Cancel any automation any time to wipe its stored credentials.
                 </p>

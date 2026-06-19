@@ -1,6 +1,5 @@
 import React from 'react';
 import { Card, CardContent } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
 import { ScrollText, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
@@ -8,9 +7,13 @@ import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
 import { useTxLog } from '../lib/hooks';
 import { SkeletonListRow } from '../components/ui/skeleton';
 import { EmptyState, ErrorState } from '../components/ui/states';
+import { StatusBadge, RelativeTime, CopyButton } from '../components/common';
+import { useTranslation } from 'react-i18next';
+import { formatCrypto } from '../lib/format';
 
 const TxLog: React.FC = () => {
   const { token } = useAuth();
+  const { i18n } = useTranslation();
   const { data: txs, error, isLoading, isValidating, mutate } = useTxLog(Boolean(token));
 
   const shortWallet = (w: string) => (w ? `${w.slice(0, 6)}...${w.slice(-4)}` : 'N/A');
@@ -74,22 +77,27 @@ const TxLog: React.FC = () => {
                     <NetworkLogo id={tx.network} size={28} />
                     <div>
                       <div className="font-semibold text-sm">{NETWORK_MAP[tx.network]?.name || tx.network}</div>
-                      <div className="text-xs text-muted-foreground">{tx.created_at?.slice(0, 16)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        <RelativeTime value={tx.created_at} />
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono font-bold">
-                      {tx.amount_crypto} {NETWORK_MAP[tx.network]?.asset || ''}
+                    <div className="num font-bold">
+                      {formatCrypto(tx.amount_crypto, i18n.language)} {NETWORK_MAP[tx.network]?.asset || ''}
                     </div>
                     <div className="text-xs text-muted-foreground">{tx.source}</div>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between flex-wrap gap-2 text-xs">
                   <span className="font-mono text-muted-foreground">Wallet: {shortWallet(tx.wallet)}</span>
-                  {tx.order_id && <span className="font-mono text-muted-foreground">{tx.order_id}</span>}
-                  <Badge variant={tx.status === 'completed' ? 'default' : 'destructive'} className="text-[10px]">
-                    {tx.status}
-                  </Badge>
+                  {tx.order_id && (
+                    <span className="inline-flex items-center gap-1.5 font-mono text-muted-foreground">
+                      {tx.order_id}
+                      <CopyButton value={tx.order_id} label="Copy order ID" />
+                    </span>
+                  )}
+                  <StatusBadge status={tx.status} className="text-[10px]" />
                 </div>
               </CardContent>
             </Card>

@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
 import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
+import { FlashValue, Freshness } from '../components/common';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -63,7 +64,7 @@ const Dashboard: React.FC = () => {
       {/* Top Marquee 1: Latest transactions / news ticker */}
       <Marquee
         speed={35}
-        containerClassName="bg-muted/40 border-y border-white/10 py-1.5 -mx-3 sm:-mx-5 lg:-mx-8"
+        containerClassName="bg-muted/40 border-y border-border/60 py-1.5 -mx-3 sm:-mx-5 lg:-mx-8"
         className="text-xs"
       >
         <span className="flex items-center gap-1.5 px-2">
@@ -84,8 +85,8 @@ const Dashboard: React.FC = () => {
       {/* Top Marquee 2: Live status ticker */}
       <Marquee
         speed={30}
-        containerClassName="bg-green-500/5 border-y border-green-500/15 py-1 -mx-3 sm:-mx-5 lg:-mx-8 !mt-0"
-        className="font-mono text-[10px] uppercase tracking-[0.2em] text-green-500"
+        containerClassName="bg-success/5 border-y border-success/15 py-1 -mx-3 sm:-mx-5 lg:-mx-8 !mt-0"
+        className="font-mono text-[10px] uppercase tracking-[0.2em] text-success"
       >
         <span className="flex items-center gap-2">▸ LIVE</span>
         <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
@@ -106,13 +107,11 @@ const Dashboard: React.FC = () => {
           <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-           <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 px-3 py-1">
-             <div className="mr-2 h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+           <Badge variant="success" className="px-3 py-1">
+             <div className="mr-2 h-2 w-2 rounded-full bg-success animate-pulse" />
              System: Online
            </Badge>
-           <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-             Refreshed: {lastUpdated.toLocaleTimeString()}
-           </span>
+           <Freshness updatedAt={lastUpdated} label="Rates updated" />
         </div>
       </section>
 
@@ -129,9 +128,11 @@ const Dashboard: React.FC = () => {
                 {marketLoading && !marketData ? (
                   <SkeletonText className="mt-1 h-5 w-16" />
                 ) : (
-                  <p className="text-base sm:text-lg font-bold tracking-tight truncate">
-                    {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
-                  </p>
+                  <FlashValue value={marketData?.rates?.solana} className="inline-block px-1 -mx-1">
+                    <p className="num text-base sm:text-lg font-bold tracking-tight truncate">
+                      {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
+                    </p>
+                  </FlashValue>
                 )}
               </div>
             </div>
@@ -253,10 +254,12 @@ const Dashboard: React.FC = () => {
                         </TableCell>
                         <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-sm font-bold text-foreground">৳{rate || '...'}</span>
+                            <FlashValue value={rate} className="inline-block px-1 -mx-1">
+                              <span className="num text-sm font-bold text-foreground">৳{rate || '...'}</span>
+                            </FlashValue>
                             {hasNumericChange && (
                               <Badge
-                                className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'}`}
+                                className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}
                               >
                                 {isUp ? '▲' : '▼'} {Math.abs(change).toFixed(3)}
                               </Badge>
@@ -343,19 +346,19 @@ const Dashboard: React.FC = () => {
         <Card className="border-primary/10 bg-card/50 backdrop-blur overflow-hidden">
           <CardHeader className="py-3 bg-muted/20">
             <CardTitle className="text-xs uppercase tracking-[0.2em] flex items-center gap-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
               Live Activity
               {isDemoMode && (
-                <Badge variant="outline" className="text-[8px] h-4 px-1.5 uppercase tracking-wider border-amber-500/30 bg-amber-500/10 text-amber-500">
+                <Badge variant="warning" className="text-[8px] h-4 px-1.5 uppercase tracking-wider">
                   Demo data
                 </Badge>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-border/50">
                 {Array.isArray(recentActivity) && recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
-                <div key={i} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
+                <div key={i} className="p-3 flex items-center justify-between hover:bg-secondary/40 transition-colors">
                   <div className="flex items-center gap-2">
                     <NetworkLogo id={act.network} size={16} />
                     <div className="flex flex-col">

@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../lib/hooks';
 import type { OrderEntry } from '../types';
 import { SkeletonTableRows } from '../components/ui/skeleton';
-import { ErrorState } from '../components/ui/states';
+import { ErrorState, EmptyState, LoadingSkeleton } from '../components/common';
 
 const StatusBadge = ({ status }: { status: string | null | undefined }) => {
   if (!status) {
@@ -18,13 +18,13 @@ const StatusBadge = ({ status }: { status: string | null | undefined }) => {
   }
   switch (status.toLowerCase()) {
     case 'completed':
-      return <Badge className="bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20">Completed</Badge>;
+      return <Badge variant="success">Completed</Badge>;
     case 'pending':
-      return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending</Badge>;
+      return <Badge variant="warning">Pending</Badge>;
     case 'failed':
-      return <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20">Failed</Badge>;
+      return <Badge variant="destructive">Failed</Badge>;
     case 'waiting_payment':
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">Waiting Payment</Badge>;
+      return <Badge variant="info">Waiting Payment</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -67,15 +67,15 @@ const Orders: React.FC = () => {
       {/* Pending Orders */}
       {data.pending.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-xl font-bold flex items-center gap-2 text-yellow-500">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-warning">
             <Clock className="h-5 w-5 animate-pulse" /> {t('pending_orders')}
           </h2>
           <div className="grid grid-cols-1 gap-4">
             {data.pending.map((order: OrderEntry) => (
-              <Card key={order.trx_id} className="border-yellow-500/20 bg-yellow-500/5 overflow-hidden transition-all hover:border-yellow-500/40">
+              <Card key={order.trx_id} className="border-warning/20 bg-warning/5 overflow-hidden transition-all hover:border-warning/40">
                 <CardContent className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-yellow-500/10 text-yellow-500 rounded-2xl flex items-center justify-center shrink-0 border border-yellow-500/20">
+                    <div className="w-12 h-12 bg-warning/10 text-warning rounded-2xl flex items-center justify-center shrink-0 border border-warning/20">
                       <Clock size={24} />
                     </div>
                     <div>
@@ -83,9 +83,9 @@ const Orders: React.FC = () => {
                       <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
+                  <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t border-border/60 md:border-none pt-4 md:pt-0">
                     <div className="text-left md:text-right">
-                      <p className="font-black text-xl text-yellow-600">৳{order.amount_bdt}</p>
+                      <p className="font-black text-xl text-warning">৳{order.amount_bdt}</p>
                       <p className="text-xs font-bold text-muted-foreground uppercase">{order.amount_usdc} USDC • {order.network}</p>
                     </div>
                     <StatusBadge status="pending" />
@@ -100,7 +100,7 @@ const Orders: React.FC = () => {
       {/* Completed Orders */}
       <Card className="shadow-xl border-primary/10 overflow-hidden">
         <CardHeader className="bg-muted/30 pb-4">
-          <CardTitle className="text-xl flex items-center gap-2 text-green-500">
+          <CardTitle className="text-xl flex items-center gap-2 text-success">
             <CheckCircle className="h-5 w-5" /> {t('order_history')}
           </CardTitle>
           <CardDescription>A list of your successfully processed transactions.</CardDescription>
@@ -113,7 +113,9 @@ const Orders: React.FC = () => {
               onRetry={() => mutate()}
             />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Desktop / tablet: table */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/20 hover:bg-muted/20 border-muted/50">
@@ -171,6 +173,39 @@ const Orders: React.FC = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile: card list instead of horizontal scroll */}
+            <div className="md:hidden p-3 space-y-2">
+              {isLoading ? (
+                <LoadingSkeleton variant="list" rows={4} />
+              ) : filteredCompleted.length === 0 ? (
+                <EmptyState
+                  icon={<History className="h-6 w-6" aria-hidden="true" />}
+                  title="No completed orders found."
+                  description={searchTerm ? 'Try a different search term.' : 'Start trading to see your transaction history here.'}
+                />
+              ) : (
+                filteredCompleted.map((order: OrderEntry) => (
+                  <div key={order.trx_id} className="rounded-xl border border-border bg-card/50 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold text-sm">{order.order_id}</span>
+                      <StatusBadge status={order.status} />
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-2">
+                      <div>
+                        <div className="num font-bold text-base">৳{order.amount_bdt}</div>
+                        <div className="text-[10px] font-medium text-muted-foreground uppercase">{order.amount_usdc} USDC</div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline" className="font-mono border-primary/20 bg-primary/5 text-primary">{order.network}</Badge>
+                        <div className="text-[10px] text-muted-foreground mt-1.5">{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
