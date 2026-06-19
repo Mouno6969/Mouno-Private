@@ -8,9 +8,12 @@ import { useTxLog } from '../lib/hooks';
 import { SkeletonListRow } from '../components/ui/skeleton';
 import { EmptyState, ErrorState } from '../components/ui/states';
 import { StatusBadge, RelativeTime, CopyButton } from '../components/common';
+import { useTranslation } from 'react-i18next';
+import { formatCrypto } from '../lib/format';
 
 const TxLog: React.FC = () => {
   const { token } = useAuth();
+  const { i18n } = useTranslation();
   const { data: txs, error, isLoading, isValidating, mutate } = useTxLog(Boolean(token));
 
   const shortWallet = (w: string) => (w ? `${w.slice(0, 6)}...${w.slice(-4)}` : 'N/A');
@@ -81,7 +84,7 @@ const TxLog: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <div className="num font-bold">
-                      {tx.amount_crypto} {NETWORK_MAP[tx.network]?.asset || ''}
+                      {formatCrypto(tx.amount_crypto, i18n.language)} {NETWORK_MAP[tx.network]?.asset || ''}
                     </div>
                     <div className="text-xs text-muted-foreground">{tx.source}</div>
                   </div>

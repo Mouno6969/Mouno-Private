@@ -13,6 +13,7 @@ import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { useMarket } from '../lib/hooks';
 import { CopyButton } from '../components/common';
+import { formatBDT, formatCrypto } from '../lib/format';
 
 interface BuyResponse {
   order_id: string;
@@ -20,9 +21,12 @@ interface BuyResponse {
 
 const MIN_BDT = 500;
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
+// Above this, ask the user to review before submitting an irreversible order.
+const CONFIRM_THRESHOLD_BDT = 50000;
 
 const Buy: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const networks = NETWORK_LIST;
 
   const { data: marketData } = useMarket();
@@ -33,6 +37,7 @@ const Buy: React.FC = () => {
   const [trxId, setTrxId] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   // Real-time validation: surface why the amount is invalid as the user types.
   const bdtNum = parseFloat(bdtAmount);
@@ -66,8 +71,19 @@ const Buy: React.FC = () => {
     setCryptoAmount(recalc(bdtAmount, id));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Intercept submit: large orders get a review/confirm step first.
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (amountError) return;
+    if (Number.isFinite(bdtNum) && bdtNum >= CONFIRM_THRESHOLD_BDT) {
+      setReviewing(true);
+      return;
+    }
+    void submitOrder();
+  };
+
+  const submitOrder = async () => {
+    setReviewing(false);
     setLoading(true);
     try {
       const res = await apiClient.post<BuyResponse>('/api/buy', {
@@ -129,7 +145,7 @@ const Buy: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         <div className="lg:col-span-2 space-y-6">
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleFormSubmit}>
           <Card className="shadow-xl border-primary/10 overflow-hidden">
             <CardHeader className="bg-muted/30">
                <CardTitle className="text-lg">Order Details</CardTitle>
@@ -195,19 +211,19 @@ const Buy: React.FC = () => {
                             : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
                         }`}
                       >
-                        ৳{amt.toLocaleString('en-US')}
+                        {formatBDT(amt, lang)}
                       </button>
                     ))}
                   </div>
                   <p id="bdt-help" className={`text-[10px] ${amountError ? 'text-destructive font-medium' : 'text-muted-foreground italic'}`}>
-                    {amountError ?? `Approx. rate: ৳${marketData?.rates?.[selectedNetwork] || '...'}`}
+                    {amountError ?? `Approx. rate: ${marketData?.rates?.[selectedNetwork] ? formatBDT(marketData.rates[selectedNetwork], lang) : '...'}`}
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t('crypto_amount')} (Receive)</Label>
                   <div className="h-14 flex items-center justify-between px-4 rounded-md border bg-primary/5 border-primary/20">
-                    <span className="text-2xl font-black font-mono text-primary">{cryptoAmount}</span>
+                    <span className="text-2xl font-black num text-primary">{formatCrypto(cryptoAmount, lang)}</span>
                     <Badge variant="outline" className="font-mono bg-primary/10 border-primary/30">
                       {networks.find(n => n.id === selectedNetwork)?.asset}
                     </Badge>
@@ -309,7 +325,7 @@ const Buy: React.FC = () => {
            <Card className="bg-primary/5 border-primary/20">
               <CardHeader className="pb-2">
                  <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Live Exchange Rate</CardDescription>
-                 <CardTitle className="text-2xl font-black text-primary">৳{marketData?.rates?.[selectedNetwork] || '...'}</CardTitle>
+                 <CardTitle className="text-2xl font-black num text-primary">{marketData?.rates?.[selectedNetwork] ? formatBDT(marketData.rates[selectedNetwork], lang) : '...'}</CardTitle>
               </CardHeader>
               <CardContent>
                  <div className="flex items-center gap-1 text-[10px] text-success font-bold uppercase">
@@ -319,6 +335,50 @@ const Buy: React.FC = () => {
            </Card>
         </div>
       </div>
+
+      {/* Large-order review / confirmation step */}
+      {reviewing && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="review-title">
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={() => setReviewing(false)} aria-hidden="true" />
+          <div className="relative w-full max-w-md glass-strong rounded-2xl border border-border shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 mb-4">
+              <ShieldCheck className="h-5 w-5 text-warning" />
+              <h2 id="review-title" className="text-lg font-bold tracking-tight">Review your order</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              This is a large order. Please confirm the details — crypto transactions are irreversible.
+            </p>
+            <dl className="space-y-2.5 text-sm rounded-xl border border-border bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">You pay</dt>
+                <dd className="num font-bold">{formatBDT(bdtNum, lang)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">You receive</dt>
+                <dd className="num font-bold text-primary">
+                  {formatCrypto(cryptoAmount, lang)} {networks.find((n) => n.id === selectedNetwork)?.asset}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Network</dt>
+                <dd className="font-medium">{networks.find((n) => n.id === selectedNetwork)?.name}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="text-muted-foreground shrink-0">To wallet</dt>
+                <dd className="font-mono text-xs text-right break-all">{wallet}</dd>
+              </div>
+            </dl>
+            <div className="flex gap-3 mt-5">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setReviewing(false)} disabled={loading}>
+                Go back
+              </Button>
+              <Button type="button" className="flex-1" onClick={() => void submitOrder()} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm & submit'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
