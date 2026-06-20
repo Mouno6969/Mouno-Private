@@ -107,7 +107,7 @@ const OrderStatus: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {result.order_id && <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Order ID</span><span className="inline-flex items-center gap-1.5 font-mono">{result.order_id}<CopyButton value={result.order_id} label="Copy order ID" /></span></div>}
+            {result.order_id && <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Order ID</span><span className="inline-flex items-center gap-1.5 font-mono">{result.order_id}<CopyButton value={result.order_id ?? ''} label="Copy order ID" /></span></div>}
             {result.trx_id && <div className="flex justify-between gap-2"><span className="text-muted-foreground">TrxID</span><span className="font-mono text-xs">{result.trx_id}</span></div>}
             {result.amount_bdt && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Amount (BDT)</span><span className="num font-bold">৳{result.amount_bdt}</span></div>}
             {result.amount_crypto && <div className="flex justify-between gap-2"><span className="text-muted-foreground">Crypto</span><span className="num">{result.amount_crypto} {NETWORK_MAP[result.network]?.asset || ''}</span></div>}
@@ -127,7 +127,7 @@ const OrderStatus: React.FC = () => {
               <span className="live-dot ml-1" />
             </div>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Order</span><span className="inline-flex items-center gap-1.5 font-mono">{receipt.order_id}<CopyButton value={receipt.order_id} label="Copy order ID" /></span></div>
+              <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Order</span><span className="inline-flex items-center gap-1.5 font-mono">{receipt.order_id}<CopyButton value={receipt.order_id ?? ""} label="Copy order ID" /></span></div>
               <div className="flex justify-between gap-2"><span className="text-muted-foreground">Amount</span><span className="num">{receipt.amount_crypto} {NETWORK_MAP[receipt.network]?.asset || ''}</span></div>
               <div className="flex justify-between gap-2"><span className="text-muted-foreground">Network</span><span>{NETWORK_MAP[receipt.network]?.name || receipt.network}</span></div>
               <div className="flex justify-between gap-2"><span className="text-muted-foreground">Wallet</span><span className="font-mono text-xs">{shortWallet(receipt.wallet)}</span></div>

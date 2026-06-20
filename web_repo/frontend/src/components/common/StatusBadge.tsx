@@ -47,7 +47,7 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 };
 
 interface StatusBadgeProps {
-  status: string;
+  status: string | null | undefined;
   /** Optional display label (defaults to the status string, capitalized). */
   label?: string;
   className?: string;
