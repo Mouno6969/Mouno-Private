@@ -183,6 +183,12 @@ const sentimentBar = (v: number) => {
   if (v >= 25) return 'bg-warning';
   return 'bg-destructive';
 };
+// Token-based glow color keyed to sentiment, for the radial backdrop + text glow.
+const sentimentGlow = (v: number) => {
+  if (v >= 55) return 'hsl(var(--success) / 0.35)';
+  if (v >= 25) return 'hsl(var(--warning) / 0.35)';
+  return 'hsl(var(--destructive) / 0.35)';
+};
 
 const Insights: React.FC = () => {
   const { t } = useTranslation();
@@ -315,14 +321,23 @@ const Insights: React.FC = () => {
           {/* Sentiment + Trending */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Market sentiment (Fear & Greed) */}
-            <Card className="border-primary/10">
-              <CardHeader>
+            <Card className="relative overflow-hidden border-primary/10 glass-panel">
+              {fngValue != null && (
+                <div
+                  className="absolute inset-0 pointer-events-none dot-matrix-fade"
+                  aria-hidden="true"
+                  style={{
+                    background: `radial-gradient(circle at 50% 38%, ${sentimentGlow(fngValue)}, transparent 62%)`,
+                  }}
+                />
+              )}
+              <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Gauge className="h-5 w-5 text-primary" /> {t('market_sentiment', 'Market Sentiment')}
                 </CardTitle>
                 <CardDescription>{t('fear_greed', 'Crypto Fear & Greed Index')}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative">
                 {fngValue == null ? (
                   <div className="space-y-3">
                     <Skeleton className="mx-auto h-16 w-24" />
@@ -331,16 +346,16 @@ const Insights: React.FC = () => {
                 ) : (
                   <div className="space-y-4 text-center">
                     <div>
-                      <p className={`text-6xl font-black tabular-nums ${sentimentColor(fngValue)}`}>
+                      <p className={`text-6xl font-black num ${sentimentColor(fngValue)}`} style={{ filter: `drop-shadow(0 0 16px ${sentimentGlow(fngValue)})` }}>
                         {fngValue}
                       </p>
                       <p className={`text-sm font-bold uppercase tracking-wide ${sentimentColor(fngValue)}`}>
                         {fngEntry?.value_classification}
                       </p>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/70 ring-1 ring-inset ring-border/50">
                       <div
-                        className={`h-full rounded-full transition-all ${sentimentBar(fngValue)}`}
+                        className={`h-full rounded-full transition-all duration-700 ${sentimentBar(fngValue)}`}
                         style={{ width: `${fngValue}%` }}
                       />
                     </div>

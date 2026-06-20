@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
 import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
-import { FlashValue, Freshness } from '../components/common';
+import { FlashValue, Freshness, TexturePanel } from '../components/common';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -99,21 +99,24 @@ const Dashboard: React.FC = () => {
         <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
       </Marquee>
 
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
-            {t('welcome')}, <span className="text-primary">{user ? user.username : 'Guest'}</span>!
-          </h1>
-          <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-           <Badge variant="success" className="px-3 py-1">
-             <div className="mr-2 h-2 w-2 rounded-full bg-success animate-pulse" />
-             System: Online
-           </Badge>
-           <Freshness updatedAt={lastUpdated} label="Rates updated" />
-        </div>
-      </section>
+      <TexturePanel variant="primary" glow aurora accentTop strong>
+        <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6">
+          <div className="space-y-1">
+            <p className="label-eyebrow">Dashboard</p>
+            <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
+              {t('welcome')}, <span className="text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.4)]">{user ? user.username : 'Guest'}</span>!
+            </h1>
+            <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+             <Badge variant="success" className="px-3 py-1 gap-2">
+               <span className="live-dot" />
+               System: Online
+             </Badge>
+             <Freshness updatedAt={lastUpdated} label="Rates updated" />
+          </div>
+        </section>
+      </TexturePanel>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">

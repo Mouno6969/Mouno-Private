@@ -19,12 +19,19 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
   approved: 'success',
   confirmed: 'success',
   sent: 'success',
+  filled: 'success',
   // pending / warning
   pending: 'warning',
   processing: 'warning',
   open: 'warning',
   waiting: 'warning',
+  waiting_payment: 'warning',
+  paused: 'warning',
+  scheduled: 'warning',
   review: 'warning',
+  // info / neutral live states
+  triggered: 'info',
+  partial: 'info',
   // error / destructive
   failed: 'destructive',
   error: 'destructive',
