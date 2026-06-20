@@ -135,7 +135,7 @@ const Portfolio: React.FC = () => {
                 {isLoading && !overview ? (
                   <div className="mt-2 h-9 w-40 animate-pulse rounded bg-muted/60" />
                 ) : (
-                  <FlashValue value={overview?.net_worth_usd ?? 0}>
+                  <FlashValue value={overview?.net_worth_usd ?? 0} as="div">
                     <p className="num mt-1 text-3xl font-extrabold tracking-tight drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]">
                       {fmtUsd(overview?.net_worth_usd ?? 0)}
                     </p>

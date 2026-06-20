@@ -10,7 +10,7 @@ import { EmptyState, ErrorState } from '../components/ui/states';
 import { useAuth } from '../context/AuthContext';
 import { usePortfolio, useMarket } from '../lib/hooks';
 import type { PortfolioHolding } from '../types/api';
-import { TexturePanel, FlashValue, Freshness } from '../components/common';
+import { TexturePanel, FlashValue } from '../components/common';
 
 // Theme-token palette for the chain share bar (adapts to theme; on-brand).
 const CHAIN_COLORS = [
@@ -126,13 +126,13 @@ const UnifiedWallet: React.FC = () => {
             <div className="p-6">
               <div className="flex items-center justify-between gap-3">
                 <p className="label-eyebrow">{t('total_value_all_chains', 'Total Value (All Chains)')}</p>
-                {!isLoading && <Freshness updatedAt={isValidating ? undefined : Date.now()} label="Valued" />}
+                
               </div>
               {isLoading && !overview ? (
                 <SkeletonText className="mt-2 h-10 w-48" />
               ) : (
                 <>
-                  <FlashValue value={netWorthUsd}>
+                  <FlashValue value={netWorthUsd} as="div">
                     <p className="text-4xl sm:text-5xl font-extrabold tracking-tight mt-1 num drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]">{fmtUsd(netWorthUsd)}</p>
                   </FlashValue>
                   {bdtPerUsd ? (

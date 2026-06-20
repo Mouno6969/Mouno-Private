@@ -260,7 +260,7 @@ const Buy: React.FC = () => {
                     <div className="flex items-center gap-2 label-eyebrow">
                        <Smartphone className="h-4 w-4" /> {t('send_bdt')} to this bKash Number
                     </div>
-                    <div className="num text-3xl font-black tracking-widest text-primary flex items-center gap-3 drop-shadow-[0_0_20px_hsl(var(--primary)/0.4)]">
+                    <div className="num font-mono text-3xl font-black tracking-widest text-primary flex items-center gap-3 drop-shadow-[0_0_20px_hsl(var(--primary)/0.4)]">
                        {marketData?.bKash || '01XXXXXXXXX'}
                        <CopyButton value={marketData?.bKash || ''} label="Copy bKash number" className="h-8 w-8 justify-center" />
                     </div>

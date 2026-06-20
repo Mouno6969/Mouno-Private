@@ -131,7 +131,7 @@ const Dashboard: React.FC = () => {
                 {marketLoading && !marketData ? (
                   <SkeletonText className="mt-1 h-5 w-16" />
                 ) : (
-                  <FlashValue value={marketData?.rates?.solana} className="inline-block px-1 -mx-1">
+                  <FlashValue value={marketData?.rates?.solana} as="div" className="inline-block px-1 -mx-1">
                     <p className="num text-base sm:text-lg font-bold tracking-tight truncate">
                       {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
                     </p>
