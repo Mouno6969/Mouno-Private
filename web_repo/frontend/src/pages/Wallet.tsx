@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { NETWORK_LIST, NETWORK_MAP, NetworkLogo } from '../constants/networks';
 import { apiClient, ApiUnavailableError, getErrorMessage } from '../lib/apiClient';
 import type { ApiEnvelope } from '../types';
+import { CopyButton, FlashValue } from '../components/common';
 
 interface WalletBalancesData {
   wallets: WalletItem[];
@@ -333,32 +334,30 @@ const MyWallet: React.FC = () => {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {items.map((w) => (
-                    <Card key={w.id} className="border-primary/10">
-                      <CardContent className="p-4 space-y-3">
+                    <Card key={w.id} className="relative overflow-hidden glass-panel transition-all hover:border-primary/30 group">
+                      <div className="absolute inset-0 dot-matrix-fine dot-matrix-fade-top opacity-50 pointer-events-none" aria-hidden="true" />
+                      <CardContent className="relative p-4 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="font-semibold text-sm truncate">
                               {w.label || meta?.name || network}
                             </p>
-                            <button
-                              type="button"
-                              onClick={() => copy(w.wallet_address)}
-                              aria-label={`Copy wallet address ${w.wallet_address || ''}`}
-                              className="flex items-center gap-1 text-xs text-muted-foreground font-mono hover:text-foreground"
-                            >
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                               {truncate(w.wallet_address)}
-                              <Copy className="h-3 w-3" />
-                            </button>
+                              <CopyButton value={w.wallet_address ?? ''} label="Copy wallet address" />
+                            </span>
                           </div>
                           <NetworkLogo id={network} size={28} />
                         </div>
-                        <div className="rounded-md bg-muted/30 px-3 py-2">
-                          <p className="text-lg font-bold">
-                            {w.balance != null ? w.balance : '—'}{' '}
-                            <span className="text-xs font-medium text-muted-foreground">{w.asset || meta?.asset}</span>
-                          </p>
+                        <div className="rounded-md bg-muted/40 px-3 py-2 ring-1 ring-inset ring-border/60">
+                          <FlashValue value={w.balance != null ? Number(w.balance) : undefined} as="div">
+                            <p className="num text-lg font-bold tracking-tight">
+                              {w.balance != null ? w.balance : '—'}{' '}
+                              <span className="text-xs font-medium text-muted-foreground">{w.asset || meta?.asset}</span>
+                            </p>
+                          </FlashValue>
                           {w.native_balance != null && (
-                            <p className="text-xs text-muted-foreground">Gas: {w.native_balance}</p>
+                            <p className="num text-xs text-muted-foreground">Gas: {w.native_balance}</p>
                           )}
                         </div>
                         <div className="flex gap-2">
