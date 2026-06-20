@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
-import { Copy, Users, DollarSign, Wallet } from 'lucide-react';
-import { toast } from 'sonner';
+import { Users, DollarSign, Wallet, Gift } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
+import { PageHeader, StatCard, TexturePanel, CopyButton } from '../components/common';
 
 interface ReferralStats {
   referral_count?: number;
@@ -36,11 +36,7 @@ const Referral: React.FC = () => {
     fetchStats();
   }, [token]);
 
-  const copyLink = () => {
-    const link = `https://t.me/Automatedcryptobuybot?start=ref_${code}`;
-    navigator.clipboard.writeText(link);
-    toast.success(t('copy_success'));
-  };
+  const refLink = `https://t.me/Automatedcryptobuybot?start=ref_${code}`;
 
   if (!user?.telegram_id) {
     return (
@@ -59,51 +55,27 @@ const Referral: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <PageHeader icon={<Gift className="h-7 w-7" />} eyebrow="Earn" title={t('referral')} description="Invite friends and earn on every order they make." />
+
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('referral')}</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.referral_count || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('earnings')}</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats?.total_earned?.toFixed(2) || '0.00'}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats?.balance?.toFixed(2) || '0.00'}</div>
-          </CardContent>
-        </Card>
+        <StatCard label={t('referral')} icon={<Users className="h-4 w-4" />} value={stats?.referral_count ?? 0} />
+        <StatCard label={t('earnings')} icon={<DollarSign className="h-4 w-4" />} value={`$${stats?.total_earned?.toFixed(2) || '0.00'}`} />
+        <StatCard label="Balance" icon={<Wallet className="h-4 w-4" />} value={`$${stats?.balance?.toFixed(2) || '0.00'}`} />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('referral_link')}</CardTitle>
-          <CardDescription>Share this link to earn commissions on every order your friends make.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <TexturePanel variant="primary" glow accentTop>
+        <div className="p-5 sm:p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">{t('referral_link')}</h2>
+            <p className="text-sm text-muted-foreground">Share this link to earn commissions on every order your friends make.</p>
+          </div>
           <div className="flex gap-2">
-            <Input value={`https://t.me/Automatedcryptobuybot?start=ref_${code}`} readOnly />
-            <Button size="icon" aria-label="Copy referral link" onClick={copyLink}>
-              <Copy className="h-4 w-4" />
-            </Button>
+            <Input value={refLink} readOnly className="font-mono text-xs" />
+            <CopyButton value={refLink} label="Copy referral link" withText className="px-3 rounded-md border border-border shrink-0" />
           </div>
           <Button className="w-full" variant="outline">{t('withdraw')}</Button>
-        </CardContent>
-      </Card>
+        </div>
+      </TexturePanel>
     </div>
   );
 };

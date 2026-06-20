@@ -4,12 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import type { LoginResponse } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { User, Lock, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { CardContent, CardFooter } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { TexturePanel } from '../components/common';
 
 const Login: React.FC = () => {
   const { t } = useTranslation();
@@ -42,14 +43,18 @@ const Login: React.FC = () => {
   return (
     <div className="relative flex justify-center items-center py-12 px-4 overflow-hidden">
       <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
-      <Card className="relative w-full max-w-md shadow-2xl">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-3xl font-bold text-center">{t('login')}</CardTitle>
-          <CardDescription className="text-center text-muted-foreground">
-            Enter your credentials to access your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <TexturePanel variant="primary" glow aurora accentTop strong className="relative w-full max-w-md">
+        <div className="pt-8 pb-2 px-6 text-center space-y-3">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/30 text-primary ring-glow-primary">
+            <ShieldCheck className="h-7 w-7 drop-shadow-[0_0_10px_hsl(var(--primary)/0.6)]" />
+          </div>
+          <div className="space-y-1">
+            <p className="label-eyebrow">Welcome back</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t('login')}</h1>
+            <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+          </div>
+        </div>
+        <CardContent className="pt-4">
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -111,7 +116,7 @@ const Login: React.FC = () => {
             </Link>
           </p>
         </CardFooter>
-      </Card>
+      </TexturePanel>
     </div>
   );
 };

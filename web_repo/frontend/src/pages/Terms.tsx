@@ -2,16 +2,12 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { ShieldAlert } from 'lucide-react';
 import { NetworkLogo } from '../constants/networks';
+import { PageHeader } from '../components/common';
 
 const Terms: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <ShieldAlert className="h-6 w-6 text-primary" />
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Terms & Risk Warning</h1>
-      </div>
+      <PageHeader icon={<ShieldAlert className="h-7 w-7" />} eyebrow="Legal" title="Terms & Risk Warning" />
 
       <Card className="border-primary/10">
         <CardHeader>
