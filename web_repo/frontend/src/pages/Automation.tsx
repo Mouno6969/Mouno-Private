@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NetworkLogo } from '../constants/networks';
 import { useAuth } from '../context/AuthContext';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { StatusBadge } from '../components/common';
 
 // Shared chain catalogue — same set the Swap page exposes.
 const CHAINS = [
@@ -342,21 +343,7 @@ const Automation: React.FC = () => {
     );
   }
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      active: 'bg-success/10 text-success border-success/20',
-      filled: 'bg-info/10 text-info border-info/20',
-      triggered: 'bg-info/10 text-info border-info/20',
-      paused: 'bg-warning/10 text-warning border-warning/20',
-      failed: 'bg-destructive/10 text-destructive border-destructive/20',
-      cancelled: 'bg-muted text-muted-foreground border-muted',
-    };
-    return (
-      <Badge variant="outline" className={`text-[9px] uppercase font-bold ${map[status] || ''}`}>
-        {status}
-      </Badge>
-    );
-  };
+  const statusBadge = (status: string) => <StatusBadge status={status} className="text-[9px]" />;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">

@@ -10,25 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../lib/hooks';
 import type { OrderEntry } from '../types';
 import { SkeletonTableRows } from '../components/ui/skeleton';
-import { ErrorState, EmptyState, LoadingSkeleton } from '../components/common';
-
-const StatusBadge = ({ status }: { status: string | null | undefined }) => {
-  if (!status) {
-    return <Badge variant="outline">Unknown</Badge>;
-  }
-  switch (status.toLowerCase()) {
-    case 'completed':
-      return <Badge variant="success">Completed</Badge>;
-    case 'pending':
-      return <Badge variant="warning">Pending</Badge>;
-    case 'failed':
-      return <Badge variant="destructive">Failed</Badge>;
-    case 'waiting_payment':
-      return <Badge variant="info">Waiting Payment</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
-};
+import { ErrorState, EmptyState, LoadingSkeleton, StatusBadge, RelativeTime } from '../components/common';
 
 const Orders: React.FC = () => {
   const { t } = useTranslation();
@@ -85,7 +67,7 @@ const Orders: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between md:justify-end gap-8 w-full md:w-auto border-t border-border/60 md:border-none pt-4 md:pt-0">
                     <div className="text-left md:text-right">
-                      <p className="font-black text-xl text-warning">৳{order.amount_bdt}</p>
+                      <p className="num font-black text-xl text-warning">৳{order.amount_bdt}</p>
                       <p className="text-xs font-bold text-muted-foreground uppercase">{order.amount_usdc} USDC • {order.network}</p>
                     </div>
                     <StatusBadge status="pending" />
@@ -152,11 +134,11 @@ const Orders: React.FC = () => {
                           <Badge variant="outline" className="font-mono border-primary/20 bg-primary/5 text-primary">{order.network}</Badge>
                         </TableCell>
                         <TableCell className="p-4">
-                          <div className="font-bold text-base">৳{order.amount_bdt}</div>
+                          <div className="num font-bold text-base">৳{order.amount_bdt}</div>
                           <div className="text-[10px] font-medium text-muted-foreground uppercase">{order.amount_usdc} USDC</div>
                         </TableCell>
                         <TableCell className="p-4 text-center"><StatusBadge status={order.status} /></TableCell>
-                        <TableCell className="p-4 text-xs font-medium text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="p-4 text-xs font-medium text-muted-foreground"><RelativeTime value={order.created_at} /></TableCell>
                         <TableCell className="p-4 text-right pr-6">
                           <Button
                             variant="ghost"
@@ -198,7 +180,7 @@ const Orders: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <Badge variant="outline" className="font-mono border-primary/20 bg-primary/5 text-primary">{order.network}</Badge>
-                        <div className="text-[10px] text-muted-foreground mt-1.5">{new Date(order.created_at).toLocaleDateString()}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1.5"><RelativeTime value={order.created_at} /></div>
                       </div>
                     </div>
                   </div>

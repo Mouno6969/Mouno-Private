@@ -17,7 +17,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ErrorState } from '../components/ui/states';
-import { Sparkline } from '../components/common';
+import { Sparkline, StatCard, PriceChange } from '../components/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public market-data APIs (free, no key, CORS-enabled). These are intentionally
@@ -94,49 +94,6 @@ const fmtPrice = (n: number) => {
   return `$${v.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
 };
 
-const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${Number(n || 0).toFixed(2)}%`;
-
-// ── Shared bits ──
-const ChangeBadge: React.FC<{ value?: number }> = ({ value }) => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return <span className="text-xs text-muted-foreground">—</span>;
-  }
-  const up = value >= 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 font-mono text-sm font-semibold ${
-        up ? 'text-success' : 'text-destructive'
-      }`}
-    >
-      {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-      {fmtPct(value)}
-    </span>
-  );
-};
-
-const StatCard: React.FC<{
-  label: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  sub?: React.ReactNode;
-  loading?: boolean;
-}> = ({ label, value, icon, sub, loading }) => (
-  <Card className="border-primary/10 bg-card/50 backdrop-blur">
-    <CardContent className="p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <span className="text-primary">{icon}</span>
-      </div>
-      {loading ? (
-        <Skeleton className="mt-2 h-7 w-28" />
-      ) : (
-        <p className="mt-1 text-2xl font-extrabold tracking-tight">{value}</p>
-      )}
-      {sub && <div className="mt-1">{sub}</div>}
-    </CardContent>
-  </Card>
-);
-
 const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) => (
   <div className="flex items-center justify-between gap-3 rounded-lg p-3 transition-colors hover:bg-muted/40">
     <div className="flex min-w-0 items-center gap-3">
@@ -164,7 +121,7 @@ const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) 
       )}
       <div className="text-right">
         <p className="num text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
-        <ChangeBadge value={coin.price_change_percentage_24h} />
+        <PriceChange value={coin.price_change_percentage_24h} />
       </div>
     </div>
   </div>
@@ -289,7 +246,7 @@ const Insights: React.FC = () => {
               icon={<Globe className="h-4 w-4" />}
               loading={!g}
               value={g ? fmtCompact(g.total_market_cap.usd) : '—'}
-              sub={g ? <ChangeBadge value={g.market_cap_change_percentage_24h_usd} /> : null}
+              sub={g ? <PriceChange value={g.market_cap_change_percentage_24h_usd} /> : null}
             />
             <StatCard
               label={t('volume_24h', '24h Volume')}
@@ -415,7 +372,7 @@ const Insights: React.FC = () => {
                               #{c.item.market_cap_rank}
                             </Badge>
                           ) : (
-                            <ChangeBadge value={change} />
+                            <PriceChange value={change} />
                           )}
                         </div>
                       );

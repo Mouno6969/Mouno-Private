@@ -56,7 +56,9 @@ interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label, className }) => {
   const key = String(status || '').toLowerCase().trim();
   const variant = STATUS_VARIANT[key] ?? 'secondary';
-  const text = label ?? (status ? status.charAt(0).toUpperCase() + status.slice(1) : '—');
+  // Default label: prettify snake_case (waiting_payment -> "Waiting payment").
+  const pretty = status ? status.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : '—';
+  const text = label ?? pretty;
   return (
     <Badge variant={variant} className={className}>
       {text}
