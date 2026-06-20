@@ -13,9 +13,11 @@ import {
   MessageCircle,
   Loader2,
   CreditCard,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Freshness } from '../components/common';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
@@ -426,16 +428,24 @@ const Market: React.FC = () => {
   // ── Marketplace listing ──
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <section className="space-y-1">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Store className="h-6 w-6 text-primary" />
+      <section className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Store className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight">{t('market')}</h1>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{t('market')}</h1>
+          <p className="text-muted-foreground text-pretty">
+            Buy crypto directly from verified sellers. Each seller sets their own rates and supported networks.
+          </p>
         </div>
-        <p className="text-muted-foreground text-pretty">
-          Buy crypto directly from verified sellers. Each seller sets their own rates and supported networks.
-        </p>
+        <div className="flex items-center gap-3 shrink-0">
+          <Freshness updatedAt={refreshing ? undefined : lastRefresh} label="Sellers" />
+          <Button variant="outline" size="sm" onClick={handleManualRefresh} disabled={refreshing} aria-label="Refresh sellers">
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+        </div>
       </section>
 
       {loading ? (

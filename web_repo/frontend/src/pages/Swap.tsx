@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Settings, Info, ArrowDown, Zap, ShieldCheck, Loader2 } from 'lucide-react';
+import { FlashValue } from '../components/common';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -76,16 +77,16 @@ const Swap: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* From Block */}
-              <div className="rounded-2xl bg-muted/40 p-5 border border-muted transition-all focus-within:border-primary/30">
-                <div className="flex justify-between items-center mb-2">
+              <div className="relative overflow-hidden rounded-2xl glass-panel p-5 transition-all focus-within:border-primary/40 focus-within:shadow-[0_0_30px_-10px_hsl(var(--primary)/0.35)]">
+                <div className="absolute inset-0 dot-matrix-fine dot-matrix-fade opacity-40 pointer-events-none" aria-hidden="true" />
+                <div className="relative flex justify-between items-center mb-2">
                    <span className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">You Pay</span>
-                   <Badge variant="outline" className="text-[10px] font-mono">Bal: 0.00</Badge>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="relative flex items-center gap-4">
                   <Input
                     type="number"
                     placeholder="0.0"
-                    className="border-none bg-transparent text-3xl font-black p-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30"
+                    className="num border-none bg-transparent text-3xl font-black p-0 h-auto focus-visible:ring-0 placeholder:text-muted-foreground/30"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
@@ -122,14 +123,17 @@ const Swap: React.FC = () => {
               </div>
 
               {/* To Block */}
-              <div className="rounded-2xl bg-muted/40 p-5 border border-muted transition-all">
-                <div className="flex justify-between items-center mb-2">
+              <div className="relative overflow-hidden rounded-2xl glass-panel p-5 transition-all">
+                <div className="absolute inset-0 dot-matrix-primary dot-matrix-fade opacity-30 pointer-events-none" aria-hidden="true" />
+                <div className="relative flex justify-between items-center mb-2">
                    <span className="text-xs font-bold uppercase text-muted-foreground tracking-tighter">You Receive (Estimated)</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-3xl font-black w-full text-primary/60 font-mono">
-                    {quote ? quote.summary?.to_amount : '0.0'}
-                  </div>
+                <div className="relative flex items-center gap-4">
+                  <FlashValue value={quote?.summary?.to_amount ? Number(quote.summary.to_amount) : undefined} as="div" className="w-full">
+                    <div className="num text-3xl font-black text-primary drop-shadow-[0_0_16px_hsl(var(--primary)/0.3)]">
+                      {quote ? quote.summary?.to_amount : '0.0'}
+                    </div>
+                  </FlashValue>
                   <Select value={toChain} onValueChange={setToChain}>
                     <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
                        <SelectValue />
