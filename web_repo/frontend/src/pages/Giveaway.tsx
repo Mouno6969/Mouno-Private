@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Gift, Clock, Users, Loader2, Ticket } from 'lucide-react';
+import { PageHeader, RelativeTime } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { NETWORK_MAP, NetworkLogo } from '../constants/networks';
@@ -66,13 +67,7 @@ const Giveaway: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Gift className="h-6 w-6 text-primary" />
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Giveaways</h1>
-      </div>
-      <p className="text-muted-foreground">Active giveaway sessions — claim codes on the Gift Codes page.</p>
+      <PageHeader icon={<Gift className="h-7 w-7" />} eyebrow="Win" title="Giveaways" description="Active giveaway sessions — claim codes on the Gift Codes page." />
 
       <Card className="border-primary/20">
         <CardHeader>
@@ -175,7 +170,7 @@ const Giveaway: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-muted-foreground text-xs flex items-center gap-1"><Clock className="h-3 w-3" /> Expires</p>
-                    <p className="font-bold text-xs">{new Date(g.expires_at).toLocaleString()}</p>
+                    <RelativeTime value={g.expires_at} className="font-bold text-xs" />
                   </div>
                 </div>
                 {g.early_bonus_count > 0 && g.early_bonus_amount > 0 && (

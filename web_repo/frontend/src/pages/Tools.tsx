@@ -10,11 +10,11 @@ import {
   ShieldAlert,
   CheckCircle,
   XCircle,
-  Copy,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { PageHeader, CopyButton } from '../components/common';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
@@ -51,15 +51,12 @@ const Tools: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
       <section className="space-y-1">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Wrench className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{t('free_tools')}</h1>
-        </div>
-        <p className="text-muted-foreground text-pretty">
-          The same free services available in our Telegram bot, now on the web. No charge, ever.
-        </p>
+        <PageHeader
+          icon={<Wrench className="h-7 w-7" />}
+          eyebrow="Free"
+          title={t('free_tools')}
+          description="The same free services available in our Telegram bot, now on the web. No charge, ever."
+        />
       </section>
 
       {/* Tool selector */}
@@ -153,15 +150,7 @@ const IdFinderTool: React.FC = () => {
                 <span className="text-xs uppercase font-bold tracking-widest text-muted-foreground">ID</span>
                 <span className="font-mono font-black text-xl text-primary flex items-center gap-2">
                   {result.id}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Copy ID"
-                    className="h-7 w-7 text-muted-foreground"
-                    onClick={() => { navigator.clipboard.writeText(String(result.id)); toast.success('Copied!'); }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
+                  <CopyButton value={String(result.id)} label="Copy ID" />
                 </span>
               </div>
               {result.type && (
