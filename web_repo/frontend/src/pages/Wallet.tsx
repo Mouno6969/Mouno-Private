@@ -95,6 +95,15 @@ const MyWallet: React.FC = () => {
   const [delPwd, setDelPwd] = useState('');
   const [delBusy, setDelBusy] = useState(false);
 
+  // Reveal / export private key
+  const [revealWallet, setRevealWallet] = useState<WalletItem | null>(null); // password prompt target
+  const [revealPwd, setRevealPwd] = useState('');
+  const [revealBusy, setRevealBusy] = useState(false);
+  // The key being shown (from a fresh create back-up OR a reveal). Held in
+  // component state only while the modal is open; cleared on close.
+  const [shownKey, setShownKey] = useState<{ private_key: string; wallet_address?: string | null; network?: string; label?: string | null; isBackup: boolean } | null>(null);
+  const [shownKeyVisible, setShownKeyVisible] = useState(false);
+
   const loadMasterStatus = useCallback(async () => {
     try {
       const res = await apiClient.get<ApiEnvelope<MasterStatusData>>(
@@ -166,11 +175,24 @@ const MyWallet: React.FC = () => {
         },
         { silent: true }
       );
-      const data = res.data;
+      const data = res.data as ApiEnvelope<{ wallet?: { private_key?: string; wallet_address?: string | null; network?: string; label?: string | null } }>;
       if (data.ok) {
         toast.success(hasMaster ? 'Wallet added' : 'Master password set and wallet added');
         setHasMaster(true);
         setAddOpen(false);
+        const created = data.data?.wallet;
+        // Freshly-created wallets come back with the private key once — show the
+        // back-up modal so the user can save it before it's gone.
+        if (aMode === 'create' && created?.private_key) {
+          setShownKey({
+            private_key: created.private_key,
+            wallet_address: created.wallet_address,
+            network: created.network,
+            label: created.label,
+            isBackup: true,
+          });
+          setShownKeyVisible(false);
+        }
         setAPrivateKey(''); setALabel(''); setAMasterPwd('');
         await loadBalances(true);
       } else {
@@ -244,6 +266,36 @@ const MyWallet: React.FC = () => {
       setDelBusy(false);
     }
   };
+
+  // ─── Reveal / export private key ───
+  const submitReveal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revealWallet) return;
+    if (!revealPwd) { toast.error('Master password is required'); return; }
+    setRevealBusy(true);
+    try {
+      const res = await apiClient.post<ApiEnvelope<{ private_key: string; wallet_address?: string | null; network?: string; label?: string | null }>>(
+        `/api/wallets/${revealWallet.id}/reveal`,
+        { master_password: revealPwd },
+        { silent: true }
+      );
+      const data = res.data;
+      if (data.ok && data.data?.private_key) {
+        setShownKey({ ...data.data, isBackup: false });
+        setShownKeyVisible(false);
+        setRevealWallet(null);
+        setRevealPwd('');
+      } else {
+        toast.error(data.message || 'Failed to reveal private key');
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Connection error'));
+    } finally {
+      setRevealBusy(false);
+    }
+  };
+
+  const closeShownKey = () => { setShownKey(null); setShownKeyVisible(false); };
 
   // Group wallets by network
   const grouped = wallets.reduce<Record<string, WalletItem[]>>((acc, w) => {
@@ -368,6 +420,15 @@ const MyWallet: React.FC = () => {
                             onClick={() => { setSendWallet(w); setSDest(''); setSAmount(''); setSMasterPwd(''); }}
                           >
                             <Send className="h-3.5 w-3.5 mr-1" /> Send
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Reveal private key for ${w.label || meta?.name || network}`}
+                            title="Reveal private key"
+                            onClick={() => { setRevealWallet(w); setRevealPwd(''); }}
+                          >
+                            <Key className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
@@ -499,6 +560,67 @@ const MyWallet: React.FC = () => {
               Remove Wallet
             </Button>
           </form>
+        )}
+      </Modal>
+
+      {/* Reveal: master-password prompt */}
+      <Modal open={!!revealWallet} onClose={() => setRevealWallet(null)} title="Reveal Private Key">
+        {revealWallet && (
+          <form onSubmit={submitReveal} className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Enter your master password to reveal the private key for{' '}
+              <span className="font-semibold text-foreground">{revealWallet.label || NETWORK_MAP[revealWallet.network]?.name || revealWallet.network}</span>{' '}
+              (<span className="font-mono">{truncate(revealWallet.wallet_address)}</span>).
+            </p>
+            <div className="space-y-2">
+              <Label>Master Password</Label>
+              <Input type="password" autoFocus placeholder="Required to reveal the key" value={revealPwd} onChange={(e) => setRevealPwd(e.target.value)} />
+            </div>
+            <Button type="submit" disabled={revealBusy} className="w-full">
+              {revealBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+              Reveal Private Key
+            </Button>
+          </form>
+        )}
+      </Modal>
+
+      {/* Key display (used by both fresh-create back-up and reveal) */}
+      <Modal open={!!shownKey} onClose={closeShownKey} title={shownKey?.isBackup ? 'Back Up Your Private Key' : 'Private Key'}>
+        {shownKey && (
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>This is the only key to your wallet</AlertTitle>
+              <AlertDescription className="text-xs leading-relaxed">
+                Anyone with this private key has full control of the funds. Never share it.
+                We cannot recover it if you lose it and your master password. Store it somewhere safe and offline.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {NETWORK_MAP[shownKey.network || '']?.name || shownKey.network} private key
+                </Label>
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={shownKeyVisible ? 'Hide key' : 'Show key'} onClick={() => setShownKeyVisible((v) => !v)}>
+                  {shownKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3">
+                <code className="flex-1 break-all font-mono text-xs leading-relaxed">
+                  {shownKeyVisible ? shownKey.private_key : '•'.repeat(Math.min(shownKey.private_key.length, 64))}
+                </code>
+                <CopyButton value={shownKey.private_key} label="Copy private key" />
+              </div>
+              {shownKey.wallet_address && (
+                <p className="text-[11px] text-muted-foreground font-mono break-all">Address: {shownKey.wallet_address}</p>
+              )}
+            </div>
+
+            <Button type="button" className="w-full" onClick={closeShownKey}>
+              <Check className="h-4 w-4 mr-2" /> I've saved it securely
+            </Button>
+          </div>
         )}
       </Modal>
     </div>
