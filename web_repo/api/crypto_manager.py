@@ -271,7 +271,15 @@ def add_user_wallet(user_id, network, private_key_or_create, master_password, la
         except Exception:
             con.rollback()
             raise
-    return {"id": wallet_id, "network": network, "label": label, "wallet_address": wallet_address}
+    # Include the plaintext key so the caller can show it once for back-up. The
+    # API only forwards it for freshly-created wallets, never for imports.
+    return {
+        "id": wallet_id,
+        "network": network,
+        "label": label,
+        "wallet_address": wallet_address,
+        "private_key": private_key,
+    }
 
 
 def list_user_wallets(user_id):
@@ -309,6 +317,30 @@ def delete_user_wallet_by_id(user_id, wallet_id, master_password=None):
             con.execute("DELETE FROM wallet_master WHERE user_id=?", (user_id,))
             con.commit()
     return deleted > 0
+
+
+def reveal_user_wallet_key(user_id, wallet_id, master_password):
+    """Decrypt and return a single wallet's private key for the owner.
+
+    Gated by the master password (the same secret that encrypts the key). The
+    plaintext key is returned to the caller and MUST NOT be logged. Used by the
+    self-custody "reveal / export private key" flow.
+    """
+    user_id = str(user_id)
+    if not has_master_password(user_id):
+        raise RuntimeError("No master password is set for this account.")
+    if not verify_master_password(user_id, master_password or ""):
+        raise RuntimeError("Wrong master password.")
+    row = _get_v2_wallet(user_id, wallet_id)
+    if not row:
+        raise RuntimeError("Wallet not found.")
+    private_key = decrypt_key(row["encrypted_key"], row["salt"], master_password)
+    return {
+        "private_key": private_key,
+        "wallet_address": row["wallet_address"],
+        "network": row["network"],
+        "label": row["label"],
+    }
 
 
 def send_from_wallet(user_id, wallet_id, master_password, to_address, amount, asset=None):
