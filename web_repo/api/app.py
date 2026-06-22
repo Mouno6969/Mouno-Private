@@ -39,6 +39,10 @@ from automation_vault import (
     init_automation_vault, store_auto_password, has_auto_password,
     get_auto_password,
 )
+from crypto_manager import encrypt_seller_key, decrypt_seller_key
+import personal_auth
+import forward_service
+import tg_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +174,57 @@ try:
     init_automation_vault()
 except Exception as _exc:  # never block app startup on schema init
     logger.error("Automation table init failed: %s", _exc)
+
+
+# ── Personal-account Telegram forwarding (website feature) ────────────────────
+#
+# In-memory map: web_user_id -> personal_auth session token, kept between the
+# send-code request and the verify-code/password requests of one login attempt.
+_FORWARD_AUTH_TOKENS = {}
+
+
+def _load_forward_connection(web_user_id):
+    """Rebuild the decrypted Telethon connection dict for a web user from the DB
+    (StringSession + api_hash are stored encrypted). Returns None if the user
+    has no connected account."""
+    acct = db.get_tg_forward_account(web_user_id)
+    if not acct or not acct.get("enc_session"):
+        return None
+    try:
+        api_hash = decrypt_seller_key(acct["enc_api_hash"], acct["hash_salt"])
+        session = decrypt_seller_key(acct["enc_session"], acct["sess_salt"])
+    except Exception as exc:
+        logger.error("Forward connection decrypt failed for user %s: %s", web_user_id, exc)
+        return None
+    return {
+        "session": session,
+        "api_id": acct["api_id"],
+        "api_hash": api_hash,
+        "display_name": acct.get("display_name") or "",
+        "account_id": acct.get("account_id") or "",
+    }
+
+
+def _persist_forward_connection(web_user_id, connection):
+    """Encrypt + store a freshly-connected account."""
+    enc_session, sess_salt = encrypt_seller_key(connection.get("session") or "")
+    enc_hash, hash_salt = encrypt_seller_key(connection.get("api_hash") or "")
+    db.save_tg_forward_account(
+        web_user_id,
+        connection.get("account_id") or "",
+        connection.get("display_name") or "",
+        connection.get("api_id") or "",
+        enc_hash, hash_salt, enc_session, sess_salt,
+    )
+
+
+try:
+    # Start the Telethon asyncio runtime and resume any active scheduled
+    # forwards left over from before a restart. Best-effort: never block startup.
+    tg_runtime.start_runtime()
+    forward_service.resume_all(_load_forward_connection)
+except Exception as _exc:
+    logger.error("Forward runtime init failed: %s", _exc)
 
 def token_required(f):
     @wraps(f)
@@ -2275,6 +2330,194 @@ def mark_notifications_read_route(current_user):
     except Exception as exc:
         logger.error("Mark notifications read failed: %s", exc)
         return jsonify({'ok': False, 'message': "We couldn't update your notifications. Please try again.", 'data': None}), 500
+
+
+# ===========================================================================
+# Personal-account Telegram forwarding
+# ---------------------------------------------------------------------------
+# A logged-in website user connects their OWN Telegram account (Telethon) and
+# forwards a text message to many groups/channels, once or on a schedule.
+# All endpoints are keyed strictly to the authenticated web user; no endpoint
+# accepts a user id from the client. Credentials are never returned to the
+# client and are stored encrypted at rest.
+# ===========================================================================
+
+def _forward_user_id(current_user):
+    return str(current_user[0])
+
+
+@app.route('/api/forward/status', methods=['GET'])
+@token_required
+def forward_status(current_user):
+    uid = _forward_user_id(current_user)
+    acct = db.get_tg_forward_account(uid)
+    return jsonify({
+        'available': forward_service.available(),
+        'connected': bool(acct and acct.get('enc_session')),
+        'display_name': (acct or {}).get('display_name') or None,
+        'limits': {
+            'max_targets': forward_service.MAX_TARGETS,
+            'min_interval_minutes': forward_service.MIN_INTERVAL_MINUTES,
+        },
+    })
+
+
+@app.route('/api/forward/send-code', methods=['POST'])
+@token_required
+def forward_send_code(current_user):
+    if not forward_service.available():
+        return jsonify({'message': 'Telegram forwarding is not available on this server.'}), 503
+    uid = _forward_user_id(current_user)
+    data = request.get_json(silent=True) or {}
+    token = personal_auth.create_personal_auth_session(uid)
+    _FORWARD_AUTH_TOKENS[uid] = token
+    ok, result = personal_auth.send_personal_auth_code_sync(
+        token, data.get('api_id'), data.get('api_hash'), data.get('phone'),
+    )
+    if not ok:
+        return jsonify({'message': result}), 400
+    return jsonify({'status': 'code_sent', 'message': 'Login code sent. Check your Telegram app.'})
+
+
+@app.route('/api/forward/verify-code', methods=['POST'])
+@token_required
+def forward_verify_code(current_user):
+    uid = _forward_user_id(current_user)
+    token = _FORWARD_AUTH_TOKENS.get(uid)
+    if not token:
+        return jsonify({'message': 'Start the login first.'}), 400
+    data = request.get_json(silent=True) or {}
+    ok, result = personal_auth.verify_personal_auth_code_sync(token, data.get('code'))
+    if not ok:
+        return jsonify({'message': result}), 400
+    if isinstance(result, dict) and result.get('status') == 'password_needed':
+        return jsonify({'status': 'password_needed',
+                        'message': 'Two-step verification is enabled. Enter your Telegram password.'})
+    return _finalize_forward_connection(uid)
+
+
+@app.route('/api/forward/verify-password', methods=['POST'])
+@token_required
+def forward_verify_password(current_user):
+    uid = _forward_user_id(current_user)
+    token = _FORWARD_AUTH_TOKENS.get(uid)
+    if not token:
+        return jsonify({'message': 'Start the login first.'}), 400
+    data = request.get_json(silent=True) or {}
+    ok, result = personal_auth.verify_personal_auth_password_sync(token, data.get('password'))
+    if not ok:
+        return jsonify({'message': result}), 400
+    return _finalize_forward_connection(uid)
+
+
+def _finalize_forward_connection(uid):
+    """After personal_auth reports a connected account, persist it (encrypted)
+    and clear the transient login token."""
+    connection = personal_auth.PERSONAL_FORWARD_CONNECTIONS.get(uid)
+    if not connection or not connection.get('session'):
+        return jsonify({'message': 'Could not finish connecting. Please try again.'}), 400
+    try:
+        _persist_forward_connection(uid, connection)
+    except Exception as exc:
+        logger.error("Persist forward connection failed for %s: %s", uid, exc)
+        return jsonify({'message': 'Connected, but saving the session failed. Please try again.'}), 500
+    _FORWARD_AUTH_TOKENS.pop(uid, None)
+    return jsonify({'status': 'connected', 'display_name': connection.get('display_name')})
+
+
+@app.route('/api/forward/dialogs', methods=['GET'])
+@token_required
+def forward_dialogs(current_user):
+    uid = _forward_user_id(current_user)
+    connection = _load_forward_connection(uid)
+    if not connection:
+        return jsonify({'message': 'No connected Telegram account.'}), 400
+    try:
+        dialogs = forward_service.list_dialogs(connection)
+    except Exception as exc:
+        return jsonify({'message': forward_service.safe_error(exc)}), 502
+    return jsonify({'dialogs': dialogs})
+
+
+@app.route('/api/forward/send', methods=['POST'])
+@token_required
+def forward_send(current_user):
+    uid = _forward_user_id(current_user)
+    connection = _load_forward_connection(uid)
+    if not connection:
+        return jsonify({'message': 'No connected Telegram account.'}), 400
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message') or '').strip()
+    if not message:
+        return jsonify({'message': 'Enter a message to forward.'}), 400
+    targets, invalid = forward_service.parse_targets(data.get('targets') or [])
+    if not targets:
+        return jsonify({'message': 'Add at least one valid target group/channel.',
+                        'invalid': invalid}), 400
+
+    interval = data.get('interval_minutes')
+    if interval not in (None, '', 0, '0'):
+        try:
+            interval = int(interval)
+        except (TypeError, ValueError):
+            return jsonify({'message': 'Interval must be a whole number of minutes.'}), 400
+        if interval < forward_service.MIN_INTERVAL_MINUTES:
+            return jsonify({'message': f'Minimum interval is {forward_service.MIN_INTERVAL_MINUTES} minutes.'}), 400
+        import json as _json
+        schedule_id = forward_service.new_schedule_id()
+        db.create_tg_forward_schedule(schedule_id, uid, _json.dumps(targets), message, interval)
+        forward_service.start_schedule(schedule_id, uid, connection, targets, message, interval)
+        return jsonify({'status': 'scheduled', 'schedule_id': schedule_id,
+                        'targets': len(targets), 'interval_minutes': interval,
+                        'invalid': invalid})
+
+    # One-time send
+    try:
+        result = forward_service.send_now(connection, targets, message)
+    except Exception as exc:
+        return jsonify({'message': forward_service.safe_error(exc)}), 502
+    result['invalid'] = invalid
+    result['status'] = 'sent'
+    return jsonify(result)
+
+
+@app.route('/api/forward/schedules', methods=['GET'])
+@token_required
+def forward_schedules(current_user):
+    uid = _forward_user_id(current_user)
+    schedules = db.list_tg_forward_schedules(uid, status='active')
+    import json as _json
+    for s in schedules:
+        try:
+            s['targets'] = _json.loads(s['targets'])
+        except Exception:
+            s['targets'] = []
+    return jsonify({'schedules': schedules})
+
+
+@app.route('/api/forward/schedules/<schedule_id>/stop', methods=['POST'])
+@token_required
+def forward_schedule_stop(current_user, schedule_id):
+    uid = _forward_user_id(current_user)
+    stopped = db.stop_tg_forward_schedule(schedule_id, uid)
+    forward_service.cancel_schedule(schedule_id)
+    if not stopped:
+        return jsonify({'message': 'Schedule not found or already stopped.'}), 404
+    return jsonify({'status': 'stopped'})
+
+
+@app.route('/api/forward/disconnect', methods=['POST'])
+@token_required
+def forward_disconnect(current_user):
+    uid = _forward_user_id(current_user)
+    # Stop any running schedules first.
+    for s in db.list_tg_forward_schedules(uid, status='active'):
+        forward_service.cancel_schedule(s['schedule_id'])
+    db.stop_all_tg_forward_schedules(uid)
+    db.delete_tg_forward_account(uid)
+    personal_auth.PERSONAL_FORWARD_CONNECTIONS.pop(uid, None)
+    _FORWARD_AUTH_TOKENS.pop(uid, None)
+    return jsonify({'status': 'disconnected'})
 
 
 if __name__ == '__main__':

@@ -29,6 +29,7 @@ import Payout from './pages/Payout';
 import Guide from './pages/Guide';
 import Market from './pages/Market';
 import Tools from './pages/Tools';
+import ForwardTelegram from './pages/ForwardTelegram';
 import Portfolio from './pages/Portfolio';
 import Analytics from './pages/Analytics';
 import Insights from './pages/Insights';
@@ -90,6 +91,7 @@ const AppShell: React.FC<AppShellProps> = ({ token }) => {
         <Route path="/guide" element={<Guide />} />
         <Route path="/market" element={<Market />} />
         <Route path="/tools" element={token ? <Tools /> : <Navigate to="/login" />} />
+        <Route path="/forward" element={token ? <ForwardTelegram /> : <Navigate to="/login" />} />
       </Routes>
     </Layout>
   );

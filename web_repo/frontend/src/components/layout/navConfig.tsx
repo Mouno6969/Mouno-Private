@@ -17,6 +17,7 @@ import {
   User,
   Gift,
   Wrench,
+  Send,
   MessageSquare,
   LifeBuoy,
   HelpCircle,
@@ -74,6 +75,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { labelKey: 'nav_giveaway', icon: <Gift className="h-4 w-4" />, path: '/giveaway' },
       { labelKey: 'sellers', icon: <Store className="h-4 w-4" />, path: '/seller' },
       { labelKey: 'free_tools', icon: <Wrench className="h-4 w-4" />, path: '/tools' },
+      { labelKey: 'forward_telegram', icon: <Send className="h-4 w-4" />, path: '/forward' },
     ],
   },
   {
