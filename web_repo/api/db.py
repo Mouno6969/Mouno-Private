@@ -2239,6 +2239,17 @@ def list_seller_orders(seller_id, statuses=None, limit=10):
         return con.execute(sql, params).fetchall()
 
 
+def count_completed_seller_orders(seller_id):
+    """Number of completed orders for a seller — used as a public trust/reputation
+    signal on the P2P page (we have no buyer-review system)."""
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT COUNT(*) FROM seller_orders WHERE seller_id=? AND status='completed'",
+            (str(seller_id),),
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+
 def list_pending_seller_orders(seller_id=None, limit=20):
     statuses = ["waiting_payment", "pending_manual", "failed"]
     if seller_id:
