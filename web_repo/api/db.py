@@ -56,6 +56,132 @@ def link_web_user_telegram(web_user_id, telegram_id):
         con.commit()
 
 
+# ---------------------------------------------------------------------------
+# Personal-account Telegram forwarding (website feature)
+# ---------------------------------------------------------------------------
+# Stored credentials (StringSession + api_hash) are already encrypted by the
+# caller (app.py uses crypto_manager.encrypt_seller_key); this layer only
+# persists the opaque ciphertext + salts. Everything is keyed by web_user_id.
+
+
+def save_tg_forward_account(web_user_id, account_id, display_name, api_id,
+                            enc_api_hash, hash_salt, enc_session, sess_salt):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO tg_forward_accounts
+                (web_user_id, account_id, display_name, api_id,
+                 enc_api_hash, hash_salt, enc_session, sess_salt, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(web_user_id) DO UPDATE SET
+                account_id=excluded.account_id,
+                display_name=excluded.display_name,
+                api_id=excluded.api_id,
+                enc_api_hash=excluded.enc_api_hash,
+                hash_salt=excluded.hash_salt,
+                enc_session=excluded.enc_session,
+                sess_salt=excluded.sess_salt,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (str(web_user_id), str(account_id or ""), display_name or "", str(api_id or ""),
+             enc_api_hash, hash_salt, enc_session, sess_salt),
+        )
+        con.commit()
+
+
+def get_tg_forward_account(web_user_id):
+    with closing(connect()) as con:
+        row = con.execute(
+            """
+            SELECT web_user_id, account_id, display_name, api_id,
+                   enc_api_hash, hash_salt, enc_session, sess_salt
+            FROM tg_forward_accounts WHERE web_user_id=?
+            """,
+            (str(web_user_id),),
+        ).fetchone()
+    if not row:
+        return None
+    keys = ["web_user_id", "account_id", "display_name", "api_id",
+            "enc_api_hash", "hash_salt", "enc_session", "sess_salt"]
+    return dict(zip(keys, row))
+
+
+def delete_tg_forward_account(web_user_id):
+    with closing(connect()) as con:
+        con.execute("DELETE FROM tg_forward_accounts WHERE web_user_id=?", (str(web_user_id),))
+        con.commit()
+
+
+def create_tg_forward_schedule(schedule_id, web_user_id, targets_json, message, interval_minutes):
+    with closing(connect()) as con:
+        con.execute(
+            """
+            INSERT INTO tg_forward_schedules
+                (schedule_id, web_user_id, targets, message, interval_minutes, status)
+            VALUES (?, ?, ?, ?, ?, 'active')
+            """,
+            (schedule_id, str(web_user_id), targets_json, message, int(interval_minutes)),
+        )
+        con.commit()
+
+
+def list_tg_forward_schedules(web_user_id, status=None):
+    query = ("SELECT schedule_id, web_user_id, targets, message, interval_minutes, "
+             "status, last_run, last_result, created_at FROM tg_forward_schedules WHERE web_user_id=?")
+    params = [str(web_user_id)]
+    if status:
+        query += " AND status=?"
+        params.append(status)
+    query += " ORDER BY created_at DESC"
+    keys = ["schedule_id", "web_user_id", "targets", "message", "interval_minutes",
+            "status", "last_run", "last_result", "created_at"]
+    with closing(connect()) as con:
+        rows = con.execute(query, params).fetchall()
+    return [dict(zip(keys, row)) for row in rows]
+
+
+def list_active_tg_forward_schedules():
+    """All active schedules across users — used to resume loops on startup."""
+    keys = ["schedule_id", "web_user_id", "targets", "message", "interval_minutes",
+            "status", "last_run", "last_result", "created_at"]
+    with closing(connect()) as con:
+        rows = con.execute(
+            "SELECT schedule_id, web_user_id, targets, message, interval_minutes, "
+            "status, last_run, last_result, created_at FROM tg_forward_schedules WHERE status='active'"
+        ).fetchall()
+    return [dict(zip(keys, row)) for row in rows]
+
+
+def update_tg_forward_schedule_run(schedule_id, last_result):
+    with closing(connect()) as con:
+        con.execute(
+            "UPDATE tg_forward_schedules SET last_run=CURRENT_TIMESTAMP, last_result=? WHERE schedule_id=?",
+            (last_result, schedule_id),
+        )
+        con.commit()
+
+
+def stop_tg_forward_schedule(schedule_id, web_user_id):
+    """Mark a schedule stopped. Scoped by web_user_id so one user can't stop
+    another user's schedule. Returns True if a row was updated."""
+    with closing(connect()) as con:
+        cur = con.execute(
+            "UPDATE tg_forward_schedules SET status='stopped' WHERE schedule_id=? AND web_user_id=? AND status='active'",
+            (schedule_id, str(web_user_id)),
+        )
+        con.commit()
+        return cur.rowcount > 0
+
+
+def stop_all_tg_forward_schedules(web_user_id):
+    with closing(connect()) as con:
+        con.execute(
+            "UPDATE tg_forward_schedules SET status='stopped' WHERE web_user_id=? AND status='active'",
+            (str(web_user_id),),
+        )
+        con.commit()
+
+
 def init_db():
     with closing(connect()) as con:
         cur = con.cursor()
@@ -531,6 +657,41 @@ def init_db():
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_seller_orders_seller_status
             ON seller_orders(seller_id, status)
+        """)
+        # Personal-account Telegram forwarding (website feature). One connected
+        # account per web user. The Telethon StringSession and api_hash are full
+        # account credentials, so they are stored encrypted at rest (Fernet via
+        # crypto_manager, keyed by SELLER_WALLET_MASTER_KEY) — never in plaintext.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tg_forward_accounts (
+                web_user_id TEXT PRIMARY KEY,
+                account_id TEXT,
+                display_name TEXT,
+                api_id TEXT,
+                enc_api_hash TEXT,
+                hash_salt TEXT,
+                enc_session TEXT,
+                sess_salt TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tg_forward_schedules (
+                schedule_id TEXT PRIMARY KEY,
+                web_user_id TEXT NOT NULL,
+                targets TEXT NOT NULL,
+                message TEXT NOT NULL,
+                interval_minutes INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                last_run TIMESTAMP,
+                last_result TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tg_forward_schedules_user_status
+            ON tg_forward_schedules(web_user_id, status)
         """)
         con.commit()
 
