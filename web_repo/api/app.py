@@ -78,6 +78,7 @@ def broadcast_sellers_update():
                 'support_contact': s[4],
                 'bkash_number': s[3],
                 'networks': networks,
+                'trades': db.count_completed_seller_orders(seller_id),
             })
         socketio.emit('sellers_updated', {'sellers': result})
     except Exception as exc:
@@ -1357,6 +1358,7 @@ def list_market_sellers():
                 'support_contact': s[4],
                 'bkash_number': s[3],
                 'networks': networks,
+                'trades': db.count_completed_seller_orders(seller_id),
             })
         return jsonify(result)
     except Exception as exc:
