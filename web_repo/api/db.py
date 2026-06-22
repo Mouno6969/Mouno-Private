@@ -525,6 +525,13 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_transactions_user_status_created
             ON transactions(user_id, status, created_at DESC)
         """)
+        # Backs the per-seller completed-trade count shown on the P2P page
+        # (count_completed_seller_orders), called once per seller when serving
+        # /api/sellers and the sellers_updated broadcast.
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_seller_orders_seller_status
+            ON seller_orders(seller_id, status)
+        """)
         con.commit()
 
 
