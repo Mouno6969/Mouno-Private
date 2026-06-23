@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { useMarket } from '../lib/hooks';
-import { CopyButton, TexturePanel } from '../components/common';
+import { CopyButton } from '../components/common';
 import { formatBDT, formatCrypto } from '../lib/format';
 
 interface BuyResponse {
@@ -255,18 +255,16 @@ const Buy: React.FC = () => {
               </Alert>
 
               <div className="space-y-6 pt-4 border-t">
-                 <TexturePanel variant="primary" glow accentTop className="ring-glow-primary">
-                   <div className="flex flex-col items-center gap-4 p-6">
-                    <div className="flex items-center gap-2 label-eyebrow">
+                 <div className="flex flex-col items-center gap-4 bg-muted/50 p-6 rounded-2xl border border-dashed">
+                    <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
                        <Smartphone className="h-4 w-4" /> {t('send_bdt')} to this bKash Number
                     </div>
-                    <div className="num font-mono text-3xl font-black tracking-widest text-primary flex items-center gap-3 drop-shadow-[0_0_20px_hsl(var(--primary)/0.4)]">
+                    <div className="text-3xl font-black font-mono tracking-widest text-primary flex items-center gap-3">
                        {marketData?.bKash || '01XXXXXXXXX'}
                        <CopyButton value={marketData?.bKash || ''} label="Copy bKash number" className="h-8 w-8 justify-center" />
                     </div>
                     <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">Personal (Send Money / Cash In)</Badge>
-                   </div>
-                 </TexturePanel>
+                 </div>
 
                  <div className="space-y-3">
                     <Label htmlFor="trxid" className="text-xs uppercase tracking-wider text-muted-foreground">{t('trx_id')}</Label>

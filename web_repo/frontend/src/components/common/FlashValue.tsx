@@ -8,8 +8,6 @@ interface FlashValueProps {
   className?: string;
   /** Flash duration in ms. */
   duration?: number;
-  /** Wrapper element — use "div" when wrapping block children (e.g. a <p>). */
-  as?: 'span' | 'div';
 }
 
 /**
@@ -22,7 +20,6 @@ export const FlashValue: React.FC<FlashValueProps> = ({
   children,
   className,
   duration = 700,
-  as: Tag = 'span',
 }) => {
   const prev = useRef<number | null | undefined>(value);
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
@@ -49,7 +46,7 @@ export const FlashValue: React.FC<FlashValueProps> = ({
   }, [value, duration]);
 
   return (
-    <Tag
+    <span
       className={cn(
         'rounded transition-colors duration-300',
         flash === 'up' && 'bg-success/20',
@@ -58,7 +55,7 @@ export const FlashValue: React.FC<FlashValueProps> = ({
       )}
     >
       {children}
-    </Tag>
+    </span>
   );
 };
 

@@ -9,23 +9,14 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { NetworkLogo, NETWORK_MAP } from '../constants/networks';
 import { SkeletonText } from '../components/ui/skeleton';
-import { EmptyState, ErrorState, PageHeader, StatCard, PriceChange, TexturePanel, FlashValue } from '../components/common';
+import { EmptyState, ErrorState, PageHeader, StatCard, PriceChange } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import { usePortfolio, usePriceAlerts } from '../lib/hooks';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import { toast } from 'sonner';
 
 // On-brand, monochrome-leaning palette (no purple), reused for pie slices.
-const PIE_COLORS = [
-  'hsl(var(--primary))',
-  'hsl(var(--info))',
-  'hsl(var(--success))',
-  'hsl(var(--warning))',
-  'hsl(var(--destructive))',
-  'hsl(258 70% 60%)',
-  'hsl(var(--muted-foreground))',
-  'hsl(var(--foreground) / 0.5)',
-];
+const PIE_COLORS = ['#ffffff', '#9ca3af', '#22c55e', '#3b82f6', '#eab308', '#ef4444', '#06b6d4', '#a3a3a3'];
 
 const fmtUsd = (n: number) =>
   `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -129,20 +120,11 @@ const Portfolio: React.FC = () => {
         <>
           {/* Net worth + 24h change */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <TexturePanel variant="primary" glow accentTop strong className="sm:col-span-1">
-              <div className="p-5">
-                <p className="label-eyebrow">{t('net_worth', 'Total Net Worth')}</p>
-                {isLoading && !overview ? (
-                  <div className="mt-2 h-9 w-40 animate-pulse rounded bg-muted/60" />
-                ) : (
-                  <FlashValue value={overview?.net_worth_usd ?? 0} as="div">
-                    <p className="num mt-1 text-3xl font-extrabold tracking-tight drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]">
-                      {fmtUsd(overview?.net_worth_usd ?? 0)}
-                    </p>
-                  </FlashValue>
-                )}
-              </div>
-            </TexturePanel>
+            <StatCard
+              label={t('net_worth', 'Total Net Worth')}
+              loading={isLoading && !overview}
+              value={fmtUsd(overview?.net_worth_usd ?? 0)}
+            />
             <StatCard
               label={t('change_24h', '24h Change')}
               loading={isLoading && !overview}
@@ -190,7 +172,7 @@ const Portfolio: React.FC = () => {
                         </Pie>
                         <Tooltip
                           formatter={(v) => fmtUsd(Number(v))}
-                          contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 12, color: 'hsl(var(--popover-foreground))' }}
+                          contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 0, color: 'hsl(var(--popover-foreground))' }}
                         />
                       </PieChart>
                     </ResponsiveContainer>

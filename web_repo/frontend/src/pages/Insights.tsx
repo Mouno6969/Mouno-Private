@@ -17,7 +17,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ErrorState } from '../components/ui/states';
-import { Sparkline, StatCard, PriceChange } from '../components/common';
+import { Sparkline } from '../components/common';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public market-data APIs (free, no key, CORS-enabled). These are intentionally
@@ -94,6 +94,49 @@ const fmtPrice = (n: number) => {
   return `$${v.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
 };
 
+const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${Number(n || 0).toFixed(2)}%`;
+
+// ── Shared bits ──
+const ChangeBadge: React.FC<{ value?: number }> = ({ value }) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const up = value >= 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-mono text-sm font-semibold ${
+        up ? 'text-success' : 'text-destructive'
+      }`}
+    >
+      {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+      {fmtPct(value)}
+    </span>
+  );
+};
+
+const StatCard: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+  sub?: React.ReactNode;
+  loading?: boolean;
+}> = ({ label, value, icon, sub, loading }) => (
+  <Card className="border-primary/10 bg-card/50 backdrop-blur">
+    <CardContent className="p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <span className="text-primary">{icon}</span>
+      </div>
+      {loading ? (
+        <Skeleton className="mt-2 h-7 w-28" />
+      ) : (
+        <p className="mt-1 text-2xl font-extrabold tracking-tight">{value}</p>
+      )}
+      {sub && <div className="mt-1">{sub}</div>}
+    </CardContent>
+  </Card>
+);
+
 const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) => (
   <div className="flex items-center justify-between gap-3 rounded-lg p-3 transition-colors hover:bg-muted/40">
     <div className="flex min-w-0 items-center gap-3">
@@ -121,7 +164,7 @@ const TokenRow: React.FC<{ rank: number; coin: MarketCoin }> = ({ rank, coin }) 
       )}
       <div className="text-right">
         <p className="num text-sm font-semibold">{fmtPrice(coin.current_price)}</p>
-        <PriceChange value={coin.price_change_percentage_24h} />
+        <ChangeBadge value={coin.price_change_percentage_24h} />
       </div>
     </div>
   </div>
@@ -139,12 +182,6 @@ const sentimentBar = (v: number) => {
   if (v >= 45) return 'bg-warning';
   if (v >= 25) return 'bg-warning';
   return 'bg-destructive';
-};
-// Token-based glow color keyed to sentiment, for the radial backdrop + text glow.
-const sentimentGlow = (v: number) => {
-  if (v >= 55) return 'hsl(var(--success) / 0.35)';
-  if (v >= 25) return 'hsl(var(--warning) / 0.35)';
-  return 'hsl(var(--destructive) / 0.35)';
 };
 
 const Insights: React.FC = () => {
@@ -246,7 +283,7 @@ const Insights: React.FC = () => {
               icon={<Globe className="h-4 w-4" />}
               loading={!g}
               value={g ? fmtCompact(g.total_market_cap.usd) : '—'}
-              sub={g ? <PriceChange value={g.market_cap_change_percentage_24h_usd} /> : null}
+              sub={g ? <ChangeBadge value={g.market_cap_change_percentage_24h_usd} /> : null}
             />
             <StatCard
               label={t('volume_24h', '24h Volume')}
@@ -278,23 +315,14 @@ const Insights: React.FC = () => {
           {/* Sentiment + Trending */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {/* Market sentiment (Fear & Greed) */}
-            <Card className="relative overflow-hidden border-primary/10 glass-panel">
-              {fngValue != null && (
-                <div
-                  className="absolute inset-0 pointer-events-none dot-matrix-fade"
-                  aria-hidden="true"
-                  style={{
-                    background: `radial-gradient(circle at 50% 38%, ${sentimentGlow(fngValue)}, transparent 62%)`,
-                  }}
-                />
-              )}
-              <CardHeader className="relative">
+            <Card className="border-primary/10">
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Gauge className="h-5 w-5 text-primary" /> {t('market_sentiment', 'Market Sentiment')}
                 </CardTitle>
                 <CardDescription>{t('fear_greed', 'Crypto Fear & Greed Index')}</CardDescription>
               </CardHeader>
-              <CardContent className="relative">
+              <CardContent>
                 {fngValue == null ? (
                   <div className="space-y-3">
                     <Skeleton className="mx-auto h-16 w-24" />
@@ -303,16 +331,16 @@ const Insights: React.FC = () => {
                 ) : (
                   <div className="space-y-4 text-center">
                     <div>
-                      <p className={`text-6xl font-black num ${sentimentColor(fngValue)}`} style={{ filter: `drop-shadow(0 0 16px ${sentimentGlow(fngValue)})` }}>
+                      <p className={`text-6xl font-black tabular-nums ${sentimentColor(fngValue)}`}>
                         {fngValue}
                       </p>
                       <p className={`text-sm font-bold uppercase tracking-wide ${sentimentColor(fngValue)}`}>
                         {fngEntry?.value_classification}
                       </p>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/70 ring-1 ring-inset ring-border/50">
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
                       <div
-                        className={`h-full rounded-full transition-all duration-700 ${sentimentBar(fngValue)}`}
+                        className={`h-full rounded-full transition-all ${sentimentBar(fngValue)}`}
                         style={{ width: `${fngValue}%` }}
                       />
                     </div>
@@ -372,7 +400,7 @@ const Insights: React.FC = () => {
                               #{c.item.market_cap_rank}
                             </Badge>
                           ) : (
-                            <PriceChange value={change} />
+                            <ChangeBadge value={change} />
                           )}
                         </div>
                       );
