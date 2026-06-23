@@ -8,7 +8,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { CardContent, CardFooter } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { TexturePanel } from '../components/common';
 
 const Register: React.FC = () => {
   const { t } = useTranslation();
@@ -42,36 +41,33 @@ const Register: React.FC = () => {
   if (success) {
     return (
       <div className="flex justify-center items-center py-20 px-4">
-        <TexturePanel variant="success" glow scanline accentTop className="w-full max-w-md text-center border-success/40">
-          <CardContent className="pt-10 pb-10">
-            <div className="w-16 h-16 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce ring-glow-success">
-              <CheckCircle size={32} />
-            </div>
-            <h2 className="text-2xl font-bold mb-2 drop-shadow-[0_0_14px_hsl(var(--success)/0.4)]">Registration Successful!</h2>
-            <p className="text-muted-foreground">Redirecting to login…</p>
-          </CardContent>
-        </TexturePanel>
+        <div className="w-full max-w-md rounded-xl border border-success/30 bg-card/90 shadow-lg text-center p-10">
+          <div className="w-14 h-14 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-5">
+            <CheckCircle size={28} />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Registration Successful!</h2>
+          <p className="text-muted-foreground text-sm">Redirecting to login...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative flex justify-center items-center py-12 px-4 overflow-hidden">
-      <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
-      <TexturePanel variant="primary" glow aurora accentTop strong className="relative w-full max-w-md">
-        <div className="pt-8 pb-2 px-6 text-center space-y-3">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/30 text-primary ring-glow-primary">
-            <UserPlus className="h-7 w-7 drop-shadow-[0_0_10px_hsl(var(--primary)/0.6)]" />
+    <div className="flex justify-center items-center py-12 px-4">
+      <div className="w-full max-w-md rounded-xl border border-border/70 bg-card/90 shadow-lg overflow-hidden">
+        <div className="pt-8 pb-4 px-6 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UserPlus className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <p className="label-eyebrow">Get started</p>
-            <h1 className="text-3xl font-bold tracking-tight">{t('register')}</h1>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Get started</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('register')}</h1>
             <p className="text-sm text-muted-foreground">Create a new account to start trading</p>
           </div>
         </div>
-        <CardContent className="pt-4">
+        <CardContent className="pt-2">
           {error && (
-            <Alert variant="destructive" className="mb-6">
+            <Alert variant="destructive" className="mb-5">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -125,7 +121,7 @@ const Register: React.FC = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -137,7 +133,7 @@ const Register: React.FC = () => {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col">
+        <CardFooter className="flex flex-col pb-6">
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="text-primary font-medium hover:underline underline-offset-4">
@@ -145,7 +141,7 @@ const Register: React.FC = () => {
             </Link>
           </p>
         </CardFooter>
-      </TexturePanel>
+      </div>
     </div>
   );
 };

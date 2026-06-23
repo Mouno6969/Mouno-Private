@@ -129,14 +129,14 @@ const Portfolio: React.FC = () => {
         <>
           {/* Net worth + 24h change */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <TexturePanel variant="primary" glow accentTop strong className="sm:col-span-1">
+            <TexturePanel variant="primary" accentTop className="sm:col-span-1">
               <div className="p-5">
                 <p className="label-eyebrow">{t('net_worth', 'Total Net Worth')}</p>
                 {isLoading && !overview ? (
                   <div className="mt-2 h-9 w-40 animate-pulse rounded bg-muted/60" />
                 ) : (
                   <FlashValue value={overview?.net_worth_usd ?? 0} as="div">
-                    <p className="num mt-1 text-3xl font-extrabold tracking-tight drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]">
+                    <p className="num mt-1 text-3xl font-extrabold tracking-tight text-primary">
                       {fmtUsd(overview?.net_worth_usd ?? 0)}
                     </p>
                   </FlashValue>

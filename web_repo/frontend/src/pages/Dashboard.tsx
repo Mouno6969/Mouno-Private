@@ -5,14 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
-import Marquee from '../components/ui/marquee';
 import { Badge } from '../components/ui/badge';
 import { BkashLogo, LifiLogo } from '../components/ui/brand-logos';
 import { Link } from 'react-router-dom';
 import { NETWORK_LIST, NetworkLogo } from '../constants/networks';
 import { useMarket, useStats, useRecentActivity, useBalance, useTxLog } from '../lib/hooks';
 import { SkeletonTableRows, SkeletonText } from '../components/ui/skeleton';
-import { FlashValue, Freshness, TexturePanel } from '../components/common';
+import { FlashValue, Freshness } from '../components/common';
 
 const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -60,111 +59,65 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Top Marquee 1: Latest transactions / news ticker */}
-      <Marquee
-        speed={35}
-        containerClassName="bg-muted/40 border-y border-border/60 py-1.5 -mx-3 sm:-mx-5 lg:-mx-8"
-        className="text-xs"
-      >
-        <span className="flex items-center gap-1.5 px-2">
-          <span className="font-bold text-primary">Latest:</span>
-          {Array.isArray(recentActivity) && recentActivity.length > 0 ? (
-            recentActivity.slice(0, 6).map((act, i) => (
-              <span key={i} className="text-muted-foreground">
-                {act.amount_crypto} {act.network?.toUpperCase()} {formatActivityStatus(act.status)}
-                {i < 5 ? '  •  ' : ''}
-              </span>
-            ))
-          ) : (
-            <span className="text-muted-foreground">Live activity will appear here.</span>
-          )}
-        </span>
-      </Marquee>
-
-      {/* Top Marquee 2: Live status ticker */}
-      <Marquee
-        speed={30}
-        containerClassName="bg-success/5 border-y border-success/15 py-1 -mx-3 sm:-mx-5 lg:-mx-8 !mt-0"
-        className="font-mono text-[10px] uppercase tracking-[0.2em] text-success"
-      >
-        <span className="flex items-center gap-2">▸ LIVE</span>
-        <span className="flex items-center gap-2">▸ CROSS-CHAIN SWAPS ACTIVE</span>
-        <span className="flex items-center gap-2">▸ SECURE P2P SETTLEMENT</span>
-        {stats?.total_users ? (
-          <span className="flex items-center gap-2">▸ {stats.total_users} ONBOARDINGS ONLINE</span>
-        ) : null}
-        <span className="flex items-center gap-2">▸ LIFI PROTOCOL INTEGRATED</span>
-        <span className="flex items-center gap-2">▸ 24/7 AUTOMATED DELIVERY</span>
-        <span className="flex items-center gap-2">▸ AI ONBOARDING ONLINE</span>
-      </Marquee>
-
-      <TexturePanel variant="primary" glow aurora accentTop strong>
-        <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Welcome Section */}
+      <section className="rounded-xl border border-border/70 bg-card/70 p-5 sm:p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <p className="label-eyebrow">Dashboard</p>
-            <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl">
-              {t('welcome')}, <span className="text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.4)]">{user ? user.username : 'Guest'}</span>!
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              {t('welcome')}, <span className="text-primary">{user ? user.username : 'Guest'}</span>
             </h1>
-            <p className="text-muted-foreground">Manage your crypto assets across all major networks.</p>
+            <p className="text-sm text-muted-foreground">Manage your crypto assets across all major networks.</p>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
-             <Badge variant="success" className="px-3 py-1 gap-2">
-               <span className="live-dot" />
-               System: Online
-             </Badge>
-             <Freshness updatedAt={lastUpdated} label="Rates updated" />
+          <div className="flex items-center gap-3">
+            <Badge variant="success" className="px-3 py-1 gap-2">
+              <span className="live-dot" />
+              Online
+            </Badge>
+            <Freshness updatedAt={lastUpdated} label="Updated" />
           </div>
-        </section>
-      </TexturePanel>
+        </div>
+      </section>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 bg-muted text-foreground rounded-lg shrink-0">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-muted-foreground truncate">Live Rate (USDC)</p>
-                {marketLoading && !marketData ? (
-                  <SkeletonText className="mt-1 h-5 w-16" />
-                ) : (
-                  <FlashValue value={marketData?.rates?.solana} as="div" className="inline-block px-1 -mx-1">
-                    <p className="num text-base sm:text-lg font-bold tracking-tight truncate">
-                      {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : 'N/A'}
-                    </p>
-                  </FlashValue>
-                )}
-              </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg shrink-0">
+              <TrendingUp className="h-4 w-4" />
             </div>
-            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-              {user ? (
-                <span className="font-mono text-xs font-bold">{user.username?.[0]?.toUpperCase() || 'U'}</span>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Live Rate (USDC)</p>
+              {marketLoading && !marketData ? (
+                <SkeletonText className="mt-1 h-5 w-16" />
               ) : (
-                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                <FlashValue value={marketData?.rates?.solana} as="div" className="inline-block">
+                  <p className="num text-lg font-bold tracking-tight">
+                    {marketData?.rates?.solana ? `৳${marketData.rates.solana}` : '—'}
+                  </p>
+                </FlashValue>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg shrink-0">
               <Layers className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-muted-foreground truncate">Funded Assets</p>
+              <p className="text-xs text-muted-foreground">Funded Assets</p>
               {isLoggedIn && balanceLoading && !balanceData ? (
                 <SkeletonText className="mt-1 h-5 w-12" />
               ) : isLoggedIn ? (
-                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                <p className="text-lg font-bold tracking-tight">
                   {fundedAssetCount}
                   <span className="text-xs font-normal text-muted-foreground"> / {totalAssetCount}</span>
                 </p>
               ) : (
-                <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+                <p className="text-lg font-bold tracking-tight">
                   {NETWORK_LIST.length} Chains
                 </p>
               )}
@@ -172,32 +125,32 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg shrink-0">
               <Zap className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground">
                 {isLoggedIn ? 'Your Transactions' : 'Platform Orders'}
               </p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+              <p className="text-lg font-bold tracking-tight">
                 {isLoggedIn ? recentTxCount : (stats?.total_orders ?? '—')}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur border-primary/10 transition-all hover:border-primary/30">
-          <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
-            <div className="p-2 bg-muted text-muted-foreground rounded-lg shrink-0">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 text-primary rounded-lg shrink-0">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground">
                 {isLoggedIn ? 'Account' : 'Members'}
               </p>
-              <p className="text-base sm:text-lg font-bold tracking-tight truncate">
+              <p className="text-lg font-bold tracking-tight truncate">
                 {isLoggedIn ? user!.username : (stats?.total_users ?? '—')}
               </p>
             </div>
@@ -205,178 +158,175 @@ const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Main Content Area */}
-      <div className="space-y-6">
-        {/* Market Table - full width */}
-        <Card className="overflow-hidden shadow-xl border-primary/10">
-          <CardHeader className="bg-muted/30 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" /> {t('rates')}
-                </CardTitle>
-                <CardDescription>Live BDT conversion rates for stablecoins</CardDescription>
-              </div>
-              <Badge variant="secondary" className="font-mono uppercase text-[10px]">Real-time</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table className="min-w-[600px]">
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-muted/50">
-                    <TableHead className="w-[150px] pl-4 sm:pl-6 font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Network</TableHead>
-                    <TableHead className="font-semibold uppercase text-[10px] tracking-wider">Asset</TableHead>
-                    <TableHead className="text-right font-semibold uppercase text-[10px] tracking-wider">Market Cap</TableHead>
-                    <TableHead className="text-right pr-4 sm:pr-6 font-semibold uppercase text-[10px] tracking-wider whitespace-nowrap">Rate (1 USDT/USDC)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {marketLoading && !marketData ? (
-                    <SkeletonTableRows rows={NETWORK_LIST.length} cols={4} />
-                  ) : (
-                    networks.map((net, idx) => {
-                    const rate = marketData?.rates?.[net.id];
-                    const change = marketData?.changes?.[net.id];
-                    const marketCap = marketData?.market_caps?.[net.id];
-                    const hasNumericChange = typeof change === 'number' && Number.isFinite(change);
-                    const isUp = hasNumericChange ? change >= 0 : idx % 3 !== 1;
-                    return (
-                      <TableRow key={net.id} className="group hover:bg-primary/5 transition-colors">
-                        <TableCell className="py-3.5 pl-4 sm:pl-6">
-                          <div className="flex items-center gap-2.5">
-                            <NetworkLogo id={net.id} size={24} />
-                            <span className="font-semibold text-sm whitespace-nowrap">{net.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Badge variant="outline" className="font-mono text-[9px] px-1.5">USDT/USDC</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
-                          ৳{marketCap ? Number(marketCap).toLocaleString() : '...'}
-                        </TableCell>
-                        <TableCell className="py-3.5 text-right pr-4 sm:pr-6 whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            <FlashValue value={rate} className="inline-block px-1 -mx-1">
-                              <span className="num text-sm font-bold text-foreground">৳{rate || '...'}</span>
-                            </FlashValue>
-                            {hasNumericChange && (
-                              <Badge
-                                className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}
-                              >
-                                {isUp ? '▲' : '▼'} {Math.abs(change).toFixed(3)}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Buy Crypto */}
-        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg group transition-all hover:border-primary/30">
-          <CardHeader>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="group transition-all hover:border-primary/30">
+          <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1.5">
-                <CardTitle className="text-2xl">{t('buy')}</CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Purchase USDC or USDT using bKash instantly.
-                </CardDescription>
+              <div className="space-y-1">
+                <CardTitle className="text-lg">{t('buy')} Crypto</CardTitle>
+                <CardDescription>Purchase USDC or USDT using bKash instantly.</CardDescription>
               </div>
-              <BkashLogo className="shrink-0 mt-1" />
+              <BkashLogo className="shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <Button asChild variant="secondary" className="w-full font-bold h-12 shadow-md">
+            <Button asChild className="w-full font-semibold h-11">
               <Link to="/buy" className="flex items-center gap-2">
-                Start Order <ArrowRight size={18} />
+                Start Order <ArrowRight size={16} />
               </Link>
             </Button>
           </CardContent>
         </Card>
 
-        {/* Swap & Bridge */}
-        <Card className="bg-card/50 backdrop-blur border-primary/10 overflow-hidden shadow-lg group transition-all hover:border-primary/30">
-          <CardHeader>
+        <Card className="group transition-all hover:border-primary/30">
+          <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1.5">
-                <CardTitle className="text-2xl text-foreground">{t('swap')}</CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Bridge assets between 20+ chains with LI.FI.
-                </CardDescription>
+              <div className="space-y-1">
+                <CardTitle className="text-lg">{t('swap')} & Bridge</CardTitle>
+                <CardDescription>Bridge assets between 20+ chains with LI.FI.</CardDescription>
               </div>
-              <LifiLogo className="shrink-0 mt-1" />
+              <LifiLogo className="shrink-0" />
             </div>
           </CardHeader>
           <CardContent>
-            <Button asChild variant="outline" className="w-full font-bold h-12 border-primary/30 hover:bg-primary/10">
+            <Button asChild variant="outline" className="w-full font-semibold h-11">
               <Link to="/swap" className="flex items-center gap-2">
-                Launch Bridge <ArrowRight size={18} />
+                Launch Bridge <ArrowRight size={16} />
               </Link>
             </Button>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Quick Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-card/50 backdrop-blur hover:border-primary/30 transition-all group">
+      {/* Market Table */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" /> Live Rates
+              </CardTitle>
+              <CardDescription>Live BDT conversion rates for stablecoins</CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-[10px] font-mono uppercase">Real-time</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[560px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[150px] pl-6 text-xs font-medium uppercase tracking-wider">Network</TableHead>
+                  <TableHead className="text-xs font-medium uppercase tracking-wider">Asset</TableHead>
+                  <TableHead className="text-right text-xs font-medium uppercase tracking-wider">Market Cap</TableHead>
+                  <TableHead className="text-right pr-6 text-xs font-medium uppercase tracking-wider">Rate (1 USDT/USDC)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {marketLoading && !marketData ? (
+                  <SkeletonTableRows rows={NETWORK_LIST.length} cols={4} />
+                ) : (
+                  networks.map((net, idx) => {
+                  const rate = marketData?.rates?.[net.id];
+                  const change = marketData?.changes?.[net.id];
+                  const marketCap = marketData?.market_caps?.[net.id];
+                  const hasNumericChange = typeof change === 'number' && Number.isFinite(change);
+                  const isUp = hasNumericChange ? change >= 0 : idx % 3 !== 1;
+                  return (
+                    <TableRow key={net.id} className="group hover:bg-muted/40 transition-colors">
+                      <TableCell className="py-3 pl-6">
+                        <div className="flex items-center gap-2.5">
+                          <NetworkLogo id={net.id} size={22} />
+                          <span className="font-medium text-sm">{net.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-[10px] px-1.5">USDT/USDC</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                        ৳{marketCap ? Number(marketCap).toLocaleString() : '—'}
+                      </TableCell>
+                      <TableCell className="py-3 text-right pr-6">
+                        <div className="flex items-center justify-end gap-2">
+                          <FlashValue value={rate} className="inline-block">
+                            <span className="num text-sm font-bold">৳{rate || '—'}</span>
+                          </FlashValue>
+                          {hasNumericChange && (
+                            <Badge
+                              className={`text-[9px] h-4 px-1 font-mono border-0 ${isUp ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}
+                            >
+                              {isUp ? '▲' : '▼'} {Math.abs(change).toFixed(3)}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bottom row: Quick links + Activity */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Quick Links */}
+        <div className="grid grid-cols-2 gap-3 md:col-span-1">
+          <Card className="hover:border-primary/30 transition-all">
             <Link to="/referral" className="p-4 flex flex-col items-center text-center gap-2">
-              <Users className="text-primary group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium">{t('referral')}</span>
+              <Users className="h-5 w-5 text-primary" />
+              <span className="text-xs font-medium">{t('referral')}</span>
             </Link>
           </Card>
-          <Card className="bg-card/50 backdrop-blur hover:border-primary/30 transition-all group">
+          <Card className="hover:border-primary/30 transition-all">
             <Link to="/gift" className="p-4 flex flex-col items-center text-center gap-2">
-              <Gift className="text-primary group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium">{t('gift')}</span>
+              <Gift className="h-5 w-5 text-primary" />
+              <span className="text-xs font-medium">{t('gift')}</span>
             </Link>
           </Card>
-          <Card className="bg-card/50 backdrop-blur hover:border-primary/30 transition-all group col-span-2">
+          <Card className="hover:border-primary/30 transition-all col-span-2">
             <Link to="/seller" className="p-4 flex flex-row items-center justify-center gap-3">
-              <Store className="text-primary group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium">{t('sellers')}</span>
+              <Store className="h-5 w-5 text-primary" />
+              <span className="text-xs font-medium">{t('sellers')}</span>
             </Link>
           </Card>
         </div>
 
         {/* Live Activity Feed */}
-        <Card className="border-primary/10 bg-card/50 backdrop-blur overflow-hidden">
-          <CardHeader className="py-3 bg-muted/20">
-            <CardTitle className="text-xs uppercase tracking-[0.2em] flex items-center gap-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+        <Card className="md:col-span-2 overflow-hidden">
+          <CardHeader className="py-3 border-b border-border/60">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <span className="live-dot" />
               Live Activity
               {isDemoMode && (
-                <Badge variant="warning" className="text-[8px] h-4 px-1.5 uppercase tracking-wider">
-                  Demo data
+                <Badge variant="warning" className="text-[8px] h-4 px-1.5 uppercase tracking-wider ml-2">
+                  Demo
                 </Badge>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
-                {Array.isArray(recentActivity) && recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
-                <div key={i} className="p-3 flex items-center justify-between hover:bg-secondary/40 transition-colors">
-                  <div className="flex items-center gap-2">
+              {Array.isArray(recentActivity) && recentActivity.length > 0 ? recentActivity.slice(0, 5).map((act, i) => (
+                <div key={i} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-2.5">
                     <NetworkLogo id={act.network} size={16} />
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-mono font-bold leading-none">{act.amount_crypto} {act.network?.toUpperCase()}</span>
-                      <span className="text-[9px] text-muted-foreground font-mono leading-none mt-1">{act.wallet}</span>
+                      <span className="text-xs font-medium">{act.amount_crypto} {act.network?.toUpperCase()}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{act.wallet}</span>
                     </div>
                   </div>
-                  <Badge variant={act.status === 'completed' ? 'default' : 'secondary'} className="text-[8px] h-4 px-1 uppercase">
+                  <Badge variant={act.status === 'completed' ? 'default' : 'secondary'} className="text-[9px] h-5 px-2">
                     {formatActivityStatus(act.status)}
                   </Badge>
                 </div>
               )) : (
-                <div className="p-6 flex flex-col items-center gap-1 text-center">
-                  <p className="text-xs font-medium text-foreground">No public activity yet</p>
-                  <p className="text-[10px] text-muted-foreground">Live activity will appear here.</p>
+                <div className="p-8 flex flex-col items-center gap-2 text-center">
+                  <p className="text-sm font-medium text-muted-foreground">No activity yet</p>
+                  <p className="text-xs text-muted-foreground">Live transactions will appear here.</p>
                 </div>
               )}
             </div>

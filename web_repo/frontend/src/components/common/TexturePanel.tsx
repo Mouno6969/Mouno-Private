@@ -7,15 +7,15 @@ type Texture = 'dots' | 'dots-fine' | 'none';
 interface TexturePanelProps {
   children: React.ReactNode;
   className?: string;
-  /** Accent color family for glow + dot tint. */
+  /** Accent color family for border tint. */
   variant?: Variant;
   /** Background dot texture density. */
   texture?: Texture;
   /** Add a soft top glow bloom behind the content. */
   glow?: boolean;
-  /** Add the slow CRT scanline sweep. */
+  /** Add the slow CRT scanline sweep. (disabled in new design) */
   scanline?: boolean;
-  /** Add the slow aurora hue-drift backdrop (showpiece surfaces only). */
+  /** Add the slow aurora hue-drift backdrop. */
   aurora?: boolean;
   /** Gradient hairline accent along the top edge. */
   accentTop?: boolean;
@@ -24,41 +24,27 @@ interface TexturePanelProps {
 }
 
 /**
- * The Apex "hero value" surface: a glass panel with an optional dot-matrix
- * backdrop, accent glow, scanline, and aurora — all theme-token driven and
- * reduced-motion safe (global CSS rule neutralizes the animations). Encapsulates
- * the recipe so the showpiece cards across the app stay consistent.
+ * A clean panel surface with optional subtle accent effects.
+ * Toned down from the original "Apex" treatment for better readability.
  */
 export const TexturePanel: React.FC<TexturePanelProps> = ({
   children,
   className,
   variant = 'primary',
-  texture = 'dots',
+  texture = 'none',
   glow = false,
   scanline = false,
   aurora = false,
   accentTop = false,
   strong = false,
 }) => {
-  const dotClass =
-    texture === 'none'
-      ? null
-      : variant === 'primary' && texture === 'dots'
-        ? 'dot-matrix-primary'
-        : texture === 'dots-fine'
-          ? 'dot-matrix-fine'
-          : 'dot-matrix';
-
-  const glowClass =
-    variant === 'success' ? 'glow-success' : variant === 'plain' ? 'glow-primary' : 'glow-primary';
-
   const borderTint =
     variant === 'success' ? 'border-success/25' : variant === 'plain' ? 'border-border' : 'border-primary/20';
 
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl border',
+        'relative overflow-hidden rounded-xl border',
         strong ? 'glass-strong' : 'glass-panel',
         borderTint,
         accentTop && 'accent-top',
@@ -66,16 +52,12 @@ export const TexturePanel: React.FC<TexturePanelProps> = ({
       )}
     >
       {aurora && <div className="aurora" aria-hidden="true" />}
-      {dotClass && (
-        <div className={cn('absolute inset-0 pointer-events-none opacity-60 dot-matrix-fade-top', dotClass)} aria-hidden="true" />
-      )}
       {glow && (
         <div
-          className={cn('absolute -top-20 left-1/2 -translate-x-1/2 h-40 w-[26rem] max-w-[120%] pointer-events-none', glowClass)}
+          className="absolute -top-20 left-1/2 -translate-x-1/2 h-32 w-[20rem] max-w-[100%] pointer-events-none glow-primary"
           aria-hidden="true"
         />
       )}
-      {scanline && <div className="scanline" aria-hidden="true" />}
       <div className="relative">{children}</div>
     </div>
   );
