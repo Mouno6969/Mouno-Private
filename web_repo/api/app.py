@@ -30,6 +30,7 @@ from swap_service import quote_lifi, summarize_quote, get_lifi_chains, fetch_tok
 from crypto_manager import (
     get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
     add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
+    reveal_user_wallet_key,
     list_wallet_balances, has_master_password, verify_master_password,
     get_user_evm_wallet, get_user_solana_wallet, get_user_wallet, decrypt_key,
 )
@@ -77,6 +78,7 @@ def broadcast_sellers_update():
                 'support_contact': s[4],
                 'bkash_number': s[3],
                 'networks': networks,
+                'trades': db.count_completed_seller_orders(seller_id),
             })
         socketio.emit('sellers_updated', {'sellers': result})
     except Exception as exc:
@@ -1233,6 +1235,11 @@ def add_wallet(current_user):
     try:
         key_arg = private_key if mode == 'import' else 'create'
         wallet = add_user_wallet(_uid(current_user), network, key_arg, master_password, label=label)
+        # Only surface the generated private key for freshly-created wallets (so
+        # the user can back it up once). For imports the user already has it, so
+        # never echo it back.
+        if mode != 'create':
+            wallet.pop('private_key', None)
         return jsonify({'ok': True, 'message': 'Wallet added', 'data': {'wallet': wallet}})
     except RuntimeError as exc:
         return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
@@ -1256,6 +1263,27 @@ def remove_wallet(current_user, wallet_id):
     except Exception as exc:
         logger.error("Remove wallet failed: %s", exc)
         return jsonify({'ok': False, 'message': 'We couldn\'t remove that wallet right now. Please try again.', 'data': None}), 500
+
+
+@app.route('/api/wallets/<int:wallet_id>/reveal', methods=['POST'])
+@token_required
+def reveal_wallet_key(current_user, wallet_id):
+    """Self-custody export: return the wallet's private key to its owner after
+    verifying the master password. The key is sent over TLS to the authenticated
+    owner only and is never logged."""
+    data = request.get_json(silent=True) or {}
+    master_password = data.get('master_password')
+    if not master_password:
+        return jsonify({'ok': False, 'message': 'Enter your master password to reveal the private key.', 'data': None}), 400
+    try:
+        result = reveal_user_wallet_key(_uid(current_user), wallet_id, master_password)
+        return jsonify({'ok': True, 'message': 'Private key revealed', 'data': result})
+    except RuntimeError as exc:
+        return jsonify({'ok': False, 'message': str(exc), 'data': None}), 400
+    except Exception as exc:
+        # Never include the key or decrypt internals in logs.
+        logger.error("Reveal wallet key failed for wallet %s", wallet_id)
+        return jsonify({'ok': False, 'message': 'We couldn\'t reveal that key right now. Please try again.', 'data': None}), 500
 
 
 @app.route('/api/wallets/balances', methods=['GET'])
@@ -1330,6 +1358,7 @@ def list_market_sellers():
                 'support_contact': s[4],
                 'bkash_number': s[3],
                 'networks': networks,
+                'trades': db.count_completed_seller_orders(seller_id),
             })
         return jsonify(result)
     except Exception as exc:

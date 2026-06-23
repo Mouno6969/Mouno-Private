@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
-import { Banknote, Loader2 } from 'lucide-react';
+import { Banknote, Loader2, Inbox } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { PageHeader, StatusBadge, RelativeTime, CopyButton, EmptyState, TexturePanel } from '../components/common';
 
 interface PayoutEntry {
   id: string;
@@ -64,26 +64,23 @@ const Payout: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Banknote className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Payout / Withdraw</h1>
-          <p className="text-muted-foreground text-sm">Withdraw your referral earnings or balance</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<Banknote className="h-7 w-7" />}
+        eyebrow="Withdraw"
+        title="Payout / Withdraw"
+        description="Withdraw your referral earnings or balance"
+      />
 
-      <Card className="border-primary/10">
-        <CardHeader>
-          <CardTitle className="text-lg">New Payout Request</CardTitle>
-          <CardDescription>Submit a withdrawal request for admin review</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <TexturePanel variant="primary" glow accentTop>
+        <div className="p-5 sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold tracking-tight">New Payout Request</h2>
+            <p className="text-sm text-muted-foreground">Submit a withdrawal request for admin review</p>
+          </div>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label>Amount (BDT)</Label>
-              <Input type="number" placeholder="5000" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+              <Input type="number" inputMode="numeric" className="num" placeholder="5000" value={amount} onChange={(e) => setAmount(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label>Method</Label>
@@ -104,8 +101,8 @@ const Payout: React.FC = () => {
               Submit Request
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </TexturePanel>
 
       <Card className="border-primary/10">
         <CardHeader>
@@ -114,24 +111,25 @@ const Payout: React.FC = () => {
         <CardContent>
           {historyLoading && <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}
           {!historyLoading && history.length === 0 && (
-            <p className="text-center text-muted-foreground py-6">No payout requests yet.</p>
+            <EmptyState icon={<Inbox className="h-6 w-6" aria-hidden="true" />} title="No payout requests yet" description="Your withdrawal requests will appear here." />
           )}
-          <div className="space-y-3">
-            {history.map((p) => (
-              <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div>
-                  <div className="font-mono text-sm font-bold">{p.id}</div>
-                  <div className="text-xs text-muted-foreground">{p.method} — {p.details || 'N/A'}</div>
-                  <div className="text-xs text-muted-foreground">{p.created_at?.slice(0, 16)}</div>
+          <div className="space-y-2">
+            {history.map((p) => {
+              const edge = p.status === 'paid' ? 'border-l-success' : p.status === 'rejected' ? 'border-l-destructive' : 'border-l-warning';
+              return (
+              <div key={p.id} className={`flex items-center justify-between p-3 rounded-lg bg-muted/30 border-l-2 ${edge} transition-colors hover:bg-muted/50`}>
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-1.5 font-mono text-sm font-bold">{p.id}<CopyButton value={p.id} label="Copy request ID" /></div>
+                  <div className="text-xs text-muted-foreground truncate">{p.method} — {p.details || '—'}</div>
+                  <RelativeTime value={p.created_at} className="text-xs text-muted-foreground" />
                 </div>
-                <div className="text-right">
-                  <div className="font-bold">৳{p.amount}</div>
-                  <Badge variant={p.status === 'paid' ? 'default' : p.status === 'rejected' ? 'destructive' : 'secondary'} className="text-[10px]">
-                    {p.status === 'paid' ? 'Paid' : p.status === 'rejected' ? 'Rejected' : 'Pending'}
-                  </Badge>
+                <div className="text-right shrink-0">
+                  <div className="num font-bold">৳{p.amount}</div>
+                  <StatusBadge status={p.status} className="text-[10px]" />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

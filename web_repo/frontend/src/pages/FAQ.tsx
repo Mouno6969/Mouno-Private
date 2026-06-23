@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { HelpCircle } from 'lucide-react';
+import { PageHeader } from '../components/common';
 
 const faqs = [
   {
@@ -39,13 +40,7 @@ const FAQ: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <HelpCircle className="h-6 w-6 text-primary" />
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight">FAQ</h1>
-      </div>
-      <p className="text-muted-foreground">Frequently asked questions about our services.</p>
+      <PageHeader icon={<HelpCircle className="h-7 w-7" />} eyebrow="Help" title="FAQ" description="Frequently asked questions about our services." />
 
       <div className="space-y-4">
         {faqs.map((faq, i) => (
