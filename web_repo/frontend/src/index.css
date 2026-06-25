@@ -76,17 +76,19 @@
 }
 
 @layer components {
-  /* Glass surface used by cards and panels */
+  /* Glass surface used by cards and panels.
+     -webkit-backdrop-filter is declared BEFORE the unprefixed property so CSS
+     minifiers keep both (some drop a duplicate-looking earlier declaration). */
   .glass-panel {
     background-color: hsl(var(--card) / 0.75);
-    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     border: 1px solid hsl(var(--border) / 0.8);
   }
   .glass-strong {
     background-color: hsl(var(--card) / 0.92);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border));
   }
 

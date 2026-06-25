@@ -22,7 +22,7 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwords_no_match', 'Passwords do not match'));
       return;
     }
     setLoading(true);
@@ -32,7 +32,7 @@ const Register: React.FC = () => {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(getErrorMessage(err, 'Registration failed'));
+      setError(getErrorMessage(err, t('registration_failed', 'Registration failed')));
     } finally {
       setLoading(false);
     }
@@ -45,8 +45,8 @@ const Register: React.FC = () => {
           <div className="w-14 h-14 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-5">
             <CheckCircle size={28} />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Registration Successful!</h2>
-          <p className="text-muted-foreground text-sm">Redirecting to login...</p>
+          <h2 className="text-2xl font-bold mb-2">{t('registration_successful', 'Registration Successful!')}</h2>
+          <p className="text-muted-foreground text-sm">{t('redirecting_login', 'Redirecting to login...')}</p>
         </div>
       </div>
     );
@@ -60,9 +60,9 @@ const Register: React.FC = () => {
             <UserPlus className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Get started</p>
+            <p className="text-xs font-medium tracking-wider text-muted-foreground">{t('get_started', 'Get started')}</p>
             <h1 className="text-2xl font-bold tracking-tight">{t('register')}</h1>
-            <p className="text-sm text-muted-foreground">Create a new account to start trading</p>
+            <p className="text-sm text-muted-foreground">{t('register_subtitle', 'Create a new account to start trading')}</p>
           </div>
         </div>
         <CardContent className="pt-2">
@@ -80,7 +80,7 @@ const Register: React.FC = () => {
                 <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="username"
-                  placeholder="Choose a username"
+                  placeholder={t('choose_username', 'Choose a username')}
                   className="pl-10"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -96,7 +96,7 @@ const Register: React.FC = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder={t('create_password', 'Create a password')}
                   className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -106,13 +106,13 @@ const Register: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">{t('confirm_password', 'Confirm Password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
                   type="password"
-                  placeholder="Confirm your password"
+                  placeholder={t('confirm_password_placeholder', 'Confirm your password')}
                   className="pl-10"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -125,7 +125,7 @@ const Register: React.FC = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  {t('creating_account', 'Creating account...')}
                 </>
               ) : (
                 t('register')
@@ -135,9 +135,9 @@ const Register: React.FC = () => {
         </CardContent>
         <CardFooter className="flex flex-col pb-6">
           <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
+            {t('have_account', 'Already have an account?')}{" "}
             <Link to="/login" className="text-primary font-medium hover:underline underline-offset-4">
-              Login here
+              {t('login_here', 'Login here')}
             </Link>
           </p>
         </CardFooter>

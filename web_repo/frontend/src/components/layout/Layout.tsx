@@ -200,19 +200,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <NavLink to="/" icon={<Home className="h-4 w-4" />} label={t('nav_dashboard')} active={isActive('/')} />
 
             {NAV_GROUPS.map((group) => {
-              const isExpanded = expandedGroups[group.titleKey] ?? false;
               const hasActiveChild = group.items.some(i => isActive(i.path));
+              // Default to open when a child is active, but an explicit toggle
+              // (stored in expandedGroups) always wins — so the active group can
+              // still be collapsed.
+              const isExpanded = expandedGroups[group.titleKey] ?? hasActiveChild;
               return (
                 <div key={group.titleKey} className="flex flex-col">
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.titleKey)}
-                    className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                    aria-expanded={isExpanded}
+                    className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70 hover:text-muted-foreground transition-colors"
                   >
                     {t(group.titleKey)}
-                    <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded || hasActiveChild ? 'rotate-0' : '-rotate-90'}`} />
+                    <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   </button>
-                  {(isExpanded || hasActiveChild) && (
+                  {isExpanded && (
                     <div className="flex flex-col gap-0.5 mb-2">
                       {group.items.map((item) => (
                         <NavLink
@@ -294,12 +298,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <DropdownMenuSeparator />
                     {!user?.telegram_id && (
                       <DropdownMenuItem asChild>
-                        <Link to="/link-telegram">Link Telegram</Link>
+                        <Link to="/link-telegram">{t('connect_telegram', 'Link Telegram')}</Link>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
+                      <span>{t('logout', 'Log out')}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -366,7 +370,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="px-4 py-5 flex flex-col gap-6 pb-28">
             {NAV_GROUPS.map((group) => (
               <div key={group.titleKey} className="flex flex-col gap-2">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-1">
+                <h2 className="text-[11px] font-semibold tracking-wide text-muted-foreground/70 px-1">
                   {t(group.titleKey)}
                 </h2>
                 <div className="grid grid-cols-2 gap-2">

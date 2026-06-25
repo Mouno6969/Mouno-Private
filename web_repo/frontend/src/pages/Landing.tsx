@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowRight,
   ShoppingCart,
@@ -65,6 +66,7 @@ const STATS = [
 ];
 
 const Landing: React.FC = () => {
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   return (
@@ -79,17 +81,17 @@ const Landing: React.FC = () => {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
-            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-            <a href="#why" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Why Us</a>
+            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('landing_nav_features', 'Features')}</a>
+            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('landing_nav_how', 'How It Works')}</a>
+            <a href="#why" className="text-sm text-muted-foreground hover:text-foreground transition-colors">{t('landing_nav_why', 'Why Us')}</a>
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
             <Button asChild variant="ghost" size="sm">
-              <Link to="/login">Log In</Link>
+              <Link to="/login">{t('log_in', 'Log In')}</Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/register">Get Started</Link>
+              <Link to="/register">{t('get_started', 'Get Started')}</Link>
             </Button>
           </div>
 
@@ -98,7 +100,9 @@ const Landing: React.FC = () => {
             type="button"
             className="md:hidden p-2 text-muted-foreground hover:text-foreground"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="landing-mobile-nav"
+            aria-label={t('aria_toggle_menu', 'Toggle menu')}
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -106,16 +110,16 @@ const Landing: React.FC = () => {
 
         {/* Mobile nav dropdown */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-lg px-4 py-4 space-y-3">
-            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">Features</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">How It Works</a>
-            <a href="#why" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">Why Us</a>
+          <div id="landing-mobile-nav" className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-lg px-4 py-4 space-y-3">
+            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">{t('landing_nav_features', 'Features')}</a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">{t('landing_nav_how', 'How It Works')}</a>
+            <a href="#why" onClick={() => setMobileMenuOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-1">{t('landing_nav_why', 'Why Us')}</a>
             <div className="flex gap-2 pt-2 border-t border-border/60">
               <Button asChild variant="outline" size="sm" className="flex-1">
-                <Link to="/login">Log In</Link>
+                <Link to="/login">{t('log_in', 'Log In')}</Link>
               </Button>
               <Button asChild size="sm" className="flex-1">
-                <Link to="/register">Get Started</Link>
+                <Link to="/register">{t('get_started', 'Get Started')}</Link>
               </Button>
             </div>
           </div>
@@ -127,41 +131,40 @@ const Landing: React.FC = () => {
         <section className="pt-16 md:pt-24 flex flex-col items-center text-center gap-6">
           <span className="inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-4 py-1.5 text-xs font-medium text-success">
             <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-            BGC Crypto v2.0 is live
+            {t('landing_badge', 'BGC Crypto v2.0 is live')}
           </span>
 
           <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl text-balance">
-            Bangladesh&apos;s Crypto Gateway.{' '}
-            <span className="text-primary">Buy. Swap. Settle.</span>
+            {t('landing_hero_title', "Bangladesh's Crypto Gateway.")}{' '}
+            <span className="text-primary">{t('landing_hero_accent', 'Buy. Swap. Settle.')}</span>
           </h1>
 
           <p className="max-w-2xl text-base sm:text-lg leading-relaxed text-muted-foreground">
-            The fastest way to buy USDT and USDC with bKash, bridge across 20+ chains, and manage
-            every transaction in one powerful dashboard.
+            {t('landing_hero_subtitle', 'The fastest way to buy USDT and USDC with bKash, bridge across 20+ chains, and manage every transaction in one powerful dashboard.')}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto pt-2">
             <Button asChild size="lg" className="h-12 font-semibold w-full sm:w-auto px-8">
               <Link to="/register" className="flex items-center justify-center gap-2">
-                Create Free Account <ArrowRight size={18} />
+                {t('landing_create_account', 'Create Free Account')} <ArrowRight size={18} />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 font-semibold w-full sm:w-auto px-8">
               <Link to="/login" className="flex items-center justify-center gap-2">
-                Log In
+                {t('log_in', 'Log In')}
               </Link>
             </Button>
           </div>
 
           <p className="text-xs text-muted-foreground pt-2">
-            No hidden fees &middot; bKash native &middot; Live BDT rates
+            {t('landing_hero_note', 'No hidden fees · bKash native · Live BDT rates')}
           </p>
         </section>
 
         {/* ── Trust marquee ── */}
         <section className="space-y-4">
-          <p className="text-center text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Powering transactions across leading networks
+          <p className="text-center text-xs font-medium tracking-wider text-muted-foreground">
+            {t('landing_networks_caption', 'Powering transactions across leading networks')}
           </p>
           <Marquee
             speed={30}
@@ -182,12 +185,12 @@ const Landing: React.FC = () => {
         {/* ── Features ── */}
         <section id="features" className="space-y-10">
           <div className="text-center space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wider text-primary">Features</p>
+            <p className="text-xs font-medium tracking-wider text-primary">{t('landing_nav_features', 'Features')}</p>
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              One Platform. Every Tool.
+              {t('landing_features_title', 'One Platform. Every Tool.')}
             </h2>
             <p className="max-w-xl mx-auto text-muted-foreground">
-              Everything you need to buy, swap, and manage crypto — built for Bangladesh.
+              {t('landing_features_subtitle', 'Everything you need to buy, swap, and manage crypto — built for Bangladesh.')}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -209,9 +212,9 @@ const Landing: React.FC = () => {
         {/* ── How it works ── */}
         <section id="how-it-works" className="space-y-10">
           <div className="text-center space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wider text-primary">How It Works</p>
+            <p className="text-xs font-medium tracking-wider text-primary">{t('landing_nav_how', 'How It Works')}</p>
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Three Steps to Settlement
+              {t('landing_steps_title', 'Three Steps to Settlement')}
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -245,9 +248,9 @@ const Landing: React.FC = () => {
         <section id="why" className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
           <div className="space-y-6">
             <div className="space-y-3">
-              <p className="text-xs font-medium uppercase tracking-wider text-primary">Why BGC Crypto</p>
+              <p className="text-xs font-medium tracking-wider text-primary">{t('landing_why_eyebrow', 'Why BGC Crypto')}</p>
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-                No Compromise. No Lock-In.
+                {t('landing_why_title', 'No Compromise. No Lock-In.')}
               </h2>
             </div>
             <ul className="space-y-3">
@@ -294,19 +297,19 @@ const Landing: React.FC = () => {
         {/* ── Final CTA ── */}
         <section className="rounded-xl border border-border/70 bg-card/60 px-6 py-14 sm:px-10 sm:py-20 text-center flex flex-col items-center gap-6">
           <h2 className="max-w-2xl text-3xl sm:text-4xl font-extrabold tracking-tight">
-            Ready to Move Your Money?
+            {t('landing_cta_title', 'Ready to Move Your Money?')}
           </h2>
           <p className="max-w-xl text-sm sm:text-base leading-relaxed text-muted-foreground">
-            Join BGC Crypto today and experience bKash-native crypto trading built for Bangladesh.
+            {t('landing_cta_subtitle', 'Join BGC Crypto today and experience bKash-native crypto trading built for Bangladesh.')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Button asChild size="lg" className="h-12 font-semibold w-full sm:w-auto px-8">
               <Link to="/register" className="flex items-center justify-center gap-2">
-                Get Started — Free <ArrowRight size={18} />
+                {t('landing_cta_button', 'Get Started — Free')} <ArrowRight size={18} />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 font-semibold w-full sm:w-auto px-8">
-              <Link to="/login">I Already Have an Account</Link>
+              <Link to="/login">{t('landing_cta_have_account', 'I Already Have an Account')}</Link>
             </Button>
           </div>
         </section>
@@ -319,13 +322,13 @@ const Landing: React.FC = () => {
               <span className="text-sm font-semibold">Mouno — BGC Crypto</span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
-              <Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link>
-              <Link to="/guide" className="hover:text-foreground transition-colors">Guide</Link>
-              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-              <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>
+              <Link to="/faq" className="hover:text-foreground transition-colors">{t('nav_faq', 'FAQ')}</Link>
+              <Link to="/guide" className="hover:text-foreground transition-colors">{t('nav_guide', 'Guide')}</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">{t('nav_terms', 'Terms')}</Link>
+              <Link to="/support" className="hover:text-foreground transition-colors">{t('support', 'Support')}</Link>
             </nav>
             <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} BGC Crypto. All rights reserved.
+              &copy; {new Date().getFullYear()} BGC Crypto. {t('rights_reserved', 'All rights reserved.')}
             </p>
           </div>
         </footer>

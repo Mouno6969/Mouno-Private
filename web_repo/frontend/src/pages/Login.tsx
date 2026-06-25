@@ -33,7 +33,7 @@ const Login: React.FC = () => {
       login(res.data.username, res.data.token, res.data.telegram_id);
       navigate('/');
     } catch (err) {
-      setError(getErrorMessage(err, 'Login failed'));
+      setError(getErrorMessage(err, t('login_failed', 'Login failed')));
     } finally {
       setLoading(false);
     }
@@ -47,9 +47,9 @@ const Login: React.FC = () => {
             <Lock className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Welcome back</p>
+            <p className="text-xs font-medium tracking-wider text-muted-foreground">{t('welcome_back', 'Welcome back')}</p>
             <h1 className="text-2xl font-bold tracking-tight">{t('login')}</h1>
-            <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+            <p className="text-sm text-muted-foreground">{t('login_subtitle', 'Enter your credentials to access your account')}</p>
           </div>
         </div>
         <CardContent className="pt-2">
@@ -67,7 +67,7 @@ const Login: React.FC = () => {
                 <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="username"
-                  placeholder="Enter username"
+                  placeholder={t('enter_username', 'Enter username')}
                   className="pl-10"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -83,7 +83,7 @@ const Login: React.FC = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter password"
+                  placeholder={t('enter_password', 'Enter password')}
                   className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -96,7 +96,7 @@ const Login: React.FC = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
+                  {t('logging_in', 'Logging in...')}
                 </>
               ) : (
                 t('login')
@@ -106,9 +106,9 @@ const Login: React.FC = () => {
         </CardContent>
         <CardFooter className="flex flex-col pb-6">
           <p className="text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
+            {t('no_account', "Don't have an account?")}{" "}
             <Link to="/register" className="text-primary font-medium hover:underline underline-offset-4">
-              Register here
+              {t('register_here', 'Register here')}
             </Link>
           </p>
         </CardFooter>
