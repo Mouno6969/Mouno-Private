@@ -4,13 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
 import type { LoginResponse } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { User, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { CardContent, CardFooter } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { TexturePanel } from '../components/common';
 
 const Login: React.FC = () => {
   const { t } = useTranslation();
@@ -34,29 +33,28 @@ const Login: React.FC = () => {
       login(res.data.username, res.data.token, res.data.telegram_id);
       navigate('/');
     } catch (err) {
-      setError(getErrorMessage(err, 'Login failed'));
+      setError(getErrorMessage(err, t('login_failed', 'Login failed')));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative flex justify-center items-center py-12 px-4 overflow-hidden">
-      <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
-      <TexturePanel variant="primary" glow aurora accentTop strong className="relative w-full max-w-md">
-        <div className="pt-8 pb-2 px-6 text-center space-y-3">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/30 text-primary ring-glow-primary">
-            <ShieldCheck className="h-7 w-7 drop-shadow-[0_0_10px_hsl(var(--primary)/0.6)]" />
+    <div className="flex justify-center items-center py-12 px-4">
+      <div className="w-full max-w-md rounded-xl border border-border/70 bg-card/90 shadow-lg overflow-hidden">
+        <div className="pt-8 pb-4 px-6 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Lock className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <p className="label-eyebrow">Welcome back</p>
-            <h1 className="text-3xl font-bold tracking-tight">{t('login')}</h1>
-            <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
+            <p className="text-xs font-medium tracking-wider text-muted-foreground">{t('welcome_back', 'Welcome back')}</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('login')}</h1>
+            <p className="text-sm text-muted-foreground">{t('login_subtitle', 'Enter your credentials to access your account')}</p>
           </div>
         </div>
-        <CardContent className="pt-4">
+        <CardContent className="pt-2">
           {error && (
-            <Alert variant="destructive" className="mb-6">
+            <Alert variant="destructive" className="mb-5">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -69,7 +67,7 @@ const Login: React.FC = () => {
                 <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="username"
-                  placeholder="Enter username"
+                  placeholder={t('enter_username', 'Enter username')}
                   className="pl-10"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -79,15 +77,13 @@ const Login: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">{t('password')}</Label>
-              </div>
+              <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter password"
+                  placeholder={t('enter_password', 'Enter password')}
                   className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -96,11 +92,11 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging in...
+                  {t('logging_in', 'Logging in...')}
                 </>
               ) : (
                 t('login')
@@ -108,15 +104,15 @@ const Login: React.FC = () => {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col">
+        <CardFooter className="flex flex-col pb-6">
           <p className="text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            {t('no_account', "Don't have an account?")}{" "}
             <Link to="/register" className="text-primary font-medium hover:underline underline-offset-4">
-              Register here
+              {t('register_here', 'Register here')}
             </Link>
           </p>
         </CardFooter>
-      </TexturePanel>
+      </div>
     </div>
   );
 };

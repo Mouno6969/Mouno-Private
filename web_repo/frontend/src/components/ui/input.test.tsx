@@ -4,12 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { Input } from './input';
 
 describe('Input', () => {
-  describe('styling - rounded-none (PR change)', () => {
-    it('has rounded-none class (not rounded-md)', () => {
+  describe('styling - rounded-lg (design overhaul)', () => {
+    it('has rounded-lg class (not rounded-none)', () => {
       render(<Input />);
       const input = screen.getByRole('textbox');
-      expect(input.className).toContain('rounded-none');
-      expect(input.className).not.toContain('rounded-md');
+      expect(input.className).toContain('rounded-lg');
+      expect(input.className).not.toContain('rounded-none');
     });
 
     it('has border and border-input classes', () => {
@@ -26,10 +26,11 @@ describe('Input', () => {
       expect(input.className).toContain('w-full');
     });
 
-    it('has focus-visible:ring-1 focus-visible:ring-ring classes', () => {
+    it('has focus-visible:ring-2 focus-visible:ring-ring classes', () => {
       render(<Input />);
       const input = screen.getByRole('textbox');
-      expect(input.className).toContain('focus-visible:ring-1');
+      expect(input.className).toContain('focus-visible:ring-2');
+      expect(input.className).toContain('focus-visible:ring-ring');
     });
   });
 

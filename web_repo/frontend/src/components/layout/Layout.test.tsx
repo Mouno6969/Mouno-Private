@@ -45,17 +45,16 @@ describe('Layout', () => {
   });
 
   describe('logo image', () => {
-    it('renders the logo image with rounded-none + border-white', () => {
+    it('renders the logo image with rounded-lg', () => {
       renderLayout();
-      const logo = screen.getByAltText('Logo');
-      expect(logo.className).toContain('rounded-none');
-      expect(logo.className).not.toContain('rounded-full');
-      expect(logo.className).toContain('border-white');
+      const logo = screen.getAllByAltText('Logo')[0];
+      expect(logo.className).toContain('rounded-lg');
+      expect(logo.className).not.toContain('rounded-none');
     });
 
     it('logo links to /', () => {
       renderLayout();
-      const logoLink = screen.getByAltText('Logo').closest('a');
+      const logoLink = screen.getAllByAltText('Logo')[0].closest('a');
       expect(logoLink).toHaveAttribute('href', '/');
     });
   });
@@ -80,6 +79,8 @@ describe('Layout', () => {
     it('renders trade links in the sidebar', () => {
       const { container } = renderLayout();
       const aside = container.querySelector('aside') as HTMLElement;
+      // Nav groups are collapsed by default; expand the Trade group first.
+      fireEvent.click(within(aside).getByText('nav_trade'));
       expect(within(aside).getByText('buy').closest('a')).toHaveAttribute('href', '/buy');
       expect(within(aside).getByText('swap').closest('a')).toHaveAttribute('href', '/swap');
     });
@@ -112,11 +113,10 @@ describe('Layout', () => {
       expect(mockChangeLanguage).toHaveBeenCalledWith('en');
     });
 
-    it('lang button has rounded-none and border classes', () => {
+    it('lang button has rounded-md class', () => {
       renderLayout();
       const langBtn = screen.getByText('বাং').closest('button') as HTMLElement;
-      expect(langBtn.className).toContain('rounded-none');
-      expect(langBtn.className).toContain('border');
+      expect(langBtn.className).toContain('rounded-md');
     });
   });
 
@@ -144,14 +144,14 @@ describe('Layout', () => {
       expect(screen.getByText('T')).toBeInTheDocument();
     });
 
-    it('shows "U" as fallback when username is empty', () => {
+    it('shows "G" as fallback when username is empty', () => {
       mockUseAuth.mockReturnValue({
         user: { username: '', telegram_id: null },
         token: 'fake-token',
         logout: mockLogout,
       });
       renderLayout();
-      expect(screen.getByText('U')).toBeInTheDocument();
+      expect(screen.getAllByText('G').length).toBeGreaterThanOrEqual(1);
     });
 
     it('does not show Login/Register when logged in', () => {
@@ -164,7 +164,7 @@ describe('Layout', () => {
       expect(screen.queryByText('login')).not.toBeInTheDocument();
     });
 
-    it('user initial button has rounded-none class', () => {
+    it('user initial button has rounded-lg class', () => {
       mockUseAuth.mockReturnValue({
         user: { username: 'alice', telegram_id: null },
         token: 'abc123',
@@ -172,7 +172,7 @@ describe('Layout', () => {
       });
       renderLayout();
       const btn = screen.getByText('A').closest('button') as HTMLElement;
-      expect(btn.className).toContain('rounded-none');
+      expect(btn.className).toContain('rounded-lg');
     });
   });
 

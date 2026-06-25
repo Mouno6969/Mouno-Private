@@ -3,12 +3,12 @@ import { render, screen } from '@testing-library/react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card';
 
 describe('Card', () => {
-  describe('Card base - rounded-none (PR change)', () => {
-    it('has rounded-none class (not rounded-xl)', () => {
+  describe('Card base - rounded-xl (design overhaul)', () => {
+    it('has rounded-xl class (not rounded-none)', () => {
       const { container } = render(<Card>Content</Card>);
       const card = container.firstChild as HTMLElement;
-      expect(card.className).toContain('rounded-none');
-      expect(card.className).not.toContain('rounded-xl');
+      expect(card.className).toContain('rounded-xl');
+      expect(card.className).not.toContain('rounded-none');
     });
 
     it('has border, bg-card, text-card-foreground, and shadow classes', () => {
@@ -45,10 +45,10 @@ describe('Card', () => {
   });
 
   describe('CardHeader', () => {
-    it('renders with flex flex-col space-y-1.5 p-6 classes', () => {
+    it('renders with flex flex-col space-y-1.5 p-5 classes', () => {
       const { container } = render(<CardHeader>Header</CardHeader>);
       const el = container.firstChild as HTMLElement;
-      expect(el.className).toContain('p-6');
+      expect(el.className).toContain('p-5');
     });
 
     it('renders children', () => {
@@ -80,10 +80,10 @@ describe('Card', () => {
   });
 
   describe('CardContent', () => {
-    it('renders with p-6 pt-0', () => {
+    it('renders with p-5 pt-0', () => {
       const { container } = render(<CardContent>Body</CardContent>);
       const el = container.firstChild as HTMLElement;
-      expect(el.className).toContain('p-6');
+      expect(el.className).toContain('p-5');
       expect(el.className).toContain('pt-0');
     });
   });

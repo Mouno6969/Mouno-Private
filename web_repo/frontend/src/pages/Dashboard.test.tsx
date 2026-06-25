@@ -81,38 +81,25 @@ describe('Dashboard', () => {
     mockedUseTxLog.mockReturnValue({ data: [] });
   });
 
-  describe('Marquee (PR addition)', () => {
-    it('renders the Marquee component', async () => {
+  describe('design overhaul: marquee removed', () => {
+    it('no longer renders a Marquee ticker', () => {
       renderDashboard();
-      await waitFor(() => {
-        expect(screen.getAllByTestId('marquee').length).toBeGreaterThan(0);
-      });
-    });
-
-    it('Marquee contains protocol status messages', async () => {
-      renderDashboard();
-      await waitFor(() => {
-        expect(screen.getByText(/LIFI PROTOCOL INTEGRATED/i)).toBeInTheDocument();
-        expect(screen.getByText(/24\/7 AUTOMATED DELIVERY/i)).toBeInTheDocument();
-        expect(screen.getByText(/CROSS-CHAIN SWAPS ACTIVE/i)).toBeInTheDocument();
-        expect(screen.getByText(/SECURE P2P SETTLEMENT/i)).toBeInTheDocument();
-        expect(screen.getByText(/AI ONBOARDING ONLINE/i)).toBeInTheDocument();
-      });
+      expect(screen.queryByTestId('marquee')).not.toBeInTheDocument();
     });
   });
 
-  describe('System status badge (PR change)', () => {
-    it('shows "System: Online" badge', async () => {
+  describe('status badge (design overhaul)', () => {
+    it('shows the "Online" status badge', async () => {
       renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText(/System: Online/i)).toBeInTheDocument();
+        expect(screen.getByText(/^Online$/i)).toBeInTheDocument();
       });
     });
 
-    it('shows "Refreshed:" timestamp display (PR addition)', async () => {
+    it('shows a freshness "Updated" indicator', async () => {
       renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText(/Refreshed:/i)).toBeInTheDocument();
+        expect(screen.getByText(/Updated/i)).toBeInTheDocument();
       });
     });
   });
@@ -128,8 +115,8 @@ describe('Dashboard', () => {
     it('shows a loading skeleton before data arrives', () => {
       setMarket(undefined, true);
       renderDashboard();
-      // Header rate cell falls back to N/A while loading with no data.
-      expect(screen.getByText('System: Online')).toBeInTheDocument();
+      // The page shell (status badge) renders while market data is loading.
+      expect(screen.getByText(/^Online$/i)).toBeInTheDocument();
     });
 
     it('does not crash when the market hook returns no data', async () => {

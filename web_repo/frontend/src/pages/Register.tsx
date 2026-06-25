@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
-import { User, Lock, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { User, Lock, AlertCircle, CheckCircle, Loader2, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
+import { CardContent, CardFooter } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
 const Register: React.FC = () => {
@@ -22,7 +22,7 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwords_no_match', 'Passwords do not match'));
       return;
     }
     setLoading(true);
@@ -32,7 +32,7 @@ const Register: React.FC = () => {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(getErrorMessage(err, 'Registration failed'));
+      setError(getErrorMessage(err, t('registration_failed', 'Registration failed')));
     } finally {
       setLoading(false);
     }
@@ -41,32 +41,33 @@ const Register: React.FC = () => {
   if (success) {
     return (
       <div className="flex justify-center items-center py-20 px-4">
-        <Card className="w-full max-w-md text-center border-success/50 bg-success/5">
-          <CardContent className="pt-10 pb-10">
-            <div className="w-16 h-16 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-              <CheckCircle size={32} />
-            </div>
-            <CardTitle className="text-2xl font-bold mb-2">Registration Successful!</CardTitle>
-            <CardDescription className="text-muted-foreground">Redirecting to login...</CardDescription>
-          </CardContent>
-        </Card>
+        <div className="w-full max-w-md rounded-xl border border-success/30 bg-card/90 shadow-lg text-center p-10">
+          <div className="w-14 h-14 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-5">
+            <CheckCircle size={28} />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">{t('registration_successful', 'Registration Successful!')}</h2>
+          <p className="text-muted-foreground text-sm">{t('redirecting_login', 'Redirecting to login...')}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative flex justify-center items-center py-12 px-4 overflow-hidden">
-      <div className="absolute inset-0 dot-matrix dot-matrix-fade pointer-events-none" aria-hidden="true" />
-      <Card className="relative w-full max-w-md shadow-2xl">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-3xl font-bold text-center">{t('register')}</CardTitle>
-          <CardDescription className="text-center text-muted-foreground">
-            Create a new account to start trading
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="flex justify-center items-center py-12 px-4">
+      <div className="w-full max-w-md rounded-xl border border-border/70 bg-card/90 shadow-lg overflow-hidden">
+        <div className="pt-8 pb-4 px-6 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UserPlus className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium tracking-wider text-muted-foreground">{t('get_started', 'Get started')}</p>
+            <h1 className="text-2xl font-bold tracking-tight">{t('register')}</h1>
+            <p className="text-sm text-muted-foreground">{t('register_subtitle', 'Create a new account to start trading')}</p>
+          </div>
+        </div>
+        <CardContent className="pt-2">
           {error && (
-            <Alert variant="destructive" className="mb-6">
+            <Alert variant="destructive" className="mb-5">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -79,7 +80,7 @@ const Register: React.FC = () => {
                 <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="username"
-                  placeholder="Choose a username"
+                  placeholder={t('choose_username', 'Choose a username')}
                   className="pl-10"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -95,7 +96,7 @@ const Register: React.FC = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder={t('create_password', 'Create a password')}
                   className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -105,13 +106,13 @@ const Register: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">{t('confirm_password', 'Confirm Password')}</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
                   type="password"
-                  placeholder="Confirm your password"
+                  placeholder={t('confirm_password_placeholder', 'Confirm your password')}
                   className="pl-10"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -120,11 +121,11 @@ const Register: React.FC = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  {t('creating_account', 'Creating account...')}
                 </>
               ) : (
                 t('register')
@@ -132,15 +133,15 @@ const Register: React.FC = () => {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col">
+        <CardFooter className="flex flex-col pb-6">
           <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
+            {t('have_account', 'Already have an account?')}{" "}
             <Link to="/login" className="text-primary font-medium hover:underline underline-offset-4">
-              Login here
+              {t('login_here', 'Login here')}
             </Link>
           </p>
         </CardFooter>
-      </Card>
+      </div>
     </div>
   );
 };
