@@ -48,6 +48,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (!el) return;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce) return;
+    // Guard against environments without the Web Animations API (e.g. jsdom in
+    // tests, or older browsers) so the page render never throws.
+    if (typeof el.animate !== 'function') return;
     el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
   }, [location.pathname]);
 

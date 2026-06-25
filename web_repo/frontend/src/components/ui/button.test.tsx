@@ -4,24 +4,24 @@ import userEvent from '@testing-library/user-event';
 import { Button, buttonVariants } from './button';
 
 describe('Button', () => {
-  describe('base styling - rounded-none (PR change)', () => {
-    it('has rounded-none in the base class (not rounded-md)', () => {
+  describe('base styling - rounded-lg (design overhaul)', () => {
+    it('has rounded-lg in the base class (not rounded-none)', () => {
       render(<Button>Click me</Button>);
       const btn = screen.getByRole('button', { name: 'Click me' });
-      expect(btn.className).toContain('rounded-none');
-      expect(btn.className).not.toContain('rounded-md');
+      expect(btn.className).toContain('rounded-lg');
+      expect(btn.className).not.toContain('rounded-none');
     });
 
-    it('sm size has rounded-none (not rounded-md)', () => {
+    it('sm size uses rounded-md', () => {
       render(<Button size="sm">Small</Button>);
       const btn = screen.getByRole('button', { name: 'Small' });
-      expect(btn.className).toContain('rounded-none');
+      expect(btn.className).toContain('rounded-md');
     });
 
-    it('lg size has rounded-none (not rounded-md)', () => {
+    it('lg size has rounded-lg', () => {
       render(<Button size="lg">Large</Button>);
       const btn = screen.getByRole('button', { name: 'Large' });
-      expect(btn.className).toContain('rounded-none');
+      expect(btn.className).toContain('rounded-lg');
     });
   });
 
@@ -53,7 +53,7 @@ describe('Button', () => {
     it('renders ghost variant', () => {
       render(<Button variant="ghost">Ghost</Button>);
       const btn = screen.getByRole('button');
-      expect(btn.className).toContain('hover:bg-accent');
+      expect(btn.className).toContain('hover:bg-muted');
     });
 
     it('renders link variant', () => {
@@ -77,10 +77,10 @@ describe('Button', () => {
       expect(btn.className).toContain('px-3');
     });
 
-    it('lg size has h-10 and px-8', () => {
+    it('lg size has h-11 and px-8', () => {
       render(<Button size="lg">Large</Button>);
       const btn = screen.getByRole('button');
-      expect(btn.className).toContain('h-10');
+      expect(btn.className).toContain('h-11');
       expect(btn.className).toContain('px-8');
     });
 
@@ -143,19 +143,19 @@ describe('Button', () => {
   });
 
   describe('buttonVariants helper', () => {
-    it('generates class string with rounded-none for default', () => {
+    it('generates class string with rounded-lg for default', () => {
       const classes = buttonVariants({});
-      expect(classes).toContain('rounded-none');
+      expect(classes).toContain('rounded-lg');
     });
 
-    it('generates class string with rounded-none for sm size', () => {
+    it('generates class string with rounded-md for sm size', () => {
       const classes = buttonVariants({ size: 'sm' });
-      expect(classes).toContain('rounded-none');
+      expect(classes).toContain('rounded-md');
     });
 
-    it('generates class string with rounded-none for lg size', () => {
+    it('generates class string with rounded-lg for lg size', () => {
       const classes = buttonVariants({ size: 'lg' });
-      expect(classes).toContain('rounded-none');
+      expect(classes).toContain('rounded-lg');
     });
   });
 });

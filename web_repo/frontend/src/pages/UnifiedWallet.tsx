@@ -10,19 +10,9 @@ import { EmptyState, ErrorState } from '../components/ui/states';
 import { useAuth } from '../context/AuthContext';
 import { usePortfolio, useMarket } from '../lib/hooks';
 import type { PortfolioHolding } from '../types/api';
-import { TexturePanel, FlashValue } from '../components/common';
 
-// Theme-token palette for the chain share bar (adapts to theme; on-brand).
-const CHAIN_COLORS = [
-  'hsl(var(--primary))',
-  'hsl(var(--success))',
-  'hsl(var(--info))',
-  'hsl(var(--warning))',
-  'hsl(var(--destructive))',
-  'hsl(var(--muted-foreground))',
-  'hsl(258 70% 60%)',
-  'hsl(var(--foreground) / 0.5)',
-];
+// On-brand, monochrome-leaning palette (no purple) reused for the chain share bar.
+const CHAIN_COLORS = ['#ffffff', '#22c55e', '#3b82f6', '#eab308', '#ef4444', '#06b6d4', '#9ca3af', '#a3a3a3'];
 
 const fmtUsd = (n: number) =>
   `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -122,21 +112,16 @@ const UnifiedWallet: React.FC = () => {
       ) : (
         <>
           {/* Total value hero */}
-          <TexturePanel variant="primary" glow aurora scanline accentTop strong>
-            <div className="p-6">
-              <div className="flex items-center justify-between gap-3">
-                <p className="label-eyebrow">{t('total_value_all_chains', 'Total Value (All Chains)')}</p>
-                
-              </div>
+          <Card className="border-primary/10 bg-card/50 backdrop-blur">
+            <CardContent className="p-6">
+              <p className="text-sm font-medium text-muted-foreground">{t('total_value_all_chains', 'Total Value (All Chains)')}</p>
               {isLoading && !overview ? (
                 <SkeletonText className="mt-2 h-10 w-48" />
               ) : (
                 <>
-                  <FlashValue value={netWorthUsd} as="div">
-                    <p className="text-4xl sm:text-5xl font-extrabold tracking-tight mt-1 num drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]">{fmtUsd(netWorthUsd)}</p>
-                  </FlashValue>
+                  <p className="text-4xl font-extrabold tracking-tight mt-1 num">{fmtUsd(netWorthUsd)}</p>
                   {bdtPerUsd ? (
-                    <p className="text-sm text-muted-foreground mt-1 num">
+                    <p className="text-sm text-muted-foreground mt-1 font-mono">
                       {'\u2248'} {'\u09F3'}{(netWorthUsd * bdtPerUsd).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </p>
                   ) : null}
@@ -151,11 +136,11 @@ const UnifiedWallet: React.FC = () => {
               {/* Chain share bar */}
               {hasFunds && netWorthUsd > 0 ? (
                 <div className="mt-4">
-                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/60 ring-1 ring-inset ring-border/50">
+                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
                     {chainGroups.map((g, i) => (
                       <div
                         key={g.network}
-                        className="h-full transition-[width] duration-500"
+                        className="h-full"
                         style={{
                           width: `${(g.usdTotal / netWorthUsd) * 100}%`,
                           backgroundColor: CHAIN_COLORS[i % CHAIN_COLORS.length],
@@ -180,8 +165,8 @@ const UnifiedWallet: React.FC = () => {
                   </div>
                 </div>
               ) : null}
-            </div>
-          </TexturePanel>
+            </CardContent>
+          </Card>
 
           {/* Per-chain breakdown */}
           {isLoading && !overview ? (

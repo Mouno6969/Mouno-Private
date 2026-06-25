@@ -142,14 +142,14 @@ describe('Support', () => {
       });
     });
 
-    it('assistant message bubble has black background and white text', async () => {
+    it('assistant message bubble uses muted surface styling', async () => {
       renderSupport();
       await waitFor(() => {
         const msgEl = screen.getByText(
           'System Online. I am your AI Support assistant. How can I help you today?'
         ).closest('div.inline-block') as HTMLElement;
-        expect(msgEl.className).toContain('bg-black');
-        expect(msgEl.className).toContain('text-white');
+        expect(msgEl.className).toContain('bg-muted');
+        expect(msgEl.className).toContain('text-foreground');
       });
     });
   });
@@ -157,7 +157,7 @@ describe('Support', () => {
   describe('input and send form', () => {
     it('renders the command input with placeholder', () => {
       renderSupport();
-      expect(screen.getByPlaceholderText('COMMAND_INPUT...')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Type a command…')).toBeInTheDocument();
     });
 
     it('renders the send button', () => {
@@ -172,14 +172,14 @@ describe('Support', () => {
 
     it('send button is enabled when input has text', async () => {
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'hello');
       expect(sendButton()).not.toBeDisabled();
     });
 
     it('input has the > prefix symbol visible', () => {
       renderSupport();
-      expect(screen.getByText('>')).toBeInTheDocument();
+      expect(screen.getAllByText('>').length).toBeGreaterThan(0);
     });
   });
 
@@ -187,7 +187,7 @@ describe('Support', () => {
     it('adds user message to the chat on submit', async () => {
       setupChat({ data: { answer: 'Bot reply' } });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'my question');
       await userEvent.click(sendButton());
 
@@ -199,7 +199,7 @@ describe('Support', () => {
     it('clears input after send', async () => {
       setupChat({ data: { answer: 'OK' } });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...') as HTMLInputElement;
+      const input = screen.getByPlaceholderText('Type a command…') as HTMLInputElement;
       await userEvent.type(input, 'test');
       await userEvent.click(sendButton());
 
@@ -211,7 +211,7 @@ describe('Support', () => {
     it('adds assistant reply message to chat on success', async () => {
       setupChat({ data: { answer: 'Helpful answer from bot' } });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'question');
       await userEvent.click(sendButton());
 
@@ -223,7 +223,7 @@ describe('Support', () => {
     it('posts to /api/ai/chat with question and session_id', async () => {
       setupChat({ data: { answer: 'OK' } });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'my question');
       await userEvent.click(sendButton());
 
@@ -245,7 +245,7 @@ describe('Support', () => {
       });
 
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'question');
       await userEvent.click(sendButton());
 
@@ -265,7 +265,7 @@ describe('Support', () => {
     it('shows ERROR: UPLINK_FAILURE when a 2xx response has no answer', async () => {
       setupChat({ data: {} });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'test');
       await userEvent.click(sendButton());
 
@@ -277,7 +277,7 @@ describe('Support', () => {
     it('shows CRITICAL_ERROR: NETWORK_OFFLINE when the request rejects', async () => {
       setupChat({ reject: true });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'test');
       await userEvent.click(sendButton());
 
@@ -289,7 +289,7 @@ describe('Support', () => {
     it('uses data.message when a 2xx response lacks an answer', async () => {
       setupChat({ data: { message: 'Service unavailable' } });
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, 'test');
       await userEvent.click(sendButton());
 
@@ -302,14 +302,14 @@ describe('Support', () => {
   describe('send button disabled states', () => {
     it('button is disabled when input is only whitespace', async () => {
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       await userEvent.type(input, '   ');
       expect(sendButton()).toBeDisabled();
     });
 
     it('does not call the chat endpoint on empty input via keyboard Enter', async () => {
       renderSupport();
-      const input = screen.getByPlaceholderText('COMMAND_INPUT...');
+      const input = screen.getByPlaceholderText('Type a command…');
       fireEvent.submit(input.closest('form')!);
       expect(chatCalls().length).toBe(0);
     });
@@ -364,14 +364,14 @@ describe('Support', () => {
       expect(screen.getByText('System Status')).toBeInTheDocument();
     });
 
-    it('shows AI Node ACTIVE status', () => {
+    it('shows AI Node Active status', () => {
       renderSupport();
-      expect(screen.getByText('● ACTIVE')).toBeInTheDocument();
+      expect(screen.getByText('Active')).toBeInTheDocument();
     });
 
-    it('shows the E2E encryption ENABLED status', () => {
+    it('shows the E2E encryption Enabled status', () => {
       renderSupport();
-      expect(screen.getByText('ENABLED')).toBeInTheDocument();
+      expect(screen.getByText('Enabled')).toBeInTheDocument();
     });
   });
 });

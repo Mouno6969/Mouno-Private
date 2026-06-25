@@ -19,19 +19,12 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
   approved: 'success',
   confirmed: 'success',
   sent: 'success',
-  filled: 'success',
   // pending / warning
   pending: 'warning',
   processing: 'warning',
   open: 'warning',
   waiting: 'warning',
-  waiting_payment: 'warning',
-  paused: 'warning',
-  scheduled: 'warning',
   review: 'warning',
-  // info / neutral live states
-  triggered: 'info',
-  partial: 'info',
   // error / destructive
   failed: 'destructive',
   error: 'destructive',
@@ -47,7 +40,7 @@ const STATUS_VARIANT: Record<string, BadgeVariant> = {
 };
 
 interface StatusBadgeProps {
-  status: string | null | undefined;
+  status: string;
   /** Optional display label (defaults to the status string, capitalized). */
   label?: string;
   className?: string;
@@ -56,9 +49,7 @@ interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label, className }) => {
   const key = String(status || '').toLowerCase().trim();
   const variant = STATUS_VARIANT[key] ?? 'secondary';
-  // Default label: prettify snake_case (waiting_payment -> "Waiting payment").
-  const pretty = status ? status.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : '—';
-  const text = label ?? pretty;
+  const text = label ?? (status ? status.charAt(0).toUpperCase() + status.slice(1) : '—');
   return (
     <Badge variant={variant} className={className}>
       {text}

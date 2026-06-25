@@ -8,7 +8,7 @@ interface FlashValueProps {
   className?: string;
   /** Flash duration in ms. */
   duration?: number;
-  /** Wrapper element — use "div" when wrapping block children (e.g. a <p>). */
+  /** Element type to render. Defaults to a `span`. */
   as?: 'span' | 'div';
 }
 
