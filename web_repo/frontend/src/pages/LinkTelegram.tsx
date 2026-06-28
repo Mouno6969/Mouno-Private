@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { useAuth } from '../context/AuthContext';
-import { Send, Link as LinkIcon } from 'lucide-react';
+import { Send, Link as LinkIcon, CheckCircle, Bell, Gift, Shield, ExternalLink, ArrowRight, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { PageHeader, TexturePanel } from '../components/common';
 
 const LinkTelegram: React.FC = () => {
   const { t } = useTranslation();
@@ -35,44 +37,162 @@ const LinkTelegram: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2 mb-2">
-            <LinkIcon className="h-5 w-5 text-primary" />
-            <CardTitle>{t('connect_telegram')}</CardTitle>
-          </div>
-          <CardDescription>
-            Link your website account with your Telegram profile to sync orders and access exclusive features.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-2">
-             <p className="font-bold">How to get the code:</p>
-             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                <li>Open our Telegram Bot: <a href="https://t.me/Automatedcryptobuybot" target="_blank" className="text-primary underline">@Automatedcryptobuybot</a></li>
-                <li>Send the command <code>/link</code> to the bot.</li>
-                <li>Copy the 8-character code and paste it below.</li>
-             </ol>
-          </div>
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+      <PageHeader
+        icon={<LinkIcon className="h-7 w-7" />}
+        eyebrow="Connect"
+        title={t('connect_telegram', 'Link Telegram Account')}
+        description="Sync your account with Telegram for order notifications and exclusive features."
+      />
 
-          <form onSubmit={handleLink} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Link Code</label>
-              <Input
-                placeholder="e.g. A1B2C3D4"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                className="font-mono text-center text-lg tracking-widest"
-                maxLength={8}
-              />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Main Form */}
+        <div className="lg:col-span-2">
+          <TexturePanel variant="primary" accentTop glow>
+            <div className="p-5 sm:p-6 space-y-6">
+              {/* Visual Connection Diagram */}
+              <div className="flex items-center justify-center gap-4 py-6">
+                <div className="w-16 h-16 rounded-full bg-muted/50 border border-border/50 flex items-center justify-center">
+                  <User className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="w-2 h-2 rounded-full bg-primary/40" />
+                  ))}
+                </div>
+                <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="w-2 h-2 rounded-full bg-primary/40" />
+                  ))}
+                </div>
+                <div className="w-16 h-16 rounded-full bg-[#229ED9]/10 border border-[#229ED9]/30 flex items-center justify-center">
+                  <Send className="h-7 w-7 text-[#229ED9]" />
+                </div>
+              </div>
+
+              {/* Code Input */}
+              <form onSubmit={handleLink} className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Enter Link Code</Label>
+                  <Input
+                    placeholder="A1B2C3D4"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    className="h-14 font-mono text-center text-2xl tracking-[0.3em] uppercase border-primary/20 focus-visible:border-primary"
+                    maxLength={8}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground text-center">Get this code from our Telegram bot</p>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base font-bold rounded-xl shadow-lg shadow-primary/20"
+                  disabled={loading || !code}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Linking...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="mr-2 h-5 w-5" /> Link My Account
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border/50" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">OR</span>
+                  </div>
+                </div>
+
+                <a
+                  href="https://t.me/Automatedcryptobuybot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Button type="button" variant="outline" className="w-full h-11 font-semibold">
+                    <Send className="mr-2 h-4 w-4 text-[#229ED9]" />
+                    Open Telegram Bot
+                    <ExternalLink className="ml-2 h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </a>
+              </form>
             </div>
-            <Button type="submit" className="w-full" disabled={loading || !code}>
-              {loading ? 'Linking...' : 'Link Account'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </TexturePanel>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-4">
+          {/* How to Get Code */}
+          <Card className="border-primary/10">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Send className="h-4 w-4 text-primary" /> How to Get Your Code
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { step: 1, text: 'Open our Telegram Bot', link: '@Automatedcryptobuybot' },
+                { step: 2, text: 'Send the /link command' },
+                { step: 3, text: 'Copy the 8-character code' },
+                { step: 4, text: 'Paste it here and link' },
+              ].map((item) => (
+                <div key={item.step} className="flex gap-3 items-start">
+                  <div className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    {item.step}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
+                    {item.link && (
+                      <a
+                        href="https://t.me/Automatedcryptobuybot"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {item.link}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Benefits */}
+          <Card className="border-primary/10">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Gift className="h-4 w-4 text-primary" /> Link Benefits
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { icon: Bell, text: 'Instant order notifications' },
+                { icon: Send, text: 'Buy crypto via Telegram' },
+                { icon: Gift, text: 'Access giveaways & rewards' },
+                { icon: Shield, text: 'Priority support channel' },
+              ].map((benefit, i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30">
+                  <div className="h-5 w-5 rounded-full bg-success/20 text-success flex items-center justify-center shrink-0">
+                    <CheckCircle className="h-3 w-3" />
+                  </div>
+                  <span className="text-xs font-medium">{benefit.text}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
