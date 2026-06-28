@@ -136,7 +136,7 @@ const Seller: React.FC = () => {
   // ─── Approved Seller Dashboard ───
   if (status?.status === 'approved') {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+      <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto px-1 sm:px-0 animate-in fade-in duration-300">
         <PageHeader
           icon={<Store className="h-7 w-7" />}
           eyebrow="Marketplace"
@@ -178,7 +178,7 @@ const Seller: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">Forwarder Token</p>
-                  <p className="text-sm font-mono mt-1 truncate max-w-[200px]">{status.sms_token}</p>
+                  <p className="text-sm font-mono mt-1 truncate max-w-[140px] sm:max-w-[200px]">{status.sms_token}</p>
                 </div>
                 <CopyButton value={status.sms_token || ''} label="Copy token" />
               </div>
@@ -255,7 +255,7 @@ const Seller: React.FC = () => {
                               <NetworkLogo id={w.network} size={20} />
                               <span className="text-sm font-medium">{NETWORK_MAP[w.network]?.name || w.network}</span>
                             </div>
-                            <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{w.wallet_address}</span>
+                            <span className="font-mono text-xs text-muted-foreground truncate max-w-[100px] sm:max-w-[200px]">{w.wallet_address}</span>
                           </div>
                         ))}
                       </div>
@@ -338,7 +338,7 @@ const Seller: React.FC = () => {
 
   // ─── Application Form (default state) ───
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 animate-in fade-in duration-300">
       <PageHeader
         icon={<Store className="h-7 w-7" />}
         eyebrow="Marketplace"
@@ -388,7 +388,7 @@ const Seller: React.FC = () => {
       </TexturePanel>
 
       {/* Application Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
         <div className="lg:col-span-2">
           <Card className="border-primary/10 shadow-xl overflow-hidden">
             <CardHeader className="bg-muted/30">

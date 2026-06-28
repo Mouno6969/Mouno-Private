@@ -84,7 +84,7 @@ const Swap: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-8 px-1 sm:px-0 animate-in fade-in duration-500">
       {/* Page Header */}
       <section className="space-y-1 text-center md:text-left">
         <div className="flex items-center justify-center md:justify-start gap-3">
@@ -92,13 +92,13 @@ const Swap: React.FC = () => {
             <RefreshCw className="h-7 w-7 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Cross-Chain Bridge</h1>
-            <p className="text-sm text-muted-foreground">Transfer assets between 20+ networks with deep liquidity. Best rates aggregated from multiple protocols.</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Cross-Chain Bridge</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">Transfer assets between 20+ networks with deep liquidity. Best rates aggregated from multiple protocols.</p>
           </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 sm:gap-8 items-start">
         {/* Main Swap Card */}
         <div className="lg:col-span-3">
           <Card className="shadow-2xl border-primary/10 relative overflow-hidden">
@@ -135,7 +135,7 @@ const Swap: React.FC = () => {
                     )}
                   </div>
                   <Select value={fromChain} onValueChange={setFromChain}>
-                    <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
+                    <SelectTrigger className="w-[110px] sm:w-[140px] h-10 sm:h-12 rounded-xl bg-card border-muted font-bold text-sm shrink-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -184,7 +184,7 @@ const Swap: React.FC = () => {
                     )}
                   </div>
                   <Select value={toChain} onValueChange={setToChain}>
-                    <SelectTrigger className="w-[140px] h-12 rounded-xl bg-card border-muted font-bold">
+                    <SelectTrigger className="w-[110px] sm:w-[140px] h-10 sm:h-12 rounded-xl bg-card border-muted font-bold text-sm shrink-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -301,7 +301,7 @@ const Swap: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {chains.map((chain) => (
                   <div key={chain.id} className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-muted/20 border border-border/40 hover:border-primary/30 transition-colors">
                     <NetworkLogo id={chain.networkId} size={24} />
@@ -332,17 +332,17 @@ const Swap: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-2.5">
               {recentSwaps.map((swap, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/40">
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <NetworkLogo id={swap.from_network} size={16} />
-                    <span className="text-xs font-bold truncate">{swap.from_amount} {swap.from_symbol}</span>
-                    <span className="text-muted-foreground text-[10px]">→</span>
-                    <NetworkLogo id={swap.to_network} size={16} />
-                    <span className="text-xs font-bold truncate">{swap.to_amount} {swap.to_symbol}</span>
+                <div key={i} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg bg-muted/20 border border-border/40">
+                  <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0 overflow-hidden">
+                    <NetworkLogo id={swap.from_network} size={14} />
+                    <span className="text-[10px] sm:text-xs font-bold truncate">{swap.from_amount} {swap.from_symbol}</span>
+                    <span className="text-muted-foreground text-[9px] sm:text-[10px] shrink-0">→</span>
+                    <NetworkLogo id={swap.to_network} size={14} />
+                    <span className="text-[10px] sm:text-xs font-bold truncate">{swap.to_amount} {swap.to_symbol}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[9px] text-muted-foreground">{swap.time}</span>
-                    <CheckCircle className="h-3.5 w-3.5 text-success" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[8px] sm:text-[9px] text-muted-foreground">{swap.time}</span>
+                    <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-success" />
                   </div>
                 </div>
               ))}

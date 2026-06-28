@@ -65,7 +65,7 @@ const Giveaway: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 animate-in fade-in duration-300">
       <PageHeader
         icon={<Gift className="h-7 w-7" />}
         eyebrow="Win"
@@ -101,7 +101,7 @@ const Giveaway: React.FC = () => {
         <CardContent className="p-5 sm:p-6 space-y-5">
           {token ? (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Giveaway Code</Label>
                   <div className="relative">
@@ -185,7 +185,7 @@ const Giveaway: React.FC = () => {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {giveaways.map((g) => {
             const expired = new Date(g.expires_at) < new Date();
             const full = g.remaining <= 0;
@@ -225,7 +225,7 @@ const Giveaway: React.FC = () => {
                   </div>
 
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="text-center p-2 rounded-lg bg-muted/30">
                       <p className="text-[10px] text-muted-foreground">Per claim</p>
                       <p className="text-xs font-bold">{g.base_amount} {NETWORK_MAP[g.network]?.asset}</p>

@@ -50,8 +50,8 @@ const GiftCode: React.FC = () => {
         <div className="w-24 h-24 bg-success/15 text-success rounded-full flex items-center justify-center mx-auto mb-8">
           <CheckCircle className="h-12 w-12" />
         </div>
-        <h2 className="text-4xl font-extrabold mb-4 tracking-tight">Code Redeemed!</h2>
-        <p className="text-muted-foreground mb-8 text-lg">
+        <h2 className="text-2xl sm:text-4xl font-extrabold mb-4 tracking-tight">Code Redeemed!</h2>
+        <p className="text-muted-foreground mb-8 text-sm sm:text-lg">
           Your gift code has been processed. The crypto will arrive in your wallet shortly.
         </p>
         <Button size="lg" onClick={() => setSuccess(false)} className="rounded-full px-10">
@@ -62,7 +62,7 @@ const GiftCode: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 animate-in fade-in duration-300">
       <PageHeader
         icon={<Gift className="h-7 w-7" />}
         eyebrow="Rewards"
@@ -70,7 +70,7 @@ const GiftCode: React.FC = () => {
         description="Enter your gift code to receive crypto instantly to your wallet."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
         {/* Main Form */}
         <div className="lg:col-span-2">
           <TexturePanel variant="primary" accentTop glow>
@@ -113,7 +113,7 @@ const GiftCode: React.FC = () => {
               {/* Network Selector */}
               <div className="space-y-3">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Select Network</Label>
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {NETWORK_LIST.slice(0, 5).map((net) => (
                     <button
                       key={net.id}

@@ -76,7 +76,7 @@ const OrderStatus: React.FC = () => {
   const currentStep = getTimelineStep(result?.status);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 animate-in fade-in duration-300">
       <PageHeader
         icon={<Search className="h-7 w-7" />}
         eyebrow="Track"
@@ -88,7 +88,7 @@ const OrderStatus: React.FC = () => {
         ]}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-5">
           {/* Search Card */}
@@ -192,25 +192,25 @@ const OrderStatus: React.FC = () => {
                 </div>
 
                 {/* Timeline */}
-                <div className="pt-4 border-t border-border/50">
-                  <div className="flex items-center justify-between">
+                <div className="pt-4 border-t border-border/50 overflow-x-auto">
+                  <div className="flex items-center justify-between min-w-[280px]">
                     {TIMELINE_STEPS.map((step, i) => {
                       const isCompleted = i < currentStep;
                       const isCurrent = i === currentStep - 1;
                       return (
                         <React.Fragment key={step}>
-                          <div className="flex flex-col items-center gap-1.5">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                          <div className="flex flex-col items-center gap-1">
+                            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all ${
                               isCompleted ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                             } ${isCurrent ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}>
-                              {isCompleted ? <CheckCircle className="h-3.5 w-3.5" /> : i + 1}
+                              {isCompleted ? <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : i + 1}
                             </div>
-                            <span className={`text-[9px] text-center max-w-[60px] leading-tight ${isCompleted ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                            <span className={`text-[8px] sm:text-[9px] text-center max-w-[50px] sm:max-w-[60px] leading-tight ${isCompleted ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                               {step}
                             </span>
                           </div>
                           {i < TIMELINE_STEPS.length - 1 && (
-                            <div className={`flex-1 h-0.5 mx-1 rounded-full ${i < currentStep - 1 ? 'bg-primary' : 'bg-muted'}`} />
+                            <div className={`flex-1 h-0.5 mx-0.5 sm:mx-1 rounded-full ${i < currentStep - 1 ? 'bg-primary' : 'bg-muted'}`} />
                           )}
                         </React.Fragment>
                       );

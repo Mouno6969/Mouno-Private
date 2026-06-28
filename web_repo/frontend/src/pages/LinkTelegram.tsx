@@ -37,7 +37,7 @@ const LinkTelegram: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-1 sm:px-0 animate-in fade-in duration-300">
       <PageHeader
         icon={<LinkIcon className="h-7 w-7" />}
         eyebrow="Connect"
@@ -45,31 +45,31 @@ const LinkTelegram: React.FC = () => {
         description="Sync your account with Telegram for order notifications and exclusive features."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
         {/* Main Form */}
         <div className="lg:col-span-2">
           <TexturePanel variant="primary" accentTop glow>
             <div className="p-5 sm:p-6 space-y-6">
               {/* Visual Connection Diagram */}
-              <div className="flex items-center justify-center gap-4 py-6">
-                <div className="w-16 h-16 rounded-full bg-muted/50 border border-border/50 flex items-center justify-center">
-                  <User className="h-7 w-7 text-muted-foreground" />
+              <div className="flex items-center justify-center gap-2 sm:gap-4 py-4 sm:py-6">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-muted/50 border border-border/50 flex items-center justify-center shrink-0">
+                  <User className="h-5 w-5 sm:h-7 sm:w-7 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="w-2 h-2 rounded-full bg-primary/40" />
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary/40" />
                   ))}
                 </div>
-                <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-primary" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="w-2 h-2 rounded-full bg-primary/40" />
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary/40" />
                   ))}
                 </div>
-                <div className="w-16 h-16 rounded-full bg-[#229ED9]/10 border border-[#229ED9]/30 flex items-center justify-center">
-                  <Send className="h-7 w-7 text-[#229ED9]" />
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#229ED9]/10 border border-[#229ED9]/30 flex items-center justify-center shrink-0">
+                  <Send className="h-5 w-5 sm:h-7 sm:w-7 text-[#229ED9]" />
                 </div>
               </div>
 
@@ -81,7 +81,7 @@ const LinkTelegram: React.FC = () => {
                     placeholder="A1B2C3D4"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    className="h-14 font-mono text-center text-2xl tracking-[0.3em] uppercase border-primary/20 focus-visible:border-primary"
+                    className="h-12 sm:h-14 font-mono text-center text-xl sm:text-2xl tracking-[0.2em] sm:tracking-[0.3em] uppercase border-primary/20 focus-visible:border-primary"
                     maxLength={8}
                     required
                   />
