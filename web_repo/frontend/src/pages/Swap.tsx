@@ -395,7 +395,20 @@ const Swap: React.FC = () => {
     Boolean(amount) &&
     Boolean(normalizeTokenAddress(fromToken)) &&
     Boolean(normalizeTokenAddress(toToken)) &&
-    !loading;
+    !loading &&
+    !executing;
+
+  const addressesReady =
+    isValidAddressForEcosystem(fromAddress.trim(), fromEco) &&
+    isValidAddressForEcosystem(toAddress.trim(), toEco);
+
+  const swapButtonLabel = useMemo(() => {
+    if (executing) return 'Processing swap…';
+    if (evmSource && !fromAddress.trim()) return 'Connect Wallet & Swap';
+    if (!addressesReady) return 'Enter addresses to swap';
+    if (quote?.summary?.executable && evmSource) return 'Execute Swap';
+    return 'Swap on Jumper';
+  }, [addressesReady, evmSource, executing, fromAddress, quote?.summary?.executable]);
 
   const quoteParams = (withAddresses = false) => {
     const params: Record<string, string> = {
@@ -464,8 +477,20 @@ const Swap: React.FC = () => {
     window.open(res.data.url, '_blank', 'noopener,noreferrer');
   };
 
+  const handleSwapClick = async () => {
+    if (!amount) {
+      toast.error('Enter an amount to swap.');
+      return;
+    }
+    if (evmSource && !fromAddress.trim()) {
+      await connectWallet();
+      return;
+    }
+    await executeSwap();
+  };
+
   const executeSwap = async () => {
-    if (!canQuote || !quote) return;
+    if (!amount) return;
 
     const from = fromAddress.trim();
     const to = toAddress.trim();
@@ -604,7 +629,7 @@ const Swap: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 sm:gap-8 items-start">
         <div className="lg:col-span-3">
-          <Card className="shadow-2xl border-primary/10 relative overflow-hidden">
+          <Card className="shadow-2xl border-primary/10 relative">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Swap Interface</CardTitle>
@@ -776,9 +801,12 @@ const Swap: React.FC = () => {
                     spellCheck={false}
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  Quotes work without addresses. To execute, both source and destination addresses must match their networks.
-                </p>
+                <Alert className="bg-primary/5 border-primary/20 py-2">
+                  <Wallet className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-[11px] text-muted-foreground">
+                    Required to swap: fill both addresses above, then use the green <strong className="text-foreground">Swap</strong> button below.
+                  </AlertDescription>
+                </Alert>
               </div>
 
               {quote && (
@@ -824,63 +852,55 @@ const Swap: React.FC = () => {
                 </div>
               )}
             </CardContent>
-            <CardFooter className="pt-2">
+            <CardFooter className="pt-2 pb-6 flex flex-col gap-3">
               <Button
+                onClick={() => void handleSwapClick()}
+                disabled={!amount || executing || loading}
+                className="w-full h-16 text-lg font-black rounded-2xl bg-success text-success-foreground hover:bg-success/90 shadow-xl shadow-success/25 transition-all group"
+              >
+                {executing ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    {swapButtonLabel}
+                  </>
+                ) : evmSource && !fromAddress.trim() ? (
+                  <>
+                    <Wallet className="mr-2 h-5 w-5" />
+                    {swapButtonLabel}
+                  </>
+                ) : quote?.summary?.executable && evmSource ? (
+                  <>
+                    {swapButtonLabel}
+                    <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
+                  </>
+                ) : (
+                  <>
+                    {swapButtonLabel}
+                    <ExternalLink className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => getQuote(Boolean(fromAddress.trim() && toAddress.trim()))}
-                disabled={!canQuote || loading}
-                className="w-full h-14 text-lg font-black rounded-2xl shadow-xl shadow-primary/20"
+                disabled={!canQuote || loading || executing}
+                className="w-full h-12 text-sm font-bold rounded-xl border-muted"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Calculating Best Route...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Calculating route…
                   </>
+                ) : quote ? (
+                  'Refresh quote'
                 ) : (
-                  <>Get Quote</>
+                  'Preview quote (no wallet needed)'
                 )}
               </Button>
+              <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                Powered by Li.Fi · EVM swaps sign in MetaMask · others open jumper.exchange
+              </p>
             </CardFooter>
-
-            {quote && (
-              <div className="p-6 pt-0 space-y-4">
-                <Button
-                  onClick={() => {
-                    if (evmSource && !fromAddress.trim()) {
-                      void connectWallet();
-                      return;
-                    }
-                    void executeSwap();
-                  }}
-                  disabled={executing || loading}
-                  className="w-full h-14 rounded-2xl bg-success text-success-foreground hover:bg-success/90 font-black text-lg transition-all group"
-                >
-                  {executing ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Processing…
-                    </>
-                  ) : evmSource && !fromAddress.trim() ? (
-                    <>
-                      <Wallet className="mr-2 h-5 w-5" />
-                      Connect Wallet to Swap
-                    </>
-                  ) : quote.summary?.executable && evmSource ? (
-                    <>
-                      Execute Swap
-                      <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
-                    </>
-                  ) : (
-                    <>
-                      Continue on Jumper
-                      <ExternalLink className="ml-2 h-5 w-5" />
-                    </>
-                  )}
-                </Button>
-                <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-                  Powered by Li.Fi · {quote.summary?.executable ? 'Sign in wallet' : 'Opens jumper.exchange'}
-                </p>
-              </div>
-            )}
           </Card>
         </div>
 
