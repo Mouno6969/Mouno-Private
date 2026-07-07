@@ -31,6 +31,7 @@ EVENT_CHANNELS = {
     "giveaway_result": ["telegram", "discord"],
     "referral_bonus": ["telegram", "discord"],
     "ticket_created": ["telegram", "discord"],
+    "ticket_user_reply": ["telegram", "discord"],
 }
 
 

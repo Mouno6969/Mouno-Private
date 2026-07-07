@@ -96,6 +96,17 @@ const Tickets: React.FC = () => {
     }
   }, [searchParams, openTicket]);
 
+  // Poll for agent replies while a ticket is open/pending.
+  useEffect(() => {
+    if (!active || !token) return;
+    if (active.status !== 'open' && active.status !== 'pending') return;
+    const id = active.id;
+    const timer = window.setInterval(() => {
+      openTicket(id);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [active?.id, active?.status, token, openTicket]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -216,6 +227,14 @@ const Tickets: React.FC = () => {
 
           <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
             <div ref={scrollRef} className="h-full overflow-y-auto p-4 space-y-3">
+              {(active.status === 'open' || active.status === 'pending') &&
+                !active.messages?.some((m) => m.sender_role === 'agent') && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  {bn
+                    ? 'মানব এজেন্টের উত্তরের জন্য অপেক্ষা করছেন…'
+                    : 'Waiting for a human agent to reply…'}
+                </p>
+              )}
               {active.messages?.map((m, i) => (
                 <div key={i} className={`flex ${m.sender_role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[90%] inline-block px-3.5 py-2 text-sm rounded-2xl border break-words whitespace-pre-wrap ${

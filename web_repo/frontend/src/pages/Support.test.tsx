@@ -8,12 +8,31 @@ import { apiClient } from '../lib/apiClient';
 
 // Mock the central API client. Support.tsx talks to the backend exclusively
 // through apiClient (axios), so we drive responses by mocking get/post/delete.
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+  },
+}));
+
 vi.mock('../lib/apiClient', () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
   },
+  getErrorMessage: (_err: unknown, fallback: string) => fallback,
 }));
 
 const mockedGet = apiClient.get as unknown as ReturnType<typeof vi.fn>;
@@ -82,6 +101,7 @@ const renderSupport = () => {
 describe('Support', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNavigate.mockReset();
     mockI18n.language = 'en';
     mockUseAuth.mockReturnValue({ token: 'test-token' });
     setupGet();
@@ -354,6 +374,57 @@ describe('Support', () => {
       renderSupport();
       await waitFor(() => {
         expect(screen.getByText('My first chat')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('escalate to human agent', () => {
+    const escalateButton = () => screen.getByRole('button', { name: 'escalate_to_human' });
+
+    it('disables escalate until the user has sent a message', async () => {
+      renderSupport();
+      await waitFor(() => {
+        expect(escalateButton()).toBeDisabled();
+      });
+      expect(screen.getByText(/Ask John a question first/i)).toBeInTheDocument();
+    });
+
+    it('enables escalate after a user message and posts transcript + session_id', async () => {
+      setupChat({ data: { answer: 'Try again later', session_id: 42, suggest_escalation: true } });
+      mockedPost.mockImplementation((url: string, body?: unknown) => {
+        if (String(url).includes('/api/ai/chat')) {
+          return Promise.resolve({ data: { answer: 'Try again later', session_id: 42, suggest_escalation: true } });
+        }
+        if (String(url).includes('/api/support/tickets')) {
+          return Promise.resolve({ data: { ticket: { id: 7 }, existing: false, session_id: 42 } });
+        }
+        return Promise.resolve({ data: {} });
+      });
+
+      renderSupport();
+      const input = screen.getByPlaceholderText('Type a command…');
+      await userEvent.type(input, 'need human help');
+      await userEvent.click(sendButton());
+
+      await waitFor(() => {
+        expect(escalateButton()).not.toBeDisabled();
+      });
+
+      await userEvent.click(escalateButton());
+
+      await waitFor(() => {
+        const ticketCall = mockedPost.mock.calls.find(([url]) => String(url).includes('/api/support/tickets'));
+        expect(ticketCall).toBeTruthy();
+        const [, payload] = ticketCall!;
+        expect(payload).toMatchObject({
+          session_id: 42,
+          subject: 'need human help',
+          transcript: [
+            { role: 'user', content: 'need human help' },
+            { role: 'assistant', content: 'Try again later' },
+          ],
+        });
+        expect(mockNavigate).toHaveBeenCalledWith('/tickets?open=7');
       });
     });
   });

@@ -8,7 +8,8 @@ import { Input } from '../components/ui/input';
 import Marquee from '../components/ui/marquee';
 import { useAuth } from '../context/AuthContext';
 import { Send, Terminal, Cpu, ShieldCheck, Plus, Trash2, MessageSquare, X, LifeBuoy } from 'lucide-react';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, getErrorMessage } from '../lib/apiClient';
+import { toast } from 'sonner';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -31,9 +32,24 @@ const Support: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [canEscalate, setCanEscalate] = useState(false);
+  const [suggestEscalation, setSuggestEscalation] = useState(false);
   const [escalating, setEscalating] = useState(false);
+  const [linkedTicketId, setLinkedTicketId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const hasUserMessage = useMemo(
+    () => messages.some((m) => m.role === 'user'),
+    [messages]
+  );
+
+  const chatTranscript = useMemo(() => {
+    const firstUserIdx = messages.findIndex((m) => m.role === 'user');
+    if (firstUserIdx < 0) return [];
+    return messages
+      .slice(firstUserIdx)
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: m.content }));
+  }, [messages]);
 
   const welcomeMessages = useMemo<Message[]>(() => {
     const welcome = i18n.language === 'bn'
@@ -81,7 +97,8 @@ const Support: React.FC = () => {
     setMessages(welcomeMessages);
     setInput('');
     setHistoryOpen(false);
-    setCanEscalate(false);
+    setSuggestEscalation(false);
+    setLinkedTicketId(null);
   }, [welcomeMessages]);
 
   const deleteSession = useCallback(async (sessionId: number, e: React.MouseEvent) => {
@@ -128,16 +145,16 @@ const Support: React.FC = () => {
         if (data.session_id && data.session_id !== activeSessionId) {
           setActiveSessionId(data.session_id);
         }
-        setCanEscalate(Boolean(data.suggest_escalation));
+        setSuggestEscalation(Boolean(data.suggest_escalation));
         // Refresh history so the new/updated session shows up.
         if (token) loadSessions();
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data?.message || 'ERROR: UPLINK_FAILURE' }]);
-        setCanEscalate(true);
+        setSuggestEscalation(true);
       }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'CRITICAL_ERROR: NETWORK_OFFLINE' }]);
-      setCanEscalate(true);
+      setSuggestEscalation(true);
     } finally {
       setLoading(false);
     }
@@ -146,26 +163,59 @@ const Support: React.FC = () => {
   // Escalate the current conversation to a human support agent by creating a
   // ticket (carrying the AI chat session_id + transcript), then navigate to it.
   const handleEscalate = useCallback(async () => {
-    if (!token || escalating) return;
+    if (!token || escalating || !hasUserMessage) return;
     setEscalating(true);
     const firstUserMsg = messages.find(m => m.role === 'user')?.content || 'Support request';
+    const bn = i18n.language === 'bn';
     try {
-      const res = await apiClient.post<{ ticket?: { id: number } }>(
+      const res = await apiClient.post<{
+        ticket?: { id: number };
+        existing?: boolean;
+        session_id?: number;
+        message?: string;
+      }>(
         '/api/support/tickets',
-        { session_id: activeSessionId, subject: firstUserMsg.slice(0, 120) },
+        {
+          session_id: activeSessionId,
+          subject: firstUserMsg.slice(0, 120),
+          transcript: chatTranscript,
+        },
         { silent: true }
       );
-      if (res.data?.ticket?.id) {
-        navigate(`/tickets?open=${res.data.ticket.id}`);
-      } else {
-        setMessages(prev => [...prev, { role: 'system', content: '>>> ESCALATION_FAILED' }]);
+      const ticketId = res.data?.ticket?.id;
+      if (!ticketId) {
+        toast.error(res.data?.message || (bn ? 'টিকেট তৈরি ব্যর্থ হয়েছে' : 'Could not create support ticket'));
+        return;
       }
-    } catch {
-      setMessages(prev => [...prev, { role: 'system', content: '>>> ESCALATION_FAILED: NETWORK_OFFLINE' }]);
+      if (res.data.session_id && res.data.session_id !== activeSessionId) {
+        setActiveSessionId(res.data.session_id);
+      }
+      setLinkedTicketId(ticketId);
+      if (res.data.existing) {
+        toast.message(
+          bn ? `খোলা টিকেট #${ticketId} — ইতিমধ্যে এজেন্টের কাছে পাঠানো` : `Open ticket #${ticketId} — already escalated`
+        );
+      } else {
+        toast.success(
+          bn ? `টিকেট #${ticketId} তৈরি হয়েছে — মানব এজেন্টের জন্য অপেক্ষমাণ` : `Ticket #${ticketId} created — waiting for a human agent`
+        );
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'system',
+            content: bn
+              ? `>>> এসকেলেট করা হয়েছে — টিকেট #${ticketId}। এজেন্ট শীঘ্রই উত্তর দেবেন।`
+              : `>>> Escalated to ticket #${ticketId}. A human agent will reply soon.`,
+          },
+        ]);
+      }
+      navigate(`/tickets?open=${ticketId}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, bn ? 'এসকেলেশন ব্যর্থ' : 'Escalation failed'));
     } finally {
       setEscalating(false);
     }
-  }, [token, escalating, messages, activeSessionId, navigate]);
+  }, [token, escalating, hasUserMessage, messages, activeSessionId, chatTranscript, navigate, i18n.language]);
 
   return (
     <div className="max-w-5xl mx-auto flex flex-col gap-4 font-mono relative md:h-[calc(100dvh-12rem)] md:min-h-0 md:overflow-hidden">
@@ -312,18 +362,29 @@ const Support: React.FC = () => {
           </CardContent>
           <CardFooter className="p-4 border-t border-border flex-col gap-2 items-stretch">
             {token && (
-              <Button
-                type="button"
-                onClick={handleEscalate}
-                disabled={escalating}
-                variant={canEscalate ? 'default' : 'outline'}
-                className={`w-full gap-2 text-xs h-9 ${canEscalate ? 'animate-pulse' : 'text-muted-foreground'}`}
-              >
-                <LifeBuoy className="h-3.5 w-3.5" />
-                {escalating
-                  ? (i18n.language === 'bn' ? 'টিকেট তৈরি হচ্ছে...' : 'Creating ticket...')
-                  : t('escalate_to_human')}
-              </Button>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  type="button"
+                  onClick={handleEscalate}
+                  disabled={escalating || !hasUserMessage}
+                  variant={suggestEscalation ? 'default' : 'outline'}
+                  className={`w-full gap-2 text-xs h-9 ${suggestEscalation ? 'animate-pulse' : 'text-muted-foreground'}`}
+                >
+                  <LifeBuoy className="h-3.5 w-3.5" />
+                  {escalating
+                    ? (i18n.language === 'bn' ? 'টিকেট তৈরি হচ্ছে...' : 'Creating ticket...')
+                    : linkedTicketId
+                      ? (i18n.language === 'bn' ? `টিকেট #${linkedTicketId} দেখুন` : `View ticket #${linkedTicketId}`)
+                      : t('escalate_to_human')}
+                </Button>
+                {!hasUserMessage && (
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    {i18n.language === 'bn'
+                      ? 'এজেন্টের কাছে পাঠাতে আগে জনকে একটি প্রশ্ন করুন।'
+                      : 'Ask John a question first, then escalate to a human agent.'}
+                  </p>
+                )}
+              </div>
             )}
             <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
               <div className="relative flex-1">

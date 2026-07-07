@@ -203,6 +203,22 @@ def token_required(f):
         return f(current_user, *args, **kwargs)
     return decorated
 
+
+def dashboard_token_required(f):
+    """Guard admin/support tooling with DASHBOARD_TOKEN (header or Bearer)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        expected = getattr(config, "DASHBOARD_TOKEN", None)
+        if not expected:
+            return jsonify({'message': 'Admin API not configured'}), 503
+        token = request.headers.get('X-Dashboard-Token') or request.headers.get('Authorization') or ''
+        if token.startswith('Bearer '):
+            token = token[7:]
+        if token != expected:
+            return jsonify({'message': 'Forbidden'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -866,12 +882,54 @@ def _should_suggest_escalation(answer):
     return any(phrase in low for phrase in _ESCALATION_PHRASES)
 
 
+def _normalize_ticket_transcript(raw):
+    """Accept only user/assistant turns from the client payload."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        role = (item.get('role') or '').strip().lower()
+        content = (item.get('content') or '').strip()
+        if role in ('user', 'assistant') and content:
+            out.append({'role': role, 'content': content[:4000]})
+    return out
+
+
+def _transcript_from_session(session_id, user_id):
+    """Load the full AI chat transcript for a session (user + assistant only)."""
+    messages = db.get_chat_messages(session_id, user_id)
+    if not messages:
+        return []
+    return [
+        {'role': m['role'], 'content': m['content']}
+        for m in messages
+        if m.get('role') in ('user', 'assistant') and (m.get('content') or '').strip()
+    ]
+
+
+def _ticket_transcript_preview(transcript, limit=3):
+    lines = []
+    for m in transcript or []:
+        role = m.get('role') or 'user'
+        label = 'User' if role == 'user' else 'John'
+        content = (m.get('content') or '').strip().replace('\n', ' ')
+        if content:
+            lines.append(f"{label}: {content[:160]}")
+        if len(lines) >= limit:
+            break
+    return '\n'.join(lines)
+
+
 @app.route('/api/support/tickets', methods=['POST'])
 @token_required
 def create_ticket(current_user):
     data = request.get_json() or {}
     user_id = current_user[0]
+    username = current_user[1]
     subject = (data.get('subject') or 'Support request').strip()[:200]
+    note = (data.get('note') or '').strip()[:1000]
 
     raw_session_id = data.get('session_id')
     try:
@@ -879,29 +937,63 @@ def create_ticket(current_user):
     except (TypeError, ValueError):
         session_id = None
 
-    # Carry over the recent transcript from the linked AI chat session.
-    transcript = None
+    # Prefer the persisted session transcript; fall back to client-supplied turns.
+    transcript = []
+    if session_id and db.get_chat_messages(session_id, user_id) is not None:
+        transcript = _transcript_from_session(session_id, user_id)
+    if not transcript:
+        transcript = _normalize_ticket_transcript(data.get('transcript'))
+
+    if not any(m.get('role') == 'user' for m in transcript):
+        return jsonify({
+            'message': 'Send at least one message to John before escalating to a human agent.',
+        }), 400
+
+    # If the chat never got a session id (edge case), create one and persist turns.
+    if not session_id and transcript:
+        first_user = next((m['content'] for m in transcript if m.get('role') == 'user'), 'Support request')
+        session_id = db.create_chat_session(user_id, first_user[:60])
+        for m in transcript:
+            db.add_chat_message(session_id, user_id, m['role'], m['content'])
+
+    # One open ticket per chat session — return the existing ticket instead of duplicating.
     if session_id:
-        transcript = db.get_recent_chat_messages(session_id, user_id, limit=20) or None
+        existing = db.get_open_ticket_for_session(user_id, session_id)
+        if existing:
+            return jsonify({'ticket': existing, 'existing': True, 'session_id': session_id}), 200
 
     priority = (data.get('priority') or 'normal')
     ticket = db.create_support_ticket(
-        user_id, subject, session_id=session_id, priority=priority, transcript=transcript
+        user_id,
+        subject,
+        session_id=session_id,
+        priority=priority,
+        transcript=transcript,
+        note=note or None,
     )
+
+    preview = _ticket_transcript_preview(transcript)
+    support_user = (getattr(config, 'SUPPORT_USERNAME', '') or '').lstrip('@')
+    web_base = getattr(config, 'SCB_FORWARDER_SERVER_URL', '')
+    ticket_url = f"{web_base.rstrip('/')}/tickets?open={ticket['id']}" if web_base else f"/tickets?open={ticket['id']}"
 
     # Notify the support channel (best-effort, never blocks the response).
     try:
         notifier.notify_event(
             "ticket_created",
-            f"New support ticket #{ticket['id']}\n"
-            f"User: {current_user[1]} (id {user_id})\n"
+            f"🎫 New support ticket #{ticket['id']}\n"
+            f"User: {username} (id {user_id})\n"
             f"Subject: {ticket['subject']}\n"
-            f"Priority: {ticket['priority']}",
+            f"Priority: {ticket['priority']}\n"
+            f"Session: {session_id or 'n/a'}\n"
+            f"View: {ticket_url}\n"
+            + (f"Contact: @{support_user}\n" if support_user else '')
+            + (f"\nTranscript preview:\n{preview}" if preview else ''),
         )
     except Exception as exc:
         logger.warning("Ticket notification failed: %s", exc)
 
-    return jsonify({'ticket': ticket}), 201
+    return jsonify({'ticket': ticket, 'existing': False, 'session_id': session_id}), 201
 
 
 @app.route('/api/support/tickets', methods=['GET'])
@@ -931,6 +1023,42 @@ def add_ticket_reply(current_user, ticket_id):
     if not ok:
         return jsonify({'message': 'Ticket not found'}), 404
     ticket = db.get_support_ticket(ticket_id, current_user[0])
+    try:
+        notifier.notify_event(
+            "ticket_user_reply",
+            f"💬 User replied on ticket #{ticket_id}\n"
+            f"User: {current_user[1]} (id {current_user[0]})\n"
+            f"Subject: {ticket.get('subject', '')}\n"
+            f"Message: {body[:500]}",
+        )
+    except Exception as exc:
+        logger.warning("Ticket user-reply notification failed: %s", exc)
+    return jsonify({'ticket': ticket}), 201
+
+
+@app.route('/api/support/admin/tickets/<int:ticket_id>/reply', methods=['POST'])
+@dashboard_token_required
+def admin_ticket_reply(ticket_id):
+    """Allow support staff to post an agent reply (requires DASHBOARD_TOKEN)."""
+    data = request.get_json() or {}
+    body = (data.get('body') or '').strip()
+    if not body:
+        return jsonify({'message': 'Message body required'}), 400
+    agent_name = (data.get('agent_name') or 'Support').strip()[:120]
+    ticket = db.add_agent_ticket_message(ticket_id, body, agent_name=agent_name)
+    if ticket is None:
+        return jsonify({'message': 'Ticket not found'}), 404
+    try:
+        db.create_notification(
+            ticket['user_id'],
+            'support',
+            'Support agent replied',
+            body[:240],
+            metadata={'ref': f'ticket:{ticket_id}', 'ticket_id': ticket_id},
+            dedup_ref=f'ticket-reply:{ticket_id}:{int(datetime.datetime.utcnow().timestamp())}',
+        )
+    except Exception as exc:
+        logger.warning("Ticket agent-reply notification failed: %s", exc)
     return jsonify({'ticket': ticket}), 201
 
 

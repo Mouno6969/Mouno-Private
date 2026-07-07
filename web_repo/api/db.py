@@ -458,6 +458,10 @@ def init_db():
             ON support_tickets(user_id, updated_at DESC)
         """)
         cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_support_tickets_session
+            ON support_tickets(session_id, status)
+        """)
+        cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
             ON ticket_messages(ticket_id, id)
         """)
@@ -2471,14 +2475,56 @@ def _ticket_belongs_to(con, ticket_id, web_user_id):
     return bool(row)
 
 
-def create_support_ticket(web_user_id, subject, session_id=None, priority="normal", transcript=None):
+def get_open_ticket_for_session(web_user_id, session_id):
+    """Return the newest open/pending ticket linked to this chat session, if any."""
+    if session_id is None:
+        return None
+    with closing(connect()) as con:
+        if not _session_belongs_to(con, session_id, web_user_id):
+            return None
+        row = con.execute(
+            """
+            SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at
+            FROM support_tickets
+            WHERE user_id=? AND session_id=? AND status IN ('open', 'pending')
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (int(web_user_id), int(session_id)),
+        ).fetchone()
+        return _ticket_to_dict(row) if row else None
+
+
+def _seed_ticket_transcript(con, ticket_id, transcript):
+    """Store the AI chat transcript as a system message on a ticket thread."""
+    lines = []
+    for m in transcript or []:
+        role = (m.get("role") or "").strip() or "user"
+        if role not in ("user", "assistant"):
+            continue
+        content = (m.get("content") or "").strip()
+        if content:
+            label = "User" if role == "user" else "John (AI)"
+            lines.append(f"{label}: {content}")
+    if not lines:
+        return
+    transcript_body = ("AI chat transcript:\n" + "\n".join(lines))[:4000]
+    con.execute(
+        "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'system', ?)",
+        (int(ticket_id), transcript_body),
+    )
+
+
+def create_support_ticket(web_user_id, subject, session_id=None, priority="normal", transcript=None, note=None):
     """Create a support ticket for a web user and return it as a dict.
 
     If a transcript (list of {role, content}) is supplied, it is seeded into
     the ticket thread as a system message so agents see the AI conversation.
+    An optional ``note`` is stored as the first user message (escalation context).
     """
     subject = (subject or "Support request").strip()[:200] or "Support request"
     priority = priority if priority in ("low", "normal", "high", "urgent") else "normal"
+    note = (note or "").strip()[:1000] or None
     with closing(connect()) as con:
         # Only link a session that actually belongs to this user; otherwise drop
         # the link (and any transcript) to preserve ticket↔chat ownership integrity.
@@ -2491,24 +2537,64 @@ def create_support_ticket(web_user_id, subject, session_id=None, priority="norma
             (int(web_user_id), int(session_id) if session_id else None, subject, priority),
         )
         ticket_id = cur.lastrowid
-        if transcript:
-            lines = []
-            for m in transcript:
-                role = (m.get("role") or "").strip() or "user"
-                content = (m.get("content") or "").strip()
-                if content:
-                    lines.append(f"[{role}] {content}")
-            if lines:
-                transcript_body = ("AI chat transcript:\n" + "\n".join(lines))[:4000]
-                con.execute(
-                    "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'system', ?)",
-                    (ticket_id, transcript_body),
-                )
+        _seed_ticket_transcript(con, ticket_id, transcript)
+        if note:
+            con.execute(
+                "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'user', ?)",
+                (ticket_id, note),
+            )
         con.commit()
         row = con.execute(
             "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
             "FROM support_tickets WHERE id=?",
             (ticket_id,),
+        ).fetchone()
+        return _ticket_to_dict(row)
+
+
+def get_ticket_by_id(ticket_id):
+    """Return a ticket dict (no ownership check) or None."""
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (int(ticket_id),),
+        ).fetchone()
+        return _ticket_to_dict(row) if row else None
+
+
+def add_agent_ticket_message(ticket_id, body, agent_name=None):
+    """Append an agent reply and mark the ticket pending. Returns updated ticket or None."""
+    body = (body or "").strip()
+    if not body:
+        return None
+    with closing(connect()) as con:
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (int(ticket_id),),
+        ).fetchone()
+        if not row:
+            return None
+        con.execute(
+            "INSERT INTO ticket_messages (ticket_id, sender_role, body) VALUES (?, 'agent', ?)",
+            (int(ticket_id), body[:4000]),
+        )
+        updates = ["updated_at=CURRENT_TIMESTAMP", "status='pending'"]
+        params = []
+        if agent_name:
+            updates.append("assigned_agent=?")
+            params.append(str(agent_name)[:120])
+        params.append(int(ticket_id))
+        con.execute(
+            f"UPDATE support_tickets SET {', '.join(updates)} WHERE id=?",
+            params,
+        )
+        con.commit()
+        row = con.execute(
+            "SELECT id, user_id, session_id, subject, status, priority, assigned_agent, created_at, updated_at "
+            "FROM support_tickets WHERE id=?",
+            (int(ticket_id),),
         ).fetchone()
         return _ticket_to_dict(row)
 
