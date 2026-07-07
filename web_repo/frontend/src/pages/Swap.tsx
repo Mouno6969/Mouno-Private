@@ -26,17 +26,18 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { NetworkLogo } from '../constants/networks';
+import { ChainLogo } from '../components/swap/ChainLogo';
+import { SwapAssetLogo } from '../components/swap/SwapAssetLogo';
 import {
   chainEcosystem,
   chainLabel,
-  chainLogoId,
   chainSelectLabel,
   featuredSwapChains,
   prepareSwapChains,
   type ChainEcosystem,
   type LifiChain,
 } from '../constants/swapChains';
+import { usePopularTokenLogos } from '../hooks/usePopularTokenLogos';
 import {
   defaultFromToken,
   defaultToToken,
@@ -188,7 +189,10 @@ const TokenPicker: React.FC<{
   error: string | null;
 }> = ({ chainId, value, onChange, meta, loading, error }) => {
   const popular = useMemo(() => popularTokensForChain(chainId), [chainId]);
+  const tokenLogos = usePopularTokenLogos(chainId);
   const [customMode, setCustomMode] = useState(false);
+
+  const activeLogo = meta?.logoURI || tokenLogos[value];
 
   useEffect(() => {
     setCustomMode(false);
@@ -207,9 +211,15 @@ const TokenPicker: React.FC<{
                 type="button"
                 variant={value === token.address ? 'default' : 'outline'}
                 size="sm"
-                className="h-8 px-3 text-xs font-bold"
+                className="h-8 pl-2 pr-3 text-xs font-bold gap-1.5"
                 onClick={() => onChange(token.address)}
               >
+                <SwapAssetLogo
+                  src={tokenLogos[token.address]}
+                  symbol={token.symbol}
+                  name={token.name}
+                  size={18}
+                />
                 {token.symbol}
               </Button>
             ))}
@@ -224,7 +234,15 @@ const TokenPicker: React.FC<{
             Search by contract / mint address
           </Button>
           {selectedPopular && (
-            <p className="text-[11px] text-muted-foreground">{selectedPopular.name}</p>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <SwapAssetLogo
+                src={tokenLogos[selectedPopular.address]}
+                symbol={selectedPopular.symbol}
+                name={selectedPopular.name}
+                size={16}
+              />
+              <span>{selectedPopular.name}</span>
+            </div>
           )}
         </>
       ) : (
@@ -261,10 +279,14 @@ const TokenPicker: React.FC<{
         )}
         {!loading && customMode && meta?.symbol && (
           <>
+            <SwapAssetLogo src={meta.logoURI} symbol={meta.symbol} name={meta.name} size={16} />
             <Check className="h-3 w-3 text-success" />
             <span className="font-bold text-foreground">{meta.symbol}</span>
             {meta.name && <span className="text-muted-foreground truncate">· {meta.name}</span>}
           </>
+        )}
+        {!loading && !customMode && activeLogo && (
+          <SwapAssetLogo src={activeLogo} symbol={meta?.symbol} name={meta?.name} size={16} />
         )}
         {!loading && customMode && error && value.trim() && (
           <>
@@ -735,7 +757,7 @@ const Swap: React.FC = () => {
           <SelectValue placeholder={chainsLoading ? 'Loading…' : 'Select network'}>
             {selected ? (
               <span className="flex items-center gap-2 truncate">
-                <NetworkLogo id={chainLogoId(selected)} size={16} />
+                <ChainLogo chain={selected} size={16} />
                 <span className="truncate">{chainSelectLabel(selected)}</span>
               </span>
             ) : null}
@@ -744,7 +766,7 @@ const Swap: React.FC = () => {
         <SelectContent className="max-h-72">
           {supportedChains.map((chain) => (
             <SelectItem key={String(chain.id)} value={String(chain.id)}>
-              <NetworkLogo id={chainLogoId(chain)} size={16} className="mr-2" />
+              <ChainLogo chain={chain} size={16} className="mr-2" />
               {chainSelectLabel(chain)}
             </SelectItem>
           ))}
@@ -795,8 +817,15 @@ const Swap: React.FC = () => {
                       <span className="text-[10px] text-muted-foreground font-mono">{chainLabel(fromChainData)}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <SwapAssetLogo
+                      src={fromLookup.meta?.logoURI}
+                      symbol={fromLookup.meta?.symbol || quote?.summary?.from_symbol}
+                      name={fromLookup.meta?.name}
+                      size={36}
+                      className="ring-2 ring-border/50"
+                    />
+                    <div className="flex-1 min-w-0">
                       <Input
                         type="number"
                         placeholder="0.0"
@@ -806,6 +835,11 @@ const Swap: React.FC = () => {
                       />
                       {usdValue && <p className="text-xs text-muted-foreground mt-1 font-mono">~${usdValue} USD</p>}
                     </div>
+                    {(fromLookup.meta?.symbol || quote?.summary?.from_symbol) && (
+                      <span className="text-sm font-bold text-muted-foreground shrink-0">
+                        {fromLookup.meta?.symbol || quote?.summary?.from_symbol}
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
@@ -849,14 +883,25 @@ const Swap: React.FC = () => {
                       <span className="text-[10px] text-muted-foreground font-mono">{chainLabel(toChainData)}</span>
                     )}
                   </div>
-                  <FlashValue value={quote?.summary?.to_amount ? Number(quote.summary.to_amount) : undefined} as="div" className="w-full">
-                    <div className="num text-3xl font-black text-primary drop-shadow-[0_0_16px_hsl(var(--primary)/0.3)]">
-                      {quote?.summary?.to_amount ?? '0.0'}
-                      {quote?.summary?.to_symbol && (
-                        <span className="text-lg ml-2 text-muted-foreground">{quote.summary.to_symbol}</span>
-                      )}
-                    </div>
-                  </FlashValue>
+                  <div className="flex items-center gap-3">
+                    <SwapAssetLogo
+                      src={toLookup.meta?.logoURI}
+                      symbol={toLookup.meta?.symbol || quote?.summary?.to_symbol}
+                      name={toLookup.meta?.name}
+                      size={36}
+                      className="ring-2 ring-primary/30"
+                    />
+                    <FlashValue value={quote?.summary?.to_amount ? Number(quote.summary.to_amount) : undefined} as="div" className="flex-1 min-w-0">
+                      <div className="num text-3xl font-black text-primary drop-shadow-[0_0_16px_hsl(var(--primary)/0.3)]">
+                        {quote?.summary?.to_amount ?? '0.0'}
+                        {(toLookup.meta?.symbol || quote?.summary?.to_symbol) && (
+                          <span className="text-lg ml-2 text-muted-foreground">
+                            {toLookup.meta?.symbol || quote?.summary?.to_symbol}
+                          </span>
+                        )}
+                      </div>
+                    </FlashValue>
+                  </div>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold uppercase text-muted-foreground">Network</span>
@@ -993,8 +1038,20 @@ const Swap: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Pair</span>
-                    <span className="font-mono font-bold text-right">
-                      {quote.summary?.from_symbol || fromLookup.meta?.symbol || '?'} → {quote.summary?.to_symbol || toLookup.meta?.symbol || '?'}
+                    <span className="flex items-center gap-2 font-bold">
+                      <SwapAssetLogo
+                        src={fromLookup.meta?.logoURI}
+                        symbol={quote.summary?.from_symbol || fromLookup.meta?.symbol}
+                        size={18}
+                      />
+                      <span className="font-mono">{quote.summary?.from_symbol || fromLookup.meta?.symbol || '?'}</span>
+                      <span className="text-muted-foreground text-xs">→</span>
+                      <SwapAssetLogo
+                        src={toLookup.meta?.logoURI}
+                        symbol={quote.summary?.to_symbol || toLookup.meta?.symbol}
+                        size={18}
+                      />
+                      <span className="font-mono">{quote.summary?.to_symbol || toLookup.meta?.symbol || '?'}</span>
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
@@ -1004,9 +1061,9 @@ const Swap: React.FC = () => {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Route</span>
                     <div className="flex items-center gap-1.5">
-                      <NetworkLogo id={fromChainData ? chainLogoId(fromChainData) : 'ethereum'} size={14} />
+                      <ChainLogo chain={fromChainData} size={18} />
                       <span className="text-[10px] text-muted-foreground">→</span>
-                      <NetworkLogo id={toChainData ? chainLogoId(toChainData) : 'ethereum'} size={14} />
+                      <ChainLogo chain={toChainData} size={18} />
                     </div>
                   </div>
                   <div className="flex justify-between items-center text-sm">
@@ -1149,7 +1206,7 @@ const Swap: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {popularChains.map((chain) => (
                   <div key={String(chain.id)} className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-muted/20 border border-border/40 hover:border-primary/30 transition-colors">
-                    <NetworkLogo id={chainLogoId(chain)} size={24} />
+                    <ChainLogo chain={chain} size={28} />
                     <span className="text-[10px] font-medium text-muted-foreground text-center leading-tight">{chain.name}</span>
                   </div>
                 ))}
@@ -1178,10 +1235,10 @@ const Swap: React.FC = () => {
               {recentSwaps.map((swap, i) => (
                 <div key={i} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg bg-muted/20 border border-border/40">
                   <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0 overflow-hidden">
-                    <NetworkLogo id={swap.from_network} size={14} />
+                    <SwapAssetLogo symbol={swap.from_symbol} size={14} />
                     <span className="text-[10px] sm:text-xs font-bold truncate">{swap.from_amount} {swap.from_symbol}</span>
                     <span className="text-muted-foreground text-[9px] sm:text-[10px] shrink-0">→</span>
-                    <NetworkLogo id={swap.to_network} size={14} />
+                    <SwapAssetLogo symbol={swap.to_symbol} size={14} />
                     <span className="text-[10px] sm:text-xs font-bold truncate">{swap.to_amount} {swap.to_symbol}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

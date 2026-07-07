@@ -40,8 +40,21 @@ export interface LifiChain {
   name?: string;
   coin?: string;
   chainType?: string;
+  logoURI?: string;
+  nativeToken?: {
+    logoURI?: string;
+    symbol?: string;
+    name?: string;
+  };
 }
 
+/** Best available chain icon from LI.FI (exact per-network artwork). */
+export function chainLogoUri(chain?: LifiChain | null): string | undefined {
+  if (!chain) return undefined;
+  return chain.logoURI || chain.nativeToken?.logoURI;
+}
+
+/** @deprecated Prefer ChainLogo with chain.logoURI from LI.FI. */
 export function chainLogoId(chain: LifiChain): string {
   const key = String(chain.key || '').toLowerCase();
   return CHAIN_KEY_TO_LOGO[key] || 'ethereum';
