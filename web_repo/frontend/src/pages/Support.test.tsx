@@ -92,7 +92,7 @@ describe('Support', () => {
     it('shows the OS initialization system message', async () => {
       renderSupport();
       await waitFor(() => {
-        expect(screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...')).toBeInTheDocument();
+        expect(screen.getByText('>>> INITIALIZING BGC_OS v0.1...')).toBeInTheDocument();
       });
     });
 
@@ -108,7 +108,7 @@ describe('Support', () => {
       renderSupport();
       await waitFor(() => {
         expect(screen.getByText(
-          'System Online. I am your AI Support assistant. How can I help you today?'
+          "System Online. I'm John, your BGC support assistant. How can I help you today?"
         )).toBeInTheDocument();
       });
     });
@@ -118,7 +118,7 @@ describe('Support', () => {
       renderSupport();
       await waitFor(() => {
         expect(screen.getByText(
-          'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
+          'সিস্টেম অনলাইন। আমি জন — আপনার BGC সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
         )).toBeInTheDocument();
       });
     });
@@ -128,7 +128,7 @@ describe('Support', () => {
     it('system messages have low opacity muted style', async () => {
       renderSupport();
       await waitFor(() => {
-        const sysMsg = screen.getByText('>>> INITIALIZING MOUNO_OS v0.1...') as HTMLElement;
+        const sysMsg = screen.getByText('>>> INITIALIZING BGC_OS v0.1...') as HTMLElement;
         expect(sysMsg.className).toContain('opacity-50');
         expect(sysMsg.className).toContain('text-muted-foreground');
       });
@@ -146,7 +146,7 @@ describe('Support', () => {
       renderSupport();
       await waitFor(() => {
         const msgEl = screen.getByText(
-          'System Online. I am your AI Support assistant. How can I help you today?'
+          "System Online. I'm John, your BGC support assistant. How can I help you today?"
         ).closest('div.inline-block') as HTMLElement;
         expect(msgEl.className).toContain('bg-muted');
         expect(msgEl.className).toContain('text-foreground');
@@ -319,7 +319,7 @@ describe('Support', () => {
     it('renders the top Marquee with system status info', () => {
       renderSupport();
       expect(screen.getByTestId('marquee')).toBeInTheDocument();
-      expect(screen.getByText(/AI SUPPORT SYSTEM v0\.1/i)).toBeInTheDocument();
+      expect(screen.getByText(/JOHN SUPPORT SYSTEM v0\.1/i)).toBeInTheDocument();
     });
   });
 

@@ -1,4 +1,4 @@
-// Central API client for the Mouno web app.
+// Central API client for the BGC Crypto web app.
 //
 // A single axios instance is shared across the whole app. It is responsible
 // for:

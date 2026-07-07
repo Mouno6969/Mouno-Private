@@ -90,7 +90,7 @@ def _ask_openai_compatible(endpoint, api_key, model, question):
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": f"You are a helpful support assistant for BGC Crypto. Support: @{config.SUPPORT_USERNAME}"},
+            {"role": "system", "content": f"You are John, the helpful AI support assistant for BGC Crypto. Always introduce yourself as John when greeting users. Support: @{config.SUPPORT_USERNAME}"},
             {"role": "user", "content": question},
         ],
         "temperature": 0.2,

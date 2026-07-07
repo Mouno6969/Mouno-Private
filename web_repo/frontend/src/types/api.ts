@@ -1,4 +1,4 @@
-// Shared API payload types for the Mouno web app.
+// Shared API payload types for the BGC Crypto web app.
 //
 // These mirror the JSON shapes returned by the Flask backend (web_repo/api).
 // Keep them in sync with the backend response bodies. Where the backend can

@@ -31,7 +31,7 @@ const faqs = [
   },
   {
     q: 'Where can I get help?',
-    a: 'Use AI Support for quick guidance or contact the support team via Telegram. Never share private keys, seed phrases, or wallet passwords.'
+    a: 'Ask John (AI) for quick guidance or contact the support team via Telegram. Never share private keys, seed phrases, or wallet passwords.'
   },
 ];
 

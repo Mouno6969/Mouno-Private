@@ -1,4 +1,4 @@
-// Typed SWR hooks for the Mouno web app.
+// Typed SWR hooks for the BGC Crypto web app.
 //
 // These wrap useSWR with the central fetcher (auth + error handling lives in
 // apiClient) and the shared payload types, so pages get fully-typed live data

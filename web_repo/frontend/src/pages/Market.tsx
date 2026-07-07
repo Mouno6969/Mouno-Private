@@ -749,7 +749,7 @@ const Market: React.FC = () => {
               <Alert>
                 <ShieldCheck className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Only send crypto after you have agreed terms with the merchant. Mouno does not hold funds for P2P sell
+                  Only send crypto after you have agreed terms with the merchant. BGC does not hold funds for P2P sell
                   trades — payouts are arranged directly with the merchant.
                 </AlertDescription>
               </Alert>

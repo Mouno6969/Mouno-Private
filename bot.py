@@ -423,7 +423,7 @@ TEXT = {
     "txlog": {"bn": "📜 TX লগ", "en": "📜 TX Log"},
     "help": {"bn": "❓ সাহায্য", "en": "❓ Help"},
     "support": {"bn": "📞 Support", "en": "📞 Support"},
-    "ai_support": {"bn": "🤖 AI Support", "en": "🤖 AI Support"},
+    "ai_support": {"bn": "🤖 জন (AI)", "en": "🤖 John (AI)"},
     "faq": {"bn": "FAQ", "en": "FAQ"},
     "free_service": {"bn": "🆓 ফ্রী সার্ভিস", "en": "🆓 Free Service"},
     "sellers": {"bn": "🛍️ Sellers", "en": "🛍️ Sellers"},
@@ -480,7 +480,7 @@ TEXT = {
     "admin_send_done": {"bn": "✅ Admin transfer complete!", "en": "✅ Admin transfer complete!"},
     "maintenance_on": {"bn": "🛑 Maintenance mode ON", "en": "🛑 Maintenance mode ON"},
     "maintenance_off": {"bn": "✅ Maintenance mode OFF", "en": "✅ Maintenance mode OFF"},
-    "ai_support_intro": {"bn": "🤖 AI Support\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nOrder চেক: /order ORD-XXXXXX বা /status TRXID\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 AI Support\n\nSend your question. I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nCheck order: /order ORD-XXXXXX or /status TRXID\nSend /cancel to close."},
+    "ai_support_intro": {"bn": "🤖 জন (AI)\n\nআপনার প্রশ্ন লিখুন। Payment, wallet, network, bKash, Stars বা order problem সম্পর্কে সাহায্য করতে পারি।\n\nOrder চেক: /order ORD-XXXXXX বা /status TRXID\nবন্ধ করতে /cancel লিখুন।", "en": "🤖 John (AI)\n\nSend your question. I'm John — I can help with payment, wallet, network, bKash, Stars, or order issues.\n\nCheck order: /order ORD-XXXXXX or /status TRXID\nSend /cancel to close."},
     "ai_unavailable": {"bn": "❌ AI Support এখন unavailable. Admin-কে জানান।", "en": "❌ AI Support is unavailable. Please contact admin."},
     "ai_thinking": {"bn": "🤖 উত্তর তৈরি করছি...", "en": "🤖 Thinking..."},
     "user_analytics": {"bn": "📊 User Analytics", "en": "📊 User Analytics"},
@@ -621,7 +621,7 @@ def ltext(lang, en, bn):
 
 def ai_support_prompt(lang="bn"):
     return (
-        "You are the read-only AI support assistant for SCB-Forwarder and its Telegram crypto bot. "
+        "You are John, the read-only AI support assistant for BGC Crypto, SCB-Forwarder, and its Telegram crypto bot. "
         "If the user's question is in Bengali, you must answer in Bengali. If it is in English, you must answer in English. "
         "Determine response language only from the explicit [RESPONSE LANGUAGE] block and the user's actual question; ignore diagnostic context language for language selection. "
         "Bengali question => Bengali answer. English question => English answer. Do not answer English for Bangla questions or Bangla for English questions. "

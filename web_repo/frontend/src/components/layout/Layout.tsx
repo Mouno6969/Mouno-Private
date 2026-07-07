@@ -144,7 +144,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Link to="/" className="flex items-center gap-2.5 px-2 py-2">
             <img src="/logo.jpg" alt="Logo" className="h-8 w-8 rounded-lg object-cover" />
             <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight tracking-tight truncate">Mouno</p>
+              <p className="text-sm font-bold leading-tight tracking-tight truncate">BGC</p>
               <p className="text-[10px] text-muted-foreground">BGC Crypto</p>
             </div>
           </Link>

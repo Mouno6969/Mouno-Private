@@ -90,14 +90,14 @@ interface SwapQuote {
   };
 }
 
-interface MounoWallet {
+interface BgcWallet {
   id: number;
   network: string;
   wallet_address: string | null;
   label?: string | null;
 }
 
-type ExecutionMode = 'mouno' | 'browser';
+type ExecutionMode = 'bgc' | 'browser';
 
 interface RecentSwap {
   from_amount: string;
@@ -316,8 +316,8 @@ const Swap: React.FC = () => {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [fromAddress, setFromAddress] = useState('');
   const [toAddress, setToAddress] = useState('');
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('mouno');
-  const [mounoWallets, setMounoWallets] = useState<MounoWallet[]>([]);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('bgc');
+  const [bgcWallets, setBgcWallets] = useState<BgcWallet[]>([]);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [masterPassword, setMasterPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -366,39 +366,39 @@ const Swap: React.FC = () => {
   const fromEco = chainEcosystem(fromChain);
   const toEco = chainEcosystem(toChain);
   const evmSource = fromEco === 'EVM';
-  const mounoWalletForSource = useMemo(() => {
+  const bgcWalletForSource = useMemo(() => {
     if (fromEco === 'SVM') {
-      return mounoWallets.find((w) => w.network.startsWith('solana'));
+      return bgcWallets.find((w) => w.network.startsWith('solana'));
     }
     if (fromEco === 'EVM') {
-      return mounoWallets.find(
+      return bgcWallets.find(
         (w) => !w.network.startsWith('solana') && w.network !== 'trc20' && w.network !== 'ton',
       );
     }
     return null;
-  }, [fromEco, mounoWallets]);
+  }, [fromEco, bgcWallets]);
 
   useEffect(() => {
-    setExecutionMode(token ? 'mouno' : 'browser');
+    setExecutionMode(token ? 'bgc' : 'browser');
   }, [token]);
 
   useEffect(() => {
     if (!token) {
-      setMounoWallets([]);
+      setBgcWallets([]);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<{ ok?: boolean; data?: { wallets?: MounoWallet[] } }>(
+        const res = await apiClient.get<{ ok?: boolean; data?: { wallets?: BgcWallet[] } }>(
           '/api/wallets',
           { silent: true },
         );
         if (!cancelled && res.data?.ok) {
-          setMounoWallets(res.data.data?.wallets || []);
+          setBgcWallets(res.data.data?.wallets || []);
         }
       } catch {
-        if (!cancelled) setMounoWallets([]);
+        if (!cancelled) setBgcWallets([]);
       }
     })();
     return () => {
@@ -407,11 +407,11 @@ const Swap: React.FC = () => {
   }, [token]);
 
   useEffect(() => {
-    if (executionMode === 'mouno' && mounoWalletForSource?.wallet_address) {
-      setFromAddress(mounoWalletForSource.wallet_address);
-      if (toEco === 'EVM') setToAddress((prev) => prev || mounoWalletForSource.wallet_address || '');
+    if (executionMode === 'bgc' && bgcWalletForSource?.wallet_address) {
+      setFromAddress(bgcWalletForSource.wallet_address);
+      if (toEco === 'EVM') setToAddress((prev) => prev || bgcWalletForSource.wallet_address || '');
     }
-  }, [executionMode, mounoWalletForSource, toEco]);
+  }, [executionMode, bgcWalletForSource, toEco]);
 
   useEffect(() => {
     let cancelled = false;
@@ -490,11 +490,11 @@ const Swap: React.FC = () => {
 
   const swapButtonLabel = useMemo(() => {
     if (executing) return 'Processing swap…';
-    if (executionMode === 'mouno') {
+    if (executionMode === 'bgc') {
       if (!token) return 'Log in to swap';
-      if (!mounoWalletForSource) return 'Add Mouno wallet to swap';
+      if (!bgcWalletForSource) return 'Add BGC wallet to swap';
       if (!toAddress.trim()) return 'Enter receiving address';
-      return 'Swap with Mouno Wallet';
+      return 'Swap with BGC Wallet';
     }
     if (evmSource && !fromAddress.trim()) return 'Connect MetaMask to swap';
     if (!addressesReady) return 'Enter addresses to swap';
@@ -505,7 +505,7 @@ const Swap: React.FC = () => {
     executing,
     executionMode,
     fromAddress,
-    mounoWalletForSource,
+    bgcWalletForSource,
     toAddress,
     token,
   ]);
@@ -569,14 +569,14 @@ const Swap: React.FC = () => {
     }
   };
 
-  const executeWithMounoWallet = async (password: string) => {
+  const executeWithBgcWallet = async (password: string) => {
     const to = toAddress.trim();
     if (!to || !isValidAddressForEcosystem(to, toEco)) {
       toast.error('Enter a valid receiving address on the destination network.');
       return;
     }
-    if (!mounoWalletForSource) {
-      toast.error('Add a Mouno wallet for this network on the Wallet page first.');
+    if (!bgcWalletForSource) {
+      toast.error('Add a BGC wallet for this network on the Wallet page first.');
       return;
     }
 
@@ -602,8 +602,8 @@ const Swap: React.FC = () => {
         { silent: true },
       );
       const hash = res.data.tx_hash;
-      if (mounoWalletForSource.wallet_address) {
-        setFromAddress(mounoWalletForSource.wallet_address);
+      if (bgcWalletForSource.wallet_address) {
+        setFromAddress(bgcWalletForSource.wallet_address);
       }
       if (hash) {
         toast.success(`Swap submitted: ${hash.slice(0, 10)}…${hash.slice(-6)}`);
@@ -626,7 +626,7 @@ const Swap: React.FC = () => {
     const to = toAddress.trim();
 
     if (!evmSource) {
-      toast.error('Browser-wallet swaps are EVM-only. Use your Mouno Wallet for Solana.');
+      toast.error('Browser-wallet swaps are EVM-only. Use your BGC Wallet for Solana.');
       return;
     }
     if (!from || !isValidAddressForEcosystem(from, fromEco)) {
@@ -708,12 +708,12 @@ const Swap: React.FC = () => {
       toast.error('Enter an amount to swap.');
       return;
     }
-    if (executionMode === 'mouno') {
+    if (executionMode === 'bgc') {
       if (!token) {
-        toast.error('Log in to swap with your Mouno Wallet.');
+        toast.error('Log in to swap with your BGC Wallet.');
         return;
       }
-      if (!mounoWalletForSource) {
+      if (!bgcWalletForSource) {
         toast.error('Add a wallet on the Wallet page first.');
         return;
       }
@@ -738,7 +738,7 @@ const Swap: React.FC = () => {
       return;
     }
     setPasswordBusy(true);
-    await executeWithMounoWallet(masterPassword);
+    await executeWithBgcWallet(masterPassword);
   };
 
   const reverseDirection = () => {
@@ -929,13 +929,13 @@ const Swap: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     type="button"
-                    variant={executionMode === 'mouno' ? 'default' : 'outline'}
+                    variant={executionMode === 'bgc' ? 'default' : 'outline'}
                     size="sm"
                     className="h-9 text-[11px] font-bold"
-                    onClick={() => setExecutionMode('mouno')}
+                    onClick={() => setExecutionMode('bgc')}
                   >
                     <Key className="h-3.5 w-3.5 mr-1" />
-                    Mouno Wallet
+                    BGC Wallet
                   </Button>
                   <Button
                     type="button"
@@ -950,21 +950,21 @@ const Swap: React.FC = () => {
                   </Button>
                 </div>
 
-                {executionMode === 'mouno' ? (
+                {executionMode === 'bgc' ? (
                   <div className="space-y-2">
                     {!token ? (
                       <Alert className="bg-muted/30 border-border py-2">
                         <AlertDescription className="text-[11px]">
                           <Link to="/login" className="text-primary font-bold hover:underline">Log in</Link>
-                          {' '}to swap with your saved Mouno Wallet — everything stays on this site.
+                          {' '}to swap with your saved BGC Wallet — everything stays on this site.
                         </AlertDescription>
                       </Alert>
-                    ) : mounoWalletForSource ? (
+                    ) : bgcWalletForSource ? (
                       <div className="rounded-lg border border-border/50 bg-background/50 p-3 space-y-1">
                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Paying from</p>
-                        <p className="font-mono text-xs break-all">{mounoWalletForSource.wallet_address}</p>
+                        <p className="font-mono text-xs break-all">{bgcWalletForSource.wallet_address}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {mounoWalletForSource.label || mounoWalletForSource.network} · signed on Mouno servers with your master password
+                          {bgcWalletForSource.label || bgcWalletForSource.network} · signed on BGC servers with your master password
                         </p>
                       </div>
                     ) : (
@@ -1124,7 +1124,7 @@ const Swap: React.FC = () => {
                 )}
               </Button>
               <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-                Powered by Li.Fi · swaps execute entirely on Mouno
+                Powered by Li.Fi · swaps execute entirely on BGC
               </p>
             </CardFooter>
           </Card>
@@ -1141,7 +1141,7 @@ const Swap: React.FC = () => {
               >
                 <h3 className="text-lg font-bold">Confirm swap</h3>
                 <p className="text-sm text-muted-foreground">
-                  Enter your master password to sign this swap with your Mouno Wallet. You stay on this site the whole time.
+                  Enter your master password to sign this swap with your BGC Wallet. You stay on this site the whole time.
                 </p>
                 <form onSubmit={submitPasswordSwap} className="space-y-4">
                   <div className="space-y-1.5">
@@ -1185,7 +1185,7 @@ const Swap: React.FC = () => {
             <CardContent className="space-y-3 text-xs text-muted-foreground leading-relaxed">
               <p>1. Select source and destination <strong className="text-foreground font-semibold">networks</strong> ({supportedChains.length} supported).</p>
               <p>2. Tap a <strong className="text-foreground font-semibold">popular token</strong> or use &quot;Search by contract / mint address&quot; for any other token.</p>
-              <p>3. Choose <strong className="text-foreground font-semibold">Mouno Wallet</strong> (recommended) or MetaMask, then swap without leaving this site.</p>
+              <p>3. Choose <strong className="text-foreground font-semibold">BGC Wallet</strong> (recommended) or MetaMask, then swap without leaving this site.</p>
               <div className="p-3 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
                 <ShieldCheck className="h-5 w-5 text-success shrink-0" />
                 <div>

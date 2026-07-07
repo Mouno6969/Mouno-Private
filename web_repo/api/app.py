@@ -520,7 +520,7 @@ def swap_execute(current_user):
     wallet = _wallet_for_lifi_chain(user_id, from_chain)
     if not wallet:
         return jsonify({
-            'error': 'No Mouno wallet found for this network. Add one on the Wallet page first.',
+            'error': 'No BGC wallet found for this network. Add one on the Wallet page first.',
         }), 400
 
     try:

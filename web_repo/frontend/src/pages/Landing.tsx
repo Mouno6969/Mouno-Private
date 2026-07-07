@@ -37,7 +37,7 @@ const FEATURES = [
   },
   {
     icon: <MessageSquare className="h-5 w-5" />,
-    title: '24/7 AI Support',
+    title: '24/7 John (AI)',
     desc: 'Automated onboarding and instant answers. Help that never sleeps, in Bangla or English.',
   },
   {
@@ -75,8 +75,8 @@ const Landing: React.FC = () => {
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-lg">
         <div className="mx-auto max-w-6xl flex items-center justify-between h-16 px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.jpg" alt="Mouno" className="h-8 w-8 rounded-lg object-cover" />
-            <span className="text-lg font-bold tracking-tight">Mouno</span>
+            <img src="/logo.jpg" alt="BGC Crypto" className="h-8 w-8 rounded-lg object-cover" />
+            <span className="text-lg font-bold tracking-tight">BGC</span>
           </Link>
 
           {/* Desktop nav */}
@@ -318,8 +318,8 @@ const Landing: React.FC = () => {
         <footer className="border-t border-border/60 pt-10 pb-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <img src="/logo.jpg" alt="Mouno" className="h-7 w-7 rounded-lg object-cover" />
-              <span className="text-sm font-semibold">Mouno — BGC Crypto</span>
+              <img src="/logo.jpg" alt="BGC Crypto" className="h-7 w-7 rounded-lg object-cover" />
+              <span className="text-sm font-semibold">BGC Crypto</span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link to="/faq" className="hover:text-foreground transition-colors">{t('nav_faq', 'FAQ')}</Link>

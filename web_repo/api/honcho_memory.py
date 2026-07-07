@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 _CLIENT_TIMEOUT = 4.0
 
 # Workspace + assistant peer naming
-_WORKSPACE_ID = "mouno"
+_WORKSPACE_ID = "bgc"
 _ASSISTANT_PEER = "assistant"
 
 # How many recent context characters to inject at most.

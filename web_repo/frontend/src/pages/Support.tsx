@@ -37,10 +37,10 @@ const Support: React.FC = () => {
 
   const welcomeMessages = useMemo<Message[]>(() => {
     const welcome = i18n.language === 'bn'
-      ? 'সিস্টেম অনলাইন। আমি আপনার AI সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
-      : 'System Online. I am your AI Support assistant. How can I help you today?';
+      ? 'সিস্টেম অনলাইন। আমি জন — আপনার BGC সাপোর্ট অ্যাসিস্ট্যান্ট। কিভাবে সাহায্য করতে পারি?'
+      : "System Online. I'm John, your BGC support assistant. How can I help you today?";
     return [
-      { role: 'system', content: '>>> INITIALIZING MOUNO_OS v0.1...' },
+      { role: 'system', content: '>>> INITIALIZING BGC_OS v0.1...' },
       { role: 'system', content: '>>> CONNECTION ESTABLISHED VIA ENCRYPTED CHANNEL' },
       { role: 'assistant', content: welcome },
     ];
@@ -172,7 +172,7 @@ const Support: React.FC = () => {
       <div className="scanline" />
 
       <Marquee speed={40} className="bg-primary text-white border-none py-0.5 font-bold">
-        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">AI SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: LLAMA-3 • MEMORY: HONCHO</span>
+        <span className="flex items-center gap-2 text-[9px] uppercase tracking-tighter">JOHN SUPPORT SYSTEM v0.1 • STATUS: NOMINAL • UPLINK: ENCRYPTED • MODEL: JOHN • MEMORY: HONCHO</span>
       </Marquee>
 
       <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-1 gap-4 md:flex-1 md:min-h-0 md:overflow-hidden">
@@ -232,7 +232,7 @@ const Support: React.FC = () => {
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground uppercase tracking-wide">AI Node</span>
+                <span className="text-muted-foreground uppercase tracking-wide">John</span>
                 <span className="text-success flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Active</span>
               </div>
               <div className="flex justify-between text-xs">
@@ -248,7 +248,7 @@ const Support: React.FC = () => {
           <CardHeader className="border-b border-border py-3 flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
               <Terminal className="h-4 w-4 text-primary" />
-              {t('support')} OS
+              {t('support')}
             </CardTitle>
             <Button
               onClick={startNewChat}
