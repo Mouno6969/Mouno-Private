@@ -35,6 +35,9 @@ from swap_service import (
     fetch_token_price_usd,
     fetch_lifi_approval,
     build_lifi_widget_url,
+    execute_lifi_swap,
+    find_chain,
+    chain_ecosystem,
     fallback_chains,
     SwapError,
 )
@@ -452,6 +455,90 @@ def swap_widget_url():
     except Exception:
         logger.exception("swap_widget_url failed")
         return jsonify({'error': 'Unable to build swap link right now.'}), 502
+
+
+def _wallet_for_lifi_chain(user_id, from_chain):
+    chain_type = str((from_chain or {}).get("chainType") or "").upper()
+    from_chain_id = str((from_chain or {}).get("id") or "")
+    if chain_type == "SVM" or from_chain_id == "1151111081099710":
+        row = get_user_solana_wallet(user_id)
+    elif chain_type == "EVM":
+        row = get_user_evm_wallet(user_id)
+    else:
+        row = None
+    if not row:
+        return None
+    return {
+        "encrypted_key": row[0],
+        "salt": row[1],
+        "network": row[2],
+        "wallet_address": row[3],
+    }
+
+
+@app.route('/api/swap/execute', methods=['POST'])
+@token_required
+def swap_execute(current_user):
+    data = request.get_json() or {}
+    master_password = data.get('master_password')
+    to_address = (data.get('toAddress') or data.get('to_address') or '').strip()
+    if not master_password:
+        return jsonify({'error': 'Master password is required to sign this swap.'}), 400
+
+    slippage = data.get('slippage')
+    try:
+        slippage = float(slippage) if slippage not in (None, '') else 0.005
+    except (TypeError, ValueError):
+        slippage = 0.005
+
+    intent = {
+        "from_chain_id": data.get('fromChain'),
+        "to_chain_id": data.get('toChain'),
+        "from_token": data.get('fromToken'),
+        "to_token": data.get('toToken'),
+        "amount": data.get('amount'),
+        "to_address": to_address,
+        "slippage": slippage,
+    }
+    required = ('from_chain_id', 'to_chain_id', 'from_token', 'to_token', 'amount', 'to_address')
+    missing = [name for name in required if not intent.get(name)]
+    if missing:
+        return jsonify({'error': 'Missing required fields: ' + ', '.join(missing)}), 400
+
+    if chain_ecosystem(intent["from_chain_id"]) == "UTXO":
+        return jsonify({'error': 'Bitcoin source swaps are not supported in-site yet.'}), 400
+
+    try:
+        chains = get_lifi_chains(api_key=config.LIFI_API_KEY)
+    except Exception:
+        chains = fallback_chains()
+    from_chain = find_chain(chains, intent["from_chain_id"])
+    if not from_chain:
+        return jsonify({'error': 'Unknown source network.'}), 400
+
+    user_id = _uid(current_user)
+    wallet = _wallet_for_lifi_chain(user_id, from_chain)
+    if not wallet:
+        return jsonify({
+            'error': 'No Mouno wallet found for this network. Add one on the Wallet page first.',
+        }), 400
+
+    try:
+        private_key = decrypt_key(wallet["encrypted_key"], wallet["salt"], master_password)
+    except Exception:
+        return jsonify({'error': 'Wrong master password.'}), 400
+
+    try:
+        result = execute_lifi_swap(intent, private_key, from_chain, api_key=config.LIFI_API_KEY)
+        result["from_address"] = wallet["wallet_address"]
+        return jsonify(result)
+    except SwapError as e:
+        return jsonify({'error': e.message}), e.status
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception:
+        logger.exception("swap_execute failed")
+        return jsonify({'error': 'Swap failed. Check your balance, gas, and addresses, then try again.'}), 502
 
 
 @app.route('/api/swap/approval', methods=['GET'])

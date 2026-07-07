@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   RefreshCw,
@@ -14,12 +15,14 @@ import {
   Check,
   AlertCircle,
   Wallet,
-  ExternalLink,
+  Key,
 } from 'lucide-react';
 import { FlashValue } from '../components/common';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Alert, AlertDescription } from '../components/ui/alert';
@@ -85,6 +88,15 @@ interface SwapQuote {
     fromAmount?: string;
   };
 }
+
+interface MounoWallet {
+  id: number;
+  network: string;
+  wallet_address: string | null;
+  label?: string | null;
+}
+
+type ExecutionMode = 'mouno' | 'browser';
 
 interface RecentSwap {
   from_amount: string;
@@ -266,6 +278,7 @@ const TokenPicker: React.FC<{
 };
 
 const Swap: React.FC = () => {
+  const { token } = useAuth();
   const [chains, setChains] = useState<LifiChain[]>([]);
   const [chainsLoading, setChainsLoading] = useState(true);
   const [fromChain, setFromChain] = useState('1');
@@ -281,6 +294,11 @@ const Swap: React.FC = () => {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [fromAddress, setFromAddress] = useState('');
   const [toAddress, setToAddress] = useState('');
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('mouno');
+  const [mounoWallets, setMounoWallets] = useState<MounoWallet[]>([]);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [masterPassword, setMasterPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const supportedChains = useMemo(() => prepareSwapChains(chains), [chains]);
   const popularChains = useMemo(() => featuredSwapChains(chains), [chains]);
@@ -326,6 +344,52 @@ const Swap: React.FC = () => {
   const fromEco = chainEcosystem(fromChain);
   const toEco = chainEcosystem(toChain);
   const evmSource = fromEco === 'EVM';
+  const mounoWalletForSource = useMemo(() => {
+    if (fromEco === 'SVM') {
+      return mounoWallets.find((w) => w.network.startsWith('solana'));
+    }
+    if (fromEco === 'EVM') {
+      return mounoWallets.find(
+        (w) => !w.network.startsWith('solana') && w.network !== 'trc20' && w.network !== 'ton',
+      );
+    }
+    return null;
+  }, [fromEco, mounoWallets]);
+
+  useEffect(() => {
+    setExecutionMode(token ? 'mouno' : 'browser');
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setMounoWallets([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<{ ok?: boolean; data?: { wallets?: MounoWallet[] } }>(
+          '/api/wallets',
+          { silent: true },
+        );
+        if (!cancelled && res.data?.ok) {
+          setMounoWallets(res.data.data?.wallets || []);
+        }
+      } catch {
+        if (!cancelled) setMounoWallets([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (executionMode === 'mouno' && mounoWalletForSource?.wallet_address) {
+      setFromAddress(mounoWalletForSource.wallet_address);
+      if (toEco === 'EVM') setToAddress((prev) => prev || mounoWalletForSource.wallet_address || '');
+    }
+  }, [executionMode, mounoWalletForSource, toEco]);
 
   useEffect(() => {
     let cancelled = false;
@@ -404,11 +468,25 @@ const Swap: React.FC = () => {
 
   const swapButtonLabel = useMemo(() => {
     if (executing) return 'Processing swap…';
-    if (evmSource && !fromAddress.trim()) return 'Connect Wallet & Swap';
+    if (executionMode === 'mouno') {
+      if (!token) return 'Log in to swap';
+      if (!mounoWalletForSource) return 'Add Mouno wallet to swap';
+      if (!toAddress.trim()) return 'Enter receiving address';
+      return 'Swap with Mouno Wallet';
+    }
+    if (evmSource && !fromAddress.trim()) return 'Connect MetaMask to swap';
     if (!addressesReady) return 'Enter addresses to swap';
-    if (quote?.summary?.executable && evmSource) return 'Execute Swap';
-    return 'Swap on Jumper';
-  }, [addressesReady, evmSource, executing, fromAddress, quote?.summary?.executable]);
+    return 'Swap with MetaMask';
+  }, [
+    addressesReady,
+    evmSource,
+    executing,
+    executionMode,
+    fromAddress,
+    mounoWalletForSource,
+    toAddress,
+    token,
+  ]);
 
   const quoteParams = (withAddresses = false) => {
     const params: Record<string, string> = {
@@ -469,64 +547,90 @@ const Swap: React.FC = () => {
     }
   };
 
-  const openJumperSwap = async () => {
-    const res = await apiClient.get<{ url: string }>('/api/swap/widget-url', {
-      params: { ...quoteParams(true), withQuote: '0' },
-      silent: true,
-    });
-    window.open(res.data.url, '_blank', 'noopener,noreferrer');
-  };
-
-  const handleSwapClick = async () => {
-    if (!amount) {
-      toast.error('Enter an amount to swap.');
+  const executeWithMounoWallet = async (password: string) => {
+    const to = toAddress.trim();
+    if (!to || !isValidAddressForEcosystem(to, toEco)) {
+      toast.error('Enter a valid receiving address on the destination network.');
       return;
     }
-    if (evmSource && !fromAddress.trim()) {
-      await connectWallet();
+    if (!mounoWalletForSource) {
+      toast.error('Add a Mouno wallet for this network on the Wallet page first.');
       return;
     }
-    await executeSwap();
+
+    setExecuting(true);
+    try {
+      const res = await apiClient.post<{
+        tx_hash?: string;
+        explorer_url?: string;
+        from_address?: string;
+        error?: string;
+      }>(
+        '/api/swap/execute',
+        {
+          fromChain,
+          toChain,
+          fromToken: normalizeTokenAddress(fromToken),
+          toToken: normalizeTokenAddress(toToken),
+          amount,
+          toAddress: to,
+          slippage: slippageDecimal(slippage),
+          master_password: password,
+        },
+        { silent: true },
+      );
+      const hash = res.data.tx_hash;
+      if (mounoWalletForSource.wallet_address) {
+        setFromAddress(mounoWalletForSource.wallet_address);
+      }
+      if (hash) {
+        toast.success(`Swap submitted: ${hash.slice(0, 10)}…${hash.slice(-6)}`);
+        if (res.data.explorer_url) {
+          toast.message('Track your transaction in the explorer from your wallet history.');
+        }
+      }
+      setPasswordOpen(false);
+      setMasterPassword('');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Swap failed'));
+    } finally {
+      setExecuting(false);
+      setPasswordBusy(false);
+    }
   };
 
-  const executeSwap = async () => {
-    if (!amount) return;
-
+  const executeWithMetaMask = async () => {
     const from = fromAddress.trim();
     const to = toAddress.trim();
 
+    if (!evmSource) {
+      toast.error('Browser-wallet swaps are EVM-only. Use your Mouno Wallet for Solana.');
+      return;
+    }
     if (!from || !isValidAddressForEcosystem(from, fromEco)) {
-      toast.error(
-        evmSource
-          ? 'Connect your wallet or enter a valid source address.'
-          : 'Enter a valid source wallet address for this network.',
-      );
+      toast.error('Connect MetaMask or enter a valid source address.');
       return;
     }
     if (!to || !isValidAddressForEcosystem(to, toEco)) {
       toast.error('Enter a valid receiving address on the destination network.');
       return;
     }
+    if (!hasInjectedWallet()) {
+      toast.error('Install MetaMask or another browser wallet.');
+      return;
+    }
 
     setExecuting(true);
     try {
       const executableQuote = await fetchQuote(true, { updateLoading: false });
-      if (!executableQuote?.summary) {
-        toast.error('Could not refresh an executable quote. Check your addresses and try again.');
+      if (!executableQuote?.summary?.executable) {
+        toast.error('Could not get an executable quote. Check your addresses and try again.');
         return;
       }
 
       const summary = executableQuote.summary;
-      const canExecuteInWallet =
-        summary.executable &&
-        evmSource &&
-        hasInjectedWallet() &&
-        summary.tx_to &&
-        summary.tx_data;
-
-      if (!canExecuteInWallet) {
-        await openJumperSwap();
-        toast.message('Opening Jumper to complete your swap in your wallet.');
+      if (!summary.tx_to || !summary.tx_data) {
+        toast.error('This route cannot be signed in-browser right now.');
         return;
       }
 
@@ -539,7 +643,7 @@ const Swap: React.FC = () => {
         if (!fromTokenAddr || !fromAmount) {
           throw new Error('Missing approval details for this swap.');
         }
-        toast.message(`Approve ${summary.from_symbol || 'token'} in your wallet…`);
+        toast.message(`Approve ${summary.from_symbol || 'token'} in MetaMask…`);
         const approvalRes = await apiClient.get<{ to?: string; data?: string }>('/api/swap/approval', {
           params: { chain: fromChain, token: fromTokenAddr, amount: fromAmount },
           silent: true,
@@ -557,10 +661,10 @@ const Swap: React.FC = () => {
         await new Promise((resolve) => window.setTimeout(resolve, 12000));
       }
 
-      toast.message('Confirm the swap in your wallet…');
+      toast.message('Confirm the swap in MetaMask…');
       const hash = await sendEvmTransaction({
         from,
-        to: summary.tx_to!,
+        to: summary.tx_to,
         data: summary.tx_data,
         value: summary.tx_value || '0x0',
       });
@@ -575,6 +679,44 @@ const Swap: React.FC = () => {
     } finally {
       setExecuting(false);
     }
+  };
+
+  const handleSwapClick = async () => {
+    if (!amount) {
+      toast.error('Enter an amount to swap.');
+      return;
+    }
+    if (executionMode === 'mouno') {
+      if (!token) {
+        toast.error('Log in to swap with your Mouno Wallet.');
+        return;
+      }
+      if (!mounoWalletForSource) {
+        toast.error('Add a wallet on the Wallet page first.');
+        return;
+      }
+      if (!toAddress.trim()) {
+        toast.error('Enter where you want to receive the swapped tokens.');
+        return;
+      }
+      setPasswordOpen(true);
+      return;
+    }
+    if (evmSource && !fromAddress.trim()) {
+      await connectWallet();
+      return;
+    }
+    await executeWithMetaMask();
+  };
+
+  const submitPasswordSwap = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!masterPassword) {
+      toast.error('Enter your master password.');
+      return;
+    }
+    setPasswordBusy(true);
+    await executeWithMounoWallet(masterPassword);
   };
 
   const reverseDirection = () => {
@@ -736,53 +878,91 @@ const Swap: React.FC = () => {
               </div>
 
               <div className="p-4 rounded-xl border border-border/60 bg-muted/10 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
-                    Wallet &amp; addresses
-                  </span>
-                  {evmSource && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[10px] font-bold"
-                      onClick={connectWallet}
-                      disabled={connectingWallet}
-                    >
-                      {connectingWallet ? (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      ) : (
-                        <Wallet className="h-3 w-3 mr-1" />
-                      )}
-                      {connectedAddress ? 'Reconnect' : 'Connect wallet'}
-                    </Button>
-                  )}
+                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
+                  How to sign the swap
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={executionMode === 'mouno' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-9 text-[11px] font-bold"
+                    onClick={() => setExecutionMode('mouno')}
+                  >
+                    <Key className="h-3.5 w-3.5 mr-1" />
+                    Mouno Wallet
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={executionMode === 'browser' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-9 text-[11px] font-bold"
+                    onClick={() => setExecutionMode('browser')}
+                    disabled={!evmSource}
+                  >
+                    <Wallet className="h-3.5 w-3.5 mr-1" />
+                    MetaMask
+                  </Button>
                 </div>
-                {evmSource ? (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Source (you pay from)</span>
-                    <Input
-                      value={fromAddress}
-                      onChange={(e) => { setFromAddress(e.target.value); setQuote(null); }}
-                      placeholder={connectedAddress ? connectedAddress : 'Connect wallet or paste 0x address'}
-                      className="font-mono text-xs h-10 bg-background/60"
-                      spellCheck={false}
-                    />
+
+                {executionMode === 'mouno' ? (
+                  <div className="space-y-2">
+                    {!token ? (
+                      <Alert className="bg-muted/30 border-border py-2">
+                        <AlertDescription className="text-[11px]">
+                          <Link to="/login" className="text-primary font-bold hover:underline">Log in</Link>
+                          {' '}to swap with your saved Mouno Wallet — everything stays on this site.
+                        </AlertDescription>
+                      </Alert>
+                    ) : mounoWalletForSource ? (
+                      <div className="rounded-lg border border-border/50 bg-background/50 p-3 space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Paying from</p>
+                        <p className="font-mono text-xs break-all">{mounoWalletForSource.wallet_address}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {mounoWalletForSource.label || mounoWalletForSource.network} · signed on Mouno servers with your master password
+                        </p>
+                      </div>
+                    ) : (
+                      <Alert className="bg-warning/5 border-warning/20 py-2">
+                        <AlertDescription className="text-[11px]">
+                          No wallet for this network.{' '}
+                          <Link to="/wallet" className="text-primary font-bold hover:underline">Add one on Wallet</Link>
+                          {' '}first.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                      Source address ({fromChainData?.name || 'source network'})
-                    </span>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">MetaMask address</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10px] font-bold"
+                        onClick={connectWallet}
+                        disabled={connectingWallet}
+                      >
+                        {connectingWallet ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Wallet className="h-3 w-3 mr-1" />
+                        )}
+                        {connectedAddress ? 'Reconnect' : 'Connect'}
+                      </Button>
+                    </div>
                     <Input
                       value={fromAddress}
                       onChange={(e) => { setFromAddress(e.target.value); setQuote(null); }}
-                      placeholder={fromEco === 'SVM' ? 'Solana wallet address' : 'Bitcoin address'}
+                      placeholder="0x… your MetaMask address"
                       className="font-mono text-xs h-10 bg-background/60"
                       spellCheck={false}
                     />
+                    <p className="text-[10px] text-muted-foreground">MetaMask opens on this page only — no redirect to other sites.</p>
                   </div>
                 )}
+
                 <div className="space-y-1.5">
                   <span className="text-[10px] font-bold uppercase text-muted-foreground">
                     Receiving address ({toChainData?.name || 'destination'})
@@ -801,12 +981,6 @@ const Swap: React.FC = () => {
                     spellCheck={false}
                   />
                 </div>
-                <Alert className="bg-primary/5 border-primary/20 py-2">
-                  <Wallet className="h-4 w-4 text-primary" />
-                  <AlertDescription className="text-[11px] text-muted-foreground">
-                    Required to swap: fill both addresses above, then use the green <strong className="text-foreground">Swap</strong> button below.
-                  </AlertDescription>
-                </Alert>
               </div>
 
               {quote && (
@@ -868,15 +1042,10 @@ const Swap: React.FC = () => {
                     <Wallet className="mr-2 h-5 w-5" />
                     {swapButtonLabel}
                   </>
-                ) : quote?.summary?.executable && evmSource ? (
-                  <>
-                    {swapButtonLabel}
-                    <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
-                  </>
                 ) : (
                   <>
                     {swapButtonLabel}
-                    <ExternalLink className="ml-2 h-5 w-5" />
+                    <RefreshCw className="ml-2 h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
                   </>
                 )}
               </Button>
@@ -898,10 +1067,55 @@ const Swap: React.FC = () => {
                 )}
               </Button>
               <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
-                Powered by Li.Fi · EVM swaps sign in MetaMask · others open jumper.exchange
+                Powered by Li.Fi · swaps execute entirely on Mouno
               </p>
             </CardFooter>
           </Card>
+
+          {passwordOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+              onClick={() => !passwordBusy && setPasswordOpen(false)}
+            >
+              <div
+                role="dialog"
+                className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-bold">Confirm swap</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enter your master password to sign this swap with your Mouno Wallet. You stay on this site the whole time.
+                </p>
+                <form onSubmit={submitPasswordSwap} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="swap-master-password">Master password</Label>
+                    <Input
+                      id="swap-master-password"
+                      type="password"
+                      value={masterPassword}
+                      onChange={(e) => setMasterPassword(e.target.value)}
+                      placeholder="Your wallet master password"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setPasswordOpen(false)}
+                      disabled={passwordBusy}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={passwordBusy || executing}>
+                      {passwordBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign & swap'}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 space-y-5">
@@ -914,7 +1128,7 @@ const Swap: React.FC = () => {
             <CardContent className="space-y-3 text-xs text-muted-foreground leading-relaxed">
               <p>1. Select source and destination <strong className="text-foreground font-semibold">networks</strong> ({supportedChains.length} supported).</p>
               <p>2. Tap a <strong className="text-foreground font-semibold">popular token</strong> or use &quot;Search by contract / mint address&quot; for any other token.</p>
-              <p>3. Enter amount and get a live cross-chain quote.</p>
+              <p>3. Choose <strong className="text-foreground font-semibold">Mouno Wallet</strong> (recommended) or MetaMask, then swap without leaving this site.</p>
               <div className="p-3 rounded-xl bg-muted/30 border border-muted flex items-start gap-3">
                 <ShieldCheck className="h-5 w-5 text-success shrink-0" />
                 <div>

@@ -468,3 +468,125 @@ def short_tx_data(data, limit=180):
     if len(data) <= limit:
         return data
     return f"{data[:limit]}…"
+
+
+CHAIN_ID_TO_NETWORK = {
+    "1": "ethereum",
+    "56": "bsc",
+    "137": "polygon",
+    "43114": "avalanche",
+    "8453": "base",
+    "42161": "arbitrum",
+    "10": "optimism",
+    "1151111081099710": "solana",
+}
+
+
+def lifi_chain_to_network(chain):
+    """Map a LI.FI chain descriptor to an internal network key, if known."""
+    if not chain:
+        return None
+    cid = str(chain.get("id"))
+    if cid in CHAIN_ID_TO_NETWORK:
+        return CHAIN_ID_TO_NETWORK[cid]
+    chain_type = str(chain.get("chainType") or "").upper()
+    key = str(chain.get("key") or "").lower()
+    if chain_type == "SVM" or key == "sol":
+        return "solana"
+    if chain_type == "EVM":
+        return None
+    return None
+
+
+def chain_rpc_url(chain):
+    metamask = (chain or {}).get("metamask") or {}
+    urls = metamask.get("rpcUrls") or []
+    return urls[0] if urls else None
+
+
+def chain_explorer_url(chain):
+    metamask = (chain or {}).get("metamask") or {}
+    urls = metamask.get("blockExplorerUrls") or []
+    base = urls[0] if urls else ""
+    if base and not base.endswith("/"):
+        base = f"{base}/"
+    return base
+
+
+def execute_lifi_swap(intent, private_key, from_chain, api_key=None):
+    """Sign and broadcast a LI.FI swap entirely on the server (in-bot style)."""
+    import time
+
+    from crypto_manager import (
+        get_wallet_address,
+        send_raw_evm_transaction,
+        send_raw_solana_transaction,
+    )
+
+    from_chain_id = str(intent.get("from_chain_id"))
+    chain_type = str((from_chain or {}).get("chainType") or "").upper()
+    if chain_ecosystem(from_chain_id) == "UTXO":
+        raise SwapError(
+            "Bitcoin source swaps are not supported in-site yet. Choose an EVM or Solana source network.",
+            400,
+        )
+
+    network = lifi_chain_to_network(from_chain)
+    rpc_url = chain_rpc_url(from_chain)
+    addr_network = network or ("solana" if chain_type == "SVM" else "ethereum")
+    signer = get_wallet_address(addr_network, private_key)
+
+    exec_intent = dict(intent)
+    exec_intent["from_address"] = signer
+    exec_intent["wallet"] = signer
+
+    quote = quote_lifi(exec_intent, api_key=api_key)
+    summary = summarize_quote(quote)
+    if not summary.get("executable"):
+        raise SwapError(
+            "Enter a valid receiving address on the destination network to execute this swap.",
+            400,
+        )
+
+    if summary.get("approval_needed"):
+        action = quote.get("action") or {}
+        from_token = action.get("fromToken") or {}
+        approval = fetch_lifi_approval(
+            from_chain_id,
+            from_token.get("address"),
+            action.get("fromAmount"),
+            api_key=api_key,
+        )
+        if chain_type != "SVM" and from_chain_id != "1151111081099710":
+            send_raw_evm_transaction(
+                network,
+                private_key,
+                approval["to"],
+                approval["data"],
+                rpc_url=rpc_url,
+            )
+            time.sleep(15)
+
+    tx = quote.get("transactionRequest") or {}
+    if chain_type == "SVM" or from_chain_id == "1151111081099710":
+        tx_hash = send_raw_solana_transaction(private_key, tx.get("data"), rpc_url=rpc_url)
+    elif chain_type == "EVM" or network is None:
+        if not rpc_url and not network:
+            raise SwapError("This EVM network is not supported for in-site swaps yet.", 400)
+        tx_hash = send_raw_evm_transaction(
+            network,
+            private_key,
+            tx["to"],
+            tx["data"],
+            value=tx.get("value", 0),
+            rpc_url=rpc_url,
+        )
+    else:
+        raise SwapError("This source network is not supported for in-site swaps.", 400)
+
+    explorer = chain_explorer_url(from_chain)
+    return {
+        "tx_hash": tx_hash,
+        "summary": summary,
+        "explorer_url": f"{explorer}{tx_hash}" if explorer else None,
+    }
