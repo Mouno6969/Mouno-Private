@@ -19,6 +19,21 @@ class SwapServiceTest(unittest.TestCase):
         self.assertEqual(normalize_token_input("sol", "sol"), "11111111111111111111111111111111")
         self.assertEqual(normalize_token_input("native", "1"), "0x0000000000000000000000000000000000000000")
 
+    def test_normalize_token_input_resolves_chain_stable_aliases(self):
+        from swap_service import normalize_token_input
+        self.assertEqual(
+            normalize_token_input("usdc", "137").lower(),
+            "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+        )
+        self.assertEqual(
+            normalize_token_input("usdt", "56").lower(),
+            "0x55d398326f99059ff775485246999027b3197955",
+        )
+        self.assertEqual(
+            normalize_token_input("usdc", "1151111081099710"),
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        )
+
     def test_find_chain_matches_id_key_name_and_partial_name(self):
         chains = [
             {"id": 1, "key": "eth", "name": "Ethereum", "coin": "ETH"},

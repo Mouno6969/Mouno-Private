@@ -26,7 +26,18 @@ import db
 import config
 import notifier
 from balance import get_all_balances
-from swap_service import quote_lifi, summarize_quote, get_lifi_chains, fetch_token_price_usd, fallback_chains, SwapError
+from swap_service import (
+    quote_lifi,
+    summarize_quote,
+    summarize_token_info,
+    get_lifi_chains,
+    fetch_token,
+    fetch_token_price_usd,
+    fetch_lifi_approval,
+    build_lifi_widget_url,
+    fallback_chains,
+    SwapError,
+)
 from crypto_manager import (
     get_user_balance, send_from_user_wallet, get_wallet_address, encrypt_key, save_user_wallet,
     add_user_wallet, list_user_wallets, delete_user_wallet_by_id, send_from_wallet,
@@ -356,22 +367,26 @@ def get_chains():
         logger.exception("get_chains failed")
         return jsonify(fallback_chains())
 
+@app.route('/api/swap/token', methods=['GET'])
+def swap_token_lookup():
+    chain = request.args.get('chain')
+    token = request.args.get('token')
+    if not chain or not token:
+        return jsonify({'error': 'chain and token are required'}), 400
+    try:
+        info = fetch_token(chain, token, api_key=config.LIFI_API_KEY)
+        return jsonify(summarize_token_info(info))
+    except SwapError as e:
+        return jsonify({'error': e.message}), e.status
+    except Exception:
+        logger.exception("swap_token_lookup failed")
+        return jsonify({'error': 'Unable to look up this token right now.'}), 502
+
+
 @app.route('/api/swap/quote', methods=['GET'])
 def swap_quote():
-    intent = {
-        "from_chain_id": request.args.get('fromChain'),
-        "to_chain_id": request.args.get('toChain'),
-        "from_token": request.args.get('fromToken'),
-        "to_token": request.args.get('toToken'),
-        "amount": request.args.get('amount'),
-        # Source/destination addresses are optional: when omitted (or when they
-        # do not match a leg's network), the service falls back to a valid
-        # per-ecosystem placeholder so the quote still prices. Real execution
-        # should pass the user's own address for each side.
-        "from_address": request.args.get('fromAddress'),
-        "to_address": request.args.get('toAddress'),
-        "wallet": request.args.get('fromAddress'),
-    }
+    intent = _swap_intent_from_request()
+    intent["wallet"] = request.args.get('fromAddress')
 
     required = ('from_chain_id', 'to_chain_id', 'from_token', 'to_token', 'amount')
     missing = [name for name in required if not intent.get(name)]
@@ -395,6 +410,67 @@ def swap_quote():
     except Exception:
         logger.exception("swap_quote failed")
         return jsonify({'error': 'Unable to get a swap quote right now. Please try again.'}), 502
+
+
+def _swap_intent_from_request():
+    slippage = request.args.get('slippage')
+    try:
+        slippage = float(slippage) if slippage not in (None, '') else 0.005
+    except (TypeError, ValueError):
+        slippage = 0.005
+    return {
+        "from_chain_id": request.args.get('fromChain'),
+        "to_chain_id": request.args.get('toChain'),
+        "from_token": request.args.get('fromToken'),
+        "to_token": request.args.get('toToken'),
+        "amount": request.args.get('amount'),
+        "from_address": request.args.get('fromAddress'),
+        "to_address": request.args.get('toAddress'),
+        "wallet": request.args.get('fromAddress') or request.args.get('toAddress'),
+        "slippage": slippage,
+    }
+
+
+@app.route('/api/swap/widget-url', methods=['GET'])
+def swap_widget_url():
+    intent = _swap_intent_from_request()
+    intent["wallet"] = request.args.get('toAddress') or request.args.get('fromAddress')
+    required = ('from_chain_id', 'to_chain_id', 'from_token', 'to_token', 'amount')
+    missing = [name for name in required if not intent.get(name)]
+    if missing:
+        return jsonify({'error': 'Missing required fields: ' + ', '.join(missing)}), 400
+    try:
+        quote = None
+        if request.args.get('withQuote', '1') not in ('0', 'false', 'no'):
+            quote = quote_lifi(intent, api_key=config.LIFI_API_KEY)
+        url = build_lifi_widget_url(intent, quote)
+        return jsonify({'url': url})
+    except SwapError as e:
+        return jsonify({'error': e.message}), e.status
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception:
+        logger.exception("swap_widget_url failed")
+        return jsonify({'error': 'Unable to build swap link right now.'}), 502
+
+
+@app.route('/api/swap/approval', methods=['GET'])
+def swap_approval():
+    chain = request.args.get('chain')
+    token = request.args.get('token')
+    amount = request.args.get('amount')
+    if not chain or not token or not amount:
+        return jsonify({'error': 'chain, token, and amount are required'}), 400
+    try:
+        data = fetch_lifi_approval(chain, token, amount, api_key=config.LIFI_API_KEY)
+        return jsonify(data)
+    except http_requests.HTTPError:
+        logger.exception("swap_approval failed")
+        return jsonify({'error': 'Unable to prepare token approval right now.'}), 502
+    except Exception:
+        logger.exception("swap_approval failed")
+        return jsonify({'error': 'Unable to prepare token approval right now.'}), 502
+
 
 @app.route('/api/referral', methods=['GET'])
 @token_required

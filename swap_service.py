@@ -69,7 +69,7 @@ def _friendly_lifi_message(message, status):
         return "A wallet address for one of the selected networks is missing or invalid."
     if "amount" in text:
         return "The amount is too small or invalid for this swap."
-    if "token" in text and ("not" in text or "invalid" in text or "unknown" in text):
+    if any(s in text for s in ("token not found", "token is invalid", "invalid token", "unknown token", "token unknown")):
         return "One of the selected tokens is not supported on its network."
     if status == 404:
         return "No swap route is available for this pair right now."
@@ -245,9 +245,30 @@ def resolve_quote_addresses(intent):
     return from_address, to_address, from_real, to_real
 
 
+# LI.FI-verified default stablecoins per chain (used when the client sends
+# generic aliases like "usdc"/"usdt" or omits a chain-specific contract).
+CHAIN_DEFAULT_STABLE = {
+    "1": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # Ethereum USDC
+    "56": "0x55d398326f99059fF775485246999027B3197955",  # BSC USDT
+    "137": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",  # Polygon USDC
+    "8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",  # Base USDC
+    "43114": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",  # Avalanche USDC
+    "1151111081099710": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # Solana USDC
+}
+
+
+def resolve_stable_token(chain_id, preferred="usdc"):
+    """Return the default stablecoin address for a chain."""
+    cid = str(chain_id or "").strip()
+    if preferred.lower() == "usdt" and cid == "56":
+        return CHAIN_DEFAULT_STABLE["56"]
+    return CHAIN_DEFAULT_STABLE.get(cid) or CHAIN_DEFAULT_STABLE.get("1")
+
+
 def normalize_token_input(token, chain_id=None):
     token = str(token or "").strip()
-    is_native = token.lower() in {"native", "eth", "bnb", "matic", "avax", "sol", "btc"}
+    lowered = token.lower()
+    is_native = lowered in {"native", "eth", "bnb", "matic", "avax", "sol", "btc"}
     if is_native:
         ecosystem = chain_ecosystem(chain_id) if chain_id is not None else "EVM"
         if ecosystem == "SVM":
@@ -255,12 +276,32 @@ def normalize_token_input(token, chain_id=None):
         if ecosystem == "UTXO":
             return "bitcoin"
         return "0x0000000000000000000000000000000000000000"
+    if lowered in {"usdc", "usdt", "stable", "stablecoin"}:
+        if chain_id is not None:
+            resolved = resolve_stable_token(chain_id, preferred=lowered)
+            if resolved:
+                return resolved
     return token
 
 
 def fetch_token(chain_id, token, api_key=None, timeout=20):
     params = {"chain": str(chain_id), "token": normalize_token_input(token, chain_id)}
     return _lifi_get("/token", params, api_key, timeout)
+
+
+def summarize_token_info(token_data):
+    """Return a compact, client-safe token descriptor from LI.FI /token."""
+    if not isinstance(token_data, dict):
+        return {}
+    return {
+        "address": token_data.get("address"),
+        "symbol": token_data.get("symbol"),
+        "name": token_data.get("name"),
+        "decimals": token_data.get("decimals"),
+        "logoURI": token_data.get("logoURI"),
+        "priceUSD": token_data.get("priceUSD"),
+        "chainId": token_data.get("chainId"),
+    }
 
 
 def fetch_token_price_usd(chain_id, token, api_key=None, timeout=20):
