@@ -81,6 +81,7 @@ class ChatScopedUpdateProcessor(BaseUpdateProcessor):
         self._locks.clear()
 
 from balance import GAS_META, check_sufficient, get_all_balances, get_native_gas_balances
+import support_tickets
 from bsc_sender import send_bsc_usdt
 from config import (
     ADMIN_ID,
@@ -1854,6 +1855,9 @@ def command_help_text(user_id=None):
             ("/seller_badge USER_ID new|verified|trusted", "seller badge update"),
             ("/aiadmin why order failed ORD-123", "AI admin diagnostics"),
             ("/ai_usage", "AI model success/failure counts"),
+            ("/tickets", "open web support tickets (escalated from John)"),
+            ("/ticket ID", "view a support ticket thread"),
+            ("/ticket ID reply MESSAGE", "reply to a ticket as human agent"),
         ]
         lines += ["", "Admin Commands"] + [f"{cmd} — {desc}" for cmd, desc in admin_commands]
     lines.append(f"\nSupport: @{SUPPORT_USERNAME.lstrip('@')}")
@@ -4174,6 +4178,38 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data != "tid_start":
         context.user_data.pop("telegram_id_finder", None)
 
+    if query.data.startswith("tk_"):
+        if not is_admin(user_id):
+            return
+        if query.data.startswith("tk_view_"):
+            await send_support_ticket_view(query, int(query.data.split("_", 2)[2]), edit=True)
+            return
+        if query.data.startswith("tk_reply_"):
+            ticket_id = int(query.data.split("_", 2)[2])
+            context.user_data["ticket_reply_id"] = ticket_id
+            await query.edit_message_text(
+                f"✍️ Send your reply for ticket #{ticket_id}.\nSend /cancel to abort."
+            )
+            return
+        if query.data.startswith("tk_resolve_"):
+            ticket_id = int(query.data.split("_", 2)[2])
+            ticket = support_tickets.update_ticket_status_admin(ticket_id, "resolved")
+            if not ticket:
+                await query.edit_message_text(f"❌ Ticket #{ticket_id} not found.")
+                return
+            context.user_data.pop("ticket_reply_id", None)
+            await send_support_ticket_view(query, ticket_id, edit=True)
+            return
+        if query.data.startswith("tk_close_"):
+            ticket_id = int(query.data.split("_", 2)[2])
+            ticket = support_tickets.update_ticket_status_admin(ticket_id, "closed")
+            if not ticket:
+                await query.edit_message_text(f"❌ Ticket #{ticket_id} not found.")
+                return
+            context.user_data.pop("ticket_reply_id", None)
+            await query.edit_message_text(f"🔒 Ticket #{ticket_id} closed.")
+            return
+
     if query.data == "language_menu":
         await query.edit_message_text(tr("choose_language", lang), reply_markup=language_keyboard())
 
@@ -5655,6 +5691,9 @@ async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["ai_order_context_identifier"] = order_context
         await update.message.reply_text("✅ AI Support closed." if lang == "en" else "✅ AI Support বন্ধ হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
         return ConversationHandler.END
+    if context.user_data.pop("ticket_reply_id", None):
+        await update.message.reply_text("✅ Ticket reply cancelled." if lang == "en" else "✅ টিকেট রিপ্লাই বাতিল।")
+        return ConversationHandler.END
     await update.message.reply_text("✅ Cancelled." if lang == "en" else "✅ বাতিল হয়েছে।", reply_markup=main_menu(update.effective_user.id, lang))
     return ConversationHandler.END
 
@@ -6255,6 +6294,161 @@ def pending_orders_text(rows):
             "━━━━━━━━━━━━━━━━━━━━━\n"
         )
     return msg
+
+
+def _ticket_role_label(role):
+    return {
+        "user": "👤 User",
+        "agent": "🧑‍💼 Agent",
+        "system": "🤖 System",
+    }.get(role, role or "?")
+
+
+def _truncate_telegram(text, limit=3900):
+    value = (text or "").strip()
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3] + "..."
+
+
+def support_ticket_keyboard(ticket_id):
+    tid = int(ticket_id)
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✍️ Reply", callback_data=f"tk_reply_{tid}"),
+                InlineKeyboardButton("🔄 Refresh", callback_data=f"tk_view_{tid}"),
+            ],
+            [
+                InlineKeyboardButton("✅ Resolve", callback_data=f"tk_resolve_{tid}"),
+                InlineKeyboardButton("🔒 Close", callback_data=f"tk_close_{tid}"),
+            ],
+        ]
+    )
+
+
+def format_support_ticket_text(ticket):
+    username = ticket.get("username") or "unknown"
+    lines = [
+        f"🎫 Ticket #{ticket['id']}",
+        f"👤 User: {username} (web id {ticket['user_id']})",
+        f"📌 Subject: {ticket.get('subject') or 'Support request'}",
+        f"📊 Status: {ticket.get('status')} | Priority: {ticket.get('priority')}",
+        f"🕐 Updated: {ticket.get('updated_at') or ticket.get('created_at') or 'n/a'}",
+        "",
+        "── Thread ──",
+    ]
+    messages = ticket.get("messages") or []
+    if not messages:
+        lines.append("(no messages yet)")
+    else:
+        for msg in messages[-12:]:
+            body = (msg.get("body") or "").strip()
+            if not body:
+                continue
+            if msg.get("sender_role") == "system" and len(body) > 500:
+                body = body[:500] + "..."
+            lines.append(f"{_ticket_role_label(msg.get('sender_role'))}:\n{body}")
+            lines.append("")
+    lines.append("Reply: tap ✍️ Reply or send\n/ticket {id} reply your message".format(id=ticket["id"]))
+    return _truncate_telegram("\n".join(lines))
+
+
+async def send_support_ticket_view(target, ticket_id, *, edit=False):
+    ticket = support_tickets.get_support_ticket_admin(ticket_id)
+    if not ticket:
+        text = f"❌ Ticket #{ticket_id} not found."
+        if edit and hasattr(target, "edit_message_text"):
+            await target.edit_message_text(text)
+        else:
+            await target.reply_text(text)
+        return None
+    text = format_support_ticket_text(ticket)
+    markup = support_ticket_keyboard(ticket_id)
+    if edit and hasattr(target, "edit_message_text"):
+        await target.edit_message_text(text, reply_markup=markup)
+    else:
+        await target.reply_text(text, reply_markup=markup)
+    return ticket
+
+
+async def admin_reply_to_ticket(update, context, ticket_id, body, agent_name=None):
+    ticket = support_tickets.add_agent_ticket_reply(ticket_id, body, agent_name=agent_name)
+    if not ticket:
+        await update.message.reply_text(f"❌ Could not reply to ticket #{ticket_id}.")
+        return False
+    support_tickets.notify_ticket_user(ticket["user_id"], ticket_id, body)
+    context.user_data.pop("ticket_reply_id", None)
+    await update.message.reply_text(
+        f"✅ Replied to ticket #{ticket_id}.\nUser will see it on the website under My Tickets."
+    )
+    await send_support_ticket_view(update.message, ticket_id)
+    return True
+
+
+async def tickets_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    rows = support_tickets.list_open_support_tickets(limit=15)
+    if not rows:
+        await update.message.reply_text("✅ No open web support tickets.")
+        return
+    lines = ["🎫 Open web support tickets", ""]
+    for t in rows:
+        username = t.get("username") or "unknown"
+        subject = (t.get("subject") or "Support request")[:60]
+        lines.append(
+            f"#{t['id']} · {t.get('status')} · {username}\n"
+            f"   {subject}\n"
+            f"   updated {t.get('updated_at') or t.get('created_at') or 'n/a'}"
+        )
+    lines.append("")
+    lines.append("View: /ticket ID")
+    lines.append("Reply: /ticket ID reply your message")
+    await update.message.reply_text(_truncate_telegram("\n".join(lines)))
+
+
+async def ticket_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "Usage:\n"
+            "/ticket ID — view ticket\n"
+            "/ticket ID reply your message — reply as agent"
+        )
+        return
+    try:
+        ticket_id = int(args[0])
+    except (TypeError, ValueError):
+        await update.message.reply_text("❌ Ticket ID must be a number. Example: /ticket 7")
+        return
+
+    if len(args) >= 2 and args[1].lower() == "reply":
+        body = " ".join(args[2:]).strip()
+        if not body:
+            context.user_data["ticket_reply_id"] = ticket_id
+            await update.message.reply_text(
+                f"✍️ Send your reply for ticket #{ticket_id}.\nSend /cancel to abort."
+            )
+            return
+        agent = update.effective_user.username or update.effective_user.first_name or "Support"
+        await admin_reply_to_ticket(update, context, ticket_id, body, agent_name=agent)
+        return
+
+    await send_support_ticket_view(update.message, ticket_id)
+
+
+async def handle_support_ticket_reply(update, context, user_id):
+    ticket_id = context.user_data.get("ticket_reply_id")
+    if not ticket_id or not is_admin(user_id):
+        return False
+    body = (update.message.text or "").strip()
+    if not body or body.startswith("/"):
+        return False
+    agent = update.effective_user.username or update.effective_user.first_name or "Support"
+    return await admin_reply_to_ticket(update, context, int(ticket_id), body, agent_name=agent)
 
 
 async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -8170,6 +8364,9 @@ async def waiting_trxid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await handle_telegram_id_finder_message(update, context, user_id, lang, incoming_text):
         return
 
+    if await handle_support_ticket_reply(update, context, user_id):
+        return
+
     if await handle_solana_refund_text(update, context, user_id, lang, incoming_text):
         return
 
@@ -9653,6 +9850,8 @@ async def main():
     app.add_handler(CommandHandler("send", send_cmd))
     app.add_handler(CommandHandler("gencode", gencode_cmd))
     app.add_handler(CommandHandler("giveaway", giveaway_cmd))
+    app.add_handler(CommandHandler("tickets", tickets_cmd))
+    app.add_handler(CommandHandler("ticket", ticket_cmd))
     app.add_handler(CommandHandler("pending", pending_cmd))
     app.add_handler(CommandHandler("failed", failed_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
